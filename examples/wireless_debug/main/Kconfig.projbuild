@@ -1,0 +1,32 @@
+menu "Example Configuration"
+
+    config EXAMPLE_WEB_SERVER
+        bool "Enable WebServer debugging"
+        default n
+        help
+            Enable WebServer debugging
+
+    config EXAMPLE_MDNS_HOST_NAME
+        string "mDNS Host Name"
+        depends on EXAMPLE_WEB_SERVER
+        default "espnow-webserver"
+        help
+            Specify the domain name used in the mDNS service.
+            Note that webpage also take it as a part of URL where it will send GET/POST requests to.
+
+
+    config EXAMPLE_WIFI_SOFTAP_SSID
+        string "Wi-Fi SoftAP SSID"
+        depends on EXAMPLE_WEB_SERVER
+        default "espnow-webserver"
+        help
+            SoftAP SSID (network name) for the example to connect to.
+
+    config EXAMPLE_WEB_MOUNT_POINT
+        string "Website mount point in VFS"
+        depends on EXAMPLE_WEB_SERVER
+        default "/www"
+        help
+            Specify the mount point in VFS.
+
+endmenu

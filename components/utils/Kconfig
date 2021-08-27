@@ -1,0 +1,43 @@
+menu "ESP-NOW Utils Configuration"
+    choice MEM_ALLOCATION_LOCATION
+        prompt "The memory location allocated by MALLOC CALLOC and REALLOC"
+        help 
+            choice where to allocate memory, can be SPIRAM or default
+
+        config MEM_ALLOCATION_DEFAULT
+            bool "default allocation strategy"
+        config MEM_ALLOCATION_SPIRAM
+            depends on ESP32S2_SPIRAM_SUPPORT || ESP32_SPIRAM_SUPPORT
+            bool "allocate memory in SPIRAM"
+    endchoice
+        
+    config MEM_DEBUG
+        bool "Memory debug"
+        default y
+        help
+            Memory debug.
+
+    config MEM_DBG_INFO_MAX
+        int "Memory debug record max."
+        default 128
+        help
+            Config Memory debug record max.
+
+    config NVS_NAMESPACE
+        string "Namespace where data is stored in NVS"
+        default "espnow"
+        help
+            Namespace where data is stored in NVS.
+
+    config REBOOT_UNBROKEN_INTERVAL_TIMEOUT
+        int "Continuous reboot interval(ms)"
+        default 5000
+        help
+        Continuous reboot interval.
+
+    config REBOOT_UNBROKEN_FALLBACK_COUNT
+        int "Continuous restart triggers version rollback"
+        default 30
+        help
+        Continuous restart triggers version rollback.
+endmenu
