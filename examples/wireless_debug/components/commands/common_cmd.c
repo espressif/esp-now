@@ -653,8 +653,13 @@ static int control_func(int argc, char **argv)
     }
 
     esp_err_t ret = ESP_OK;
-    espnow_frame_head_t frame_head = {0};
-    espnow_ctrl_initiator_get_config(&frame_head);
+    espnow_frame_head_t frame_head = {    
+        .retransmit_count = 10,
+        .broadcast        = true,
+        .channel          = ESPNOW_CHANNEL_ALL,
+        .forward_ttl      = 10,
+        .forward_rssi     = -25,
+    };
 
     if (control_args.ack->count) {
         frame_head.ack = true;
