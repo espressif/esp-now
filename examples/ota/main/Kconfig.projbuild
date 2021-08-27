@@ -1,0 +1,31 @@
+menu "ESP-NOW OTA Example Configuration"
+    config FIRMWARE_UPGRADE_URL
+        string "Firmware upgrade url endpoint"
+        default "http://192.168.0.3:8070/hello-world.bin"
+        help
+            URL of server which hosts the firmware image.
+
+    choice ESPNOW_OTA_MODE
+        bool "ESP-NOW Mode"
+        default ESPNOW_OTA_INITATOR
+        help
+            Select the ESP-NOW Mode.
+
+        config ESPNOW_OTA_INITATOR
+            bool "ESP-NOW OTA initator Mode"
+            help
+                Select the ESP-NOW OTA initator Mode.
+
+        config ESPNOW_OTA_RESPONDER
+            bool "ESP-NOW OTA responder Mode"
+            help
+                Select the ESP-NOW OTA responder Mode.
+
+    endchoice
+
+    config ESPNOW_OTA_MODE
+        int
+        default 0 if ESPNOW_OTA_INITATOR
+        default 1 if ESPNOW_OTA_RESPONDER
+
+endmenu

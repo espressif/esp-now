@@ -1,0 +1,191 @@
+// Copyright 2017 Espressif Systems (Shanghai) PTE LTD
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+
+#include "freertos/FreeRTOS.h"
+#include "freertos/queue.h"
+#include "freertos/task.h"
+#include "freertos/event_groups.h"
+
+#include "esp_system.h"
+#include "esp_log.h"
+#include "esp_wifi.h"
+#include "esp_netif.h"
+
+#include "esp_utils.h"
+#include "esp_storage.h"
+// #include "espnow_ctrl.h"
+#include "espnow.h"
+
+#include "led_pwm.h"
+#include "button_driver.h"
+
+
+#include "espnow_console.h"
+#include "espnow_log.h"
+
+
+typedef struct log_record_ {
+    size_t total;
+    size_t info;
+    size_t warning;
+    size_t error;
+    size_t restart;
+    size_t coredump;
+    uint32_t timestamp;
+    uint8_t mac[6];
+    SLIST_ENTRY(log_record_) next;
+} log_record_t;
+
+static const char *TAG = "debug_recv";
+
+static SLIST_HEAD(log_record_list_, log_record_) s_log_record_list;
+
+static esp_err_t log_analysis(const uint8_t *mac, const uint8_t *data)
+{
+    uint32_t timestamp     = 0;
+    log_record_t *log_record = NULL;
+
+    SLIST_FOREACH(log_record, &s_log_record_list, next) {
+        if (!memcmp(log_record->mac, mac, 6)) {
+            break;
+        }
+    }
+
+    if (!log_record) {
+        log_record = (log_record_t *)calloc(1, sizeof(log_record_t));
+        memcpy(log_record->mac, mac, 6);
+        SLIST_INSERT_HEAD(&s_log_record_list, log_record, next);
+    }
+
+    /**< get log tag */
+    uint8_t log_tag_index = (data[0] == 0x1b) ? 7 : 0;
+
+    switch (data[log_tag_index]) {
+        case 'I':
+            log_record->info++;
+            break;
+
+        case 'W':
+            log_record->warning++;
+            break;
+
+        case 'E':
+            log_record->error++;
+            break;
+
+        default:
+            break;
+    }
+
+    log_record->total++;
+
+    /**< run time tag */
+    if (sscanf((char *)data, "%*[^(](%d", &timestamp)) {
+        if (timestamp  + 1000 < log_record->timestamp) {
+            log_record->restart++;
+        }
+
+        log_record->timestamp = timestamp;
+    }
+
+    return ESP_OK;
+}
+
+// void print_system_info_timercb(void *timer)
+// {
+//     char *buffer = NULL;
+//     int count = 0;
+//     log_record_t *log_record = NULL;
+
+//     lcd_obj->setTextColor(COLOR_YELLOW, COLOR_BLACK);
+//     asprintf(&buffer, "   ADDR     DMP  RES  ERR  WARN  INFO");
+//     lcd_obj->drawString(buffer, 10, 35);
+//     free(buffer);
+
+//     lcd_obj->drawFastHLine(10, 50, 220, COLOR_YELLOW);
+//     lcd_obj->setTextColor(COLOR_WHITE, COLOR_BLACK);
+
+//     SLIST_FOREACH(log_record, &s_log_record_list, next) {
+//         asprintf(&buffer, "[%02x:%02x:%02x] %3d  %3d  %3d  %3d   %4d",
+//                  log_record->mac[3], log_record->mac[4], log_record->mac[5], log_record->coredump,
+//                  log_record->restart, log_record->error, log_record->warning, log_record->info);
+//         lcd_obj->drawString(buffer, 10, 60 + count * 10);
+//         free(buffer);
+//         count++;
+//     }
+// }
+
+static void espnow_recv_task(void *arg)
+{
+    esp_err_t ret = ESP_OK;
+    uint8_t src_addr[6]  = { 0 };
+    uint8_t *data   = ESP_MALLOC(ESPNOW_DATA_LEN);
+    // uint8_t last_addr[6] = {0};
+    uint8_t size    = 0;
+
+    for (uint8_t buf_size = 0; ; ) {
+        ret = espnow_recv(ESPNOW_TYPE_DEBUG, src_addr, data, &size, NULL, portMAX_DELAY);
+        ESP_ERROR_CONTINUE(ret != ESP_OK && ret != ESP_ERR_WIFI_TIMEOUT, "espnow_broadcast, ret: %x, err_name: %s", ret, esp_err_to_name(ret));
+
+        // size += buf_size;
+    
+        // if (data[size - 1] != '\0' && (ESP || !memcmp(last_addr, src_addr, 6))) {
+        //     continue;
+        // }
+
+        printf("[" MACSTR "] %.*s", MAC2STR(src_addr), size, data);
+        fflush(stdout);
+        
+        // buf_size = 0;
+        // size = 0;
+        // memcpy(last_addr, src_addr, 6);
+
+        if (data[size - 1] == '\n') {
+            log_analysis(src_addr, data);
+        }
+    }
+
+    free(data);
+    vTaskDelete(NULL);
+}
+
+void log_record_print(uint8_t *addr)
+{
+    log_record_t *log_record = NULL;
+
+    SLIST_FOREACH(log_record, &s_log_record_list, next) {
+        if (memcmp(addr, log_record->mac, 6)) {
+            ESP_LOGI(TAG, "mac: " MACSTR ", total: %d, info: %d, warning: %d, error: %d, restart: %d, coredump: %d, timestamp: %d",
+                     MAC2STR(log_record->mac), log_record->total, log_record->info, log_record->warning,
+                     log_record->error, log_record->restart, log_record->coredump, log_record->timestamp);
+        }
+    }
+}
+
+esp_err_t debug_recv_init()
+{
+    xTaskCreatePinnedToCore(espnow_recv_task, "debug_espnow_recv", 3 * 1024,
+                            NULL, 6, NULL, 0);
+
+    // TimerHandle_t timer = xTimerCreate("print_system_info", 1000 / portTICK_RATE_MS,
+    //                                    true, NULL, print_system_info_timercb);
+    // xTimerStart(timer, 0);
+
+    return ESP_OK;
+}

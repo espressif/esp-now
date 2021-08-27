@@ -1,0 +1,39 @@
+menu "Example Configuration"
+    choice ESPNOW_PROV_MODE
+        bool "ESP-NOW Mode"
+        default ESPNOW_PROV_INITATOR
+        help
+            Select the ESP-NOW Mode.
+
+        config ESPNOW_PROV_INITATOR
+            bool "ESP-NOW provisioning initator Mode"
+            help
+                Select the ESP-NOW provisioning initator Mode.
+
+        config ESPNOW_PROV_RESPONDER
+            bool "ESP-NOW provisioning responder Mode"
+            help
+                Select the ESP-NOW provisioning responder Mode.
+
+    endchoice
+
+    config ESPNOW_PROV_MODE
+        int
+        default 0 if ESPNOW_PROV_INITATOR
+        default 1 if ESPNOW_PROV_RESPONDER
+
+        config ESPNOW_WIFI_SSID
+            string "WiFi SSID"
+            depends on ESPNOW_PROV_RESPONDER
+            default "myssid"
+            help
+                SSID (network name) for the example to connect to.
+
+        config ESPNOW_WIFI_PASSWORD
+            string "WiFi Password"
+            depends on ESPNOW_PROV_RESPONDER
+            default "mypassword"
+            help
+                WiFi password (WPA or WPA2) for the example to use.
+
+endmenu
