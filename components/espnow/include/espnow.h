@@ -53,7 +53,8 @@ ESP_EVENT_DECLARE_BASE(ESP_EVENT_ESPNOW);
 #define ESPNOW_CHANNEL_CURRENT               0x0   /**< Only in the current channel */
 #define ESPNOW_CHANNEL_ALL                   0x0f  /**< Full channel contracting */
 
-#define ESPNOW_RETRANSMIT_MAX_COUNT          0x0f  /**< Maximum number of retransmissions */
+#define ESPNOW_RETRANSMIT_MAX_COUNT          0x1f  /**< Maximum number of retransmissions */
+#define ESPNOW_FORWARD_MAX_COUNT             0x1f  /**< Maximum number of retransmissions */
 
 /**
  * @brief Initialize the configuration of espnow
@@ -120,18 +121,22 @@ typedef enum {
 } espnow_type_t;
 
 typedef struct {
-    uint16_t magic;                       /**< Unique identifier of each packet. Packets with the same identifier will be filtered. 0: a random number */
-    uint8_t channel          : 4;         /**< Set the channel where the packet is sent, ESPNOW_CHANNEL_CURRENT or ESPNOW_CHANNEL_ALL */
-    uint8_t retransmit_count : 4;         /**< Too many packet retransmissions will lead to network congestion */
-    bool    ack              : 1;         /**< Wait for the receiving device to return ack to ensure transmission reliability */
-    bool broadcast           : 1;         /**< Data will not be forwarded until broadcast is enabled */
-    bool group               : 1;         /**< Only the group set as broadcast transmission mode is valid */
-    uint8_t filter_weak_signal: 1;        /**< When the signal received by the receiving device is lower than forward_rssi frame_head data will be discarded */
-    uint8_t filter_adjacent_channel: 1;   /**< Because espnow is sent through HT20, it can receive packets from adjacent channels */
-    uint8_t   : 3;                        /**< reserved */
-    uint8_t forward_ttl;                  /**< Number of hops in data transfer */
-    int8_t forward_rssi;                  /**< When the data packet signal received by the receiving device is lower than forward_rssi, it will not be transferred,
-                                               in order to avoid network congestion caused by packet transfer */
+    uint16_t magic;                    /**< Unique identifier of each packet. Packets with the same identifier will be filtered. 0: a random number */
+    uint8_t channel              : 4;  /**< Set the channel where the packet is sent, ESPNOW_CHANNEL_CURRENT or ESPNOW_CHANNEL_ALL */
+    bool filter_adjacent_channel : 1;  /**< Because espnow is sent through HT20, it can receive packets from adjacent channels */
+    bool filter_weak_signal      : 1;  /**< When the signal received by the receiving device is lower than forward_rssi frame_head data will be discarded */
+    uint16_t                     : 5;  /**< reserved */
+
+    /**
+     * @brief Configure broadcast
+     */
+    bool broadcast              : 1;
+    bool group                  : 1;  /**< Only the group set as broadcast transmission mode is valid */
+    bool ack                    : 1;  /**< Wait for the receiving device to return ack to ensure transmission reliability */
+    uint16_t retransmit_count   : 5;  /**< Too many packet retransmissions will lead to network congestion */
+    uint8_t forward_ttl         : 5;  /**< Number of hops in data transfer */
+    int8_t forward_rssi         : 8;  /**< When the data packet signal received by the receiving device is lower than forward_rssi, it will not be transferred,
+                                           in order to avoid network congestion caused by packet transfer */
 } __attribute__((packed)) espnow_frame_head_t;
 
 #define ESPNOW_FRAME_CONFIG_DEFAULT() \
