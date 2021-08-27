@@ -124,8 +124,8 @@ void app_main()
     };
     espnow_log_config_t log_config = {
         .log_level_uart    = ESP_LOG_INFO,
-        // .log_level_espnow  = ESP_LOG_INFO,
-        // .log_level_flash   = ESP_LOG_INFO,
+        .log_level_espnow  = ESP_LOG_INFO,
+        .log_level_flash   = ESP_LOG_INFO,
     };
 
     espnow_console_init(&console_config);

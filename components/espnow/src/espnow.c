@@ -31,7 +31,7 @@
 #define SEND_CB_FAIL                    BIT1
 
 #define ESPNOW_MSG_CACHE                32
-#define ESPNOW_VERSION                  1
+#define ESPNOW_VERSION                  2
 
 /* Event source task related definitions */
 ESP_EVENT_DEFINE_BASE(ESP_EVENT_ESPNOW);
@@ -65,8 +65,8 @@ typedef struct {
 
 typedef struct {
     uint8_t type    : 4;
-    uint8_t         : 2;
     uint8_t version : 2;
+    uint8_t         : 2;
     uint8_t size;
     espnow_frame_head_t frame_head;
     uint8_t dest_addr[6];
@@ -254,7 +254,10 @@ FORWARD_DATA:
         }
 
         memcpy(q_data, espnow_data, size);
-        q_data->frame_head.forward_ttl--;
+
+        if (frame_head->forward_ttl != ESPNOW_FORWARD_MAX_COUNT) {
+            q_data->frame_head.forward_ttl--;
+        }
 
         if (queue_over_write(g_espnow_queue[ESPNOW_TYPE_FORWARD], &q_data, 0) != pdPASS) {
             ESP_LOGW(TAG, "[%s, %d] Send receive queue failed", __func__, __LINE__);

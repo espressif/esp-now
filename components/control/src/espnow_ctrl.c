@@ -121,10 +121,8 @@ static void espnow_ctrl_responder_bind_task(void *arg)
         ret = espnow_recv(ESPNOW_TYPE_CONTROL_BIND, src_addr, &data, &size, &rx_ctrl, portMAX_DELAY);
         ESP_ERROR_CONTINUE(ret != ESP_OK, "espnow_recv, ESPNOW_TYPE_CONTROL_BIND");
 
-        ESP_LOGI(TAG, "bind, type: %d", data.responder_value_b);
-
         if (data.responder_value_b) {
-            ESP_LOGI(TAG, "bind, esp_log_timestamp: %d, timestamp: %d, rssi: %d, rssi: %d",
+            ESP_LOGD(TAG, "bind, esp_log_timestamp: %d, timestamp: %d, rssi: %d, rssi: %d",
                      esp_log_timestamp(), g_bindlist.timestamp, rx_ctrl.rssi, g_bindlist.rssi);
 
             bool bind_cb_flag = false;
@@ -134,6 +132,9 @@ static void espnow_ctrl_responder_bind_task(void *arg)
             }
 
             if (bind_cb_flag || esp_log_timestamp() < g_bindlist.timestamp || rx_ctrl.rssi >  g_bindlist.rssi) {
+                ESP_LOGI("control_func", "addr: "MACSTR", initiator_type: %d, initiator_value: %d",
+                         MAC2STR(src_addr), data.initiator_attribute >> 8, data.initiator_attribute & 0xff);
+
                 if (!espnow_ctrl_responder_is_bindlist(src_addr, data.initiator_attribute)) {
                     g_bindlist.data[g_bindlist.size].initiator_attribute = data.initiator_attribute;
                     memcpy(g_bindlist.data[g_bindlist.size].mac, src_addr, 6);
