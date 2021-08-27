@@ -116,18 +116,6 @@ void app_main(void)
     espnow_config_t espnow_config = ESPNOW_INIT_CONFIG_DEFAULT();
     espnow_init(&espnow_config);
 
-    static espnow_frame_head_t initiator_frame = {
-        .retransmit_count = 10,
-        .broadcast        = true,
-        .channel          = ESPNOW_CHANNEL_ALL,
-        .filter_adjacent_channel = true,
-        // .forward_ttl      = 1,
-        // .forward_rssi     = -85,
-        // .channel          = 13,
-    };
-
-    espnow_ctrl_initiator_set_config(&initiator_frame);
-
     for (int wait_ms = 100;; wait_ms = 10000) {
         EventBits_t uxBits = xEventGroupWaitBits(g_event_group_trigger,
                              EVENT_GROUP_DEVICE_KEY_PRESS | EVENT_GROUP_DEVICE_KEY_LONG_PRESS
