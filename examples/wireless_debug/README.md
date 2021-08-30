@@ -1,5 +1,3 @@
-[[中文]](./README_cn.md)
-
 # ESP-NOW Debug Receiver Board Demo
 
 ESP-NOW debug receiver board can receive debugging data from devices only when the board is on the same Wi-Fi channel with the devices.
@@ -23,19 +21,12 @@ ESP-NOW debug receiver board can receive debugging data from devices only when t
 ESP-NOW debug receiver board provides the following features:
 
  - [SD card file management](#Commands-for-SD-Card-Files): lists all files in current SD card, deletes specific files, and prints file contents optionally in some formats such as hex, string or base64.
- 
  - [Sniffer listening for surrounding IEEE 802.11 packages](#Sniffer-Command): captures packages and saves them in pcap format in SD card, specifies the name of the file to save captured packages, sets package filters, and specifies a channel to listen for.
- 
- - [Wi-Fi configuration](#Wi-Fi-Command): sets Wi-Fi information needed in STA mode, including router SSID, password, BSSID and work channel, and saves/erases the configuration information.
- 
+ - [Wi-Fi configuration](#Wi-Fi-Command): sets Wi-Fi information needed in STA mode, including router SSID, password, BSSID and work channel, and saves/erases the configuration information. 
  - [Wi-Fi scan](#Scan-Command): works in STA mode, and scans AP or ESP-NOW devices nearby, sets filters such as filtered by RSSI, SSID or BSSID, and sets passive scan time in each channel. 
-
  - [Log configuration](#Log-Command): monitors logs from other devices, counts the numbers of various logs (I, W, E), restart times and coredump times and displays them on the screen, adds/removes monitors, and sets logging level.
-
  - [Command](#Command-<"command">): runs commands on specific devices.
- 
  - [General command](#Other-Command): includes help command to print all currently supported commands.
-
 ## ESP-NOW Introduction
 
 ### Overview
@@ -53,24 +44,6 @@ ESP-NOW debug receiver board receives running log and coredump data from ESP-NOW
 > For more information about ESP-NOW, please refer to [ESP-NOW Instructions](https://docs.espressif.com/projects/esp-idf/en/release-v4.3/esp32/hw-reference/esp32/get-started-wrover-kit-v2.html) and ESP-IDF example [espnow](https://github.com/espressif/esp-idf/tree/master/examples/wifi/espnow)
 
 ## ESP-NOW Debug Demo Instructions
-
-### Hareware
-
-| Hareware | Piece | Note |
-| :--- | :--- | :--- |
-| [ESP-WROVER-KIT V2 Development Board (with a screen) ](https://docs.espressif.com/projects/esp-idf/en/release-v4.3/esp32/hw-reference/esp32/get-started-wrover-kit-v2.html)  | 1 | Instructions |
-| TF Card | 1 | Save running log and coredump data. The recommended capacity is more than 1 GB.|
-| MiniUSB Cable | 1 | |
-
-<div align=center>
-<img src="../../docs/_static/en/esp-wrover-kit-v3-layout-back.jpg" width="550">
-<p> ESP-WROVER-KIT-V2 </p>
-</div>
-
-> Note: 
-> 1. You can use other boards other than ESP-WROVER-KIT, but some storage features, such as storing captured data packages, are not available.
-> 2. If you choose to use ESP-WROVER-KIT v4.1 together with SD card and LCD, please remove the resistors R167 and R168 to ensure the normal use of the screen.
-
 ### Project Structure
 
 ### Workflow
