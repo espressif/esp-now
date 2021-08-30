@@ -44,7 +44,8 @@ static struct {
     struct arg_int *rate;
     struct arg_int *tx_power;
     struct arg_int *protocol;
-    struct arg_lit *output;
+    struct arg_str *country_code;
+    struct arg_lit *info;
     struct arg_end *end;
 } espnow_config_args;
 
@@ -55,20 +56,47 @@ static int espnow_config_func(int argc, char **argv)
         return ESP_FAIL;
     }
 
-    if (espnow_config_args.output->count) {
+    if (espnow_config_args.info->count) {
         int8_t power = 0;
         uint8_t protocol_bitmap = 0;
         uint8_t primary = 0;
+        wifi_country_t country    = {0};
         wifi_second_chan_t second = WIFI_SECOND_CHAN_NONE;
 
+        esp_wifi_get_country(&country);
         esp_wifi_get_channel(&primary, &second);
         esp_wifi_get_max_tx_power(&power);
         esp_wifi_get_protocol(ESP_IF_WIFI_STA, &protocol_bitmap);
 
         ESP_LOGI(TAG, "Channel, primary: %d, second: %d", primary, second);
         ESP_LOGI(TAG, "Maximum transmiting power: %d", power);
-        ESP_LOGI(TAG, "WiFi protocol bitmap: 0x%02x", protocol_bitmap);
+        ESP_LOGI(TAG, "Wi-Fi protocol bitmap: 0x%02x", protocol_bitmap);
+        country.cc[2] = '\0';
+        ESP_LOGI(TAG, "Wi-Fi country code: %s", country.cc);
         return ESP_OK;
+    }
+
+    if (wifi_config_args.country_code->count) {
+        wifi_country_t country = {0};
+        const char *country_code = wifi_config_args.country_code->sval[0];
+
+        if (!strcasecmp(country_code, "US")) {
+            strcpy(country.cc, "US");
+            country.schan = 1;
+            country.nchan = 11;
+        } else if (!strcasecmp(country_code, "JP")) {
+            strcpy(country.cc, "JP");
+            country.schan = 1;
+            country.nchan = 14;
+        }  else if (!strcasecmp(country_code, "CN")) {
+            strcpy(country.cc, "CN");
+            country.schan = 1;
+            country.nchan = 13;
+        } else {
+            return ESP_ERR_INVALID_ARG;
+        }
+
+        ret = esp_wifi_set_country(&country);
     }
 
     if (espnow_config_args.channel->count) {
@@ -92,11 +120,12 @@ static int espnow_config_func(int argc, char **argv)
 
 void register_espnow_config()
 {
-    espnow_config_args.channel  = arg_int0("c", "channel", "<channel (1 ~ 13)>", "Channel of ESP-NOW");
+    espnow_config_args.channel     = arg_int0("c", "channel", "<channel (1 ~ 13)>", "Channel of ESP-NOW");
+    wifi_config_args.country_code  = arg_str0("C", "country_code", "<country_code ('CN', 'JP, 'US')>", "Set the current country code");
     espnow_config_args.rate     = arg_int0("r", "rate", "<rate (wifi_phy_rate_t)>", "Wi-Fi PHY rate encodings");
     espnow_config_args.protocol = arg_int0("p", "protocol", "<protocol_bitmap[1, 2, 4, 8]>", "Set protocol type of specified interface");
     espnow_config_args.tx_power = arg_int0("t", "tx_power", "<tx_power ([8, 84])>", "Set maximum transmitting power after WiFi start");
-    espnow_config_args.output   = arg_lit0("o", "output", "Print all configuration information");
+    espnow_config_args.info     = arg_lit0("i", "info", "Print all configuration information");
     espnow_config_args.end      = arg_end(9);
 
     const esp_console_cmd_t cmd = {
@@ -159,7 +188,7 @@ static void espnow_iperf_initiator_task(void *arg)
         espnow_add_peer(g_iperf_cfg.addr, NULL);
     }
 
-    ESP_LOGI(TAG, "[  Responder MAC  ]   Interval     Transfer     Bandwidth     Frame_rate");
+    ESP_LOGI(TAG, "[  Responder MAC  ]   Interval     Transfer     Frame_rate     Bandwidth");
 
     for (uint32_t report_time = start_time + g_iperf_cfg.report_interval * 1000 * 1000, report_count = 0;
             esp_timer_get_time() < end_time && !g_iperf_cfg.finish;) {
@@ -173,9 +202,9 @@ static void espnow_iperf_initiator_task(void *arg)
             uint32_t report_time_s = (report_time - start_time) / (1000 * 1000);
             double report_size    = (iperf_data->seq - report_count) * g_iperf_cfg.packet_len / 1e6;
 
-            ESP_LOGI(TAG, "["MACSTR"]  %2d-%2d sec  %2.2f MBytes  %0.2f Mbits/sec, %0.2f Hz",
+            ESP_LOGI(TAG, "["MACSTR"]  %2d-%2d sec  %2.2f MBytes   %0.2f Hz  %0.2f Mbits/sec",
                      MAC2STR(g_iperf_cfg.addr), report_time_s - g_iperf_cfg.report_interval, report_time_s,
-                     report_size, report_size * 8 / g_iperf_cfg.report_interval, (iperf_data->seq - report_count) * 1.0 / g_iperf_cfg.report_interval);
+                     (iperf_data->seq - report_count) * 1.0 / g_iperf_cfg.report_interval, report_size, report_size * 8 / g_iperf_cfg.report_interval);
 
             report_time = esp_timer_get_time() + g_iperf_cfg.report_interval * 1000 * 1000;
             report_count = iperf_data->seq;

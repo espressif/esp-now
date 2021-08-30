@@ -94,8 +94,31 @@ static void initiator_key_task(void *arg)
         if (key_level == 1 && last_press_timetamp < esp_timer_get_time() / 1000) {
             if (esp_timer_get_time() / 1000 - last_press_timetamp < BOOT_KEY_PRESS_TIMEOUT_BIND) {
                 ESP_LOGI(TAG, "espnow_ctrl_initiator_send, status: %d", status);
+
+#if 1
                 espnow_ctrl_initiator_send(ESPNOW_ATTRIBUTE_KEY_1, ESPNOW_ATTRIBUTE_POWER, status);
                 status = !status;
+
+#else
+                /**
+                 * @breif
+                 */
+                espnow_frame_head_t frame_head = {
+                    .retransmit_count = 15,
+                    .broadcast        = true,
+                    .channel          = ESPNOW_CHANNEL_ALL,
+                    .forward_ttl      = 10,
+                    .forward_rssi     = -25,
+                };
+
+                espnow_ctrl_data_t data = {
+                    .initiator_attribute = ESPNOW_ATTRIBUTE_KEY_1,
+                    .responder_attribute = ESPNOW_ATTRIBUTE_POWER,
+                    .responder_value_i   = status,
+                };
+
+                espnow_ctrl_send(ESPNOW_ADDR_BROADCAST, &data, &frame_head, pdMS_TO_TICKS(1000));
+#endif
             } else if (esp_timer_get_time() / 1000 - last_press_timetamp < BOOT_KEY_PRESS_TIMEOUT_UNBIND) {
                 ESP_LOGI(TAG, "espnow_ctrl_initiator_bind");
                 espnow_ctrl_initiator_bind(ESPNOW_ATTRIBUTE_KEY_1, true);
@@ -126,13 +149,19 @@ static void responder_light_task(void *arg)
     // install ws2812 driver
     led_strip_config_t strip_config = LED_STRIP_DEFAULT_CONFIG(1, (led_strip_dev_t)config.channel);
     g_strip_handle = led_strip_new_rmt_ws2812(&strip_config);
+
     // Clear LED strip (turn on all LEDs)
-    g_strip_handle->set_pixel(g_strip_handle, 0, 0x88, 0x88, 0x88);
-    ESP_ERROR_CHECK(g_strip_handle->clear(g_strip_handle, 100));
+    g_strip_handle->set_pixel(g_strip_handle, 0, 255, 255, 255);
+    ESP_ERROR_CHECK(g_strip_handle->refresh(g_strip_handle, 100));
 
     espnow_attribute_t initiator_attribute;
     espnow_attribute_t responder_attribute;
     uint32_t responder_value;
+
+    bool status   = true;
+    uint8_t red   = 255;
+    uint8_t green = 255;
+    uint8_t blue  = 255;
 
     espnow_ctrl_responder_bind(30 * 1000, -55, NULL);
 
@@ -142,12 +171,30 @@ static void responder_light_task(void *arg)
 
         switch (responder_attribute) {
             case ESPNOW_ATTRIBUTE_POWER:
-                g_strip_handle->set_pixel(g_strip_handle, 0, (responder_value ? 0x88 : 0x00), (responder_value ? 0x88 : 0x00), (responder_value ? 0x88 : 0x00));
-                g_strip_handle->refresh(g_strip_handle, 100);
+                status = responder_value;
+                break;
+
+            case ESPNOW_ATTRIBUTE_RED:
+                red = responder_value;
+                break;
+
+            case ESPNOW_ATTRIBUTE_BLUE:
+                blue = responder_value;
+                break;
+
+            case ESPNOW_ATTRIBUTE_GREEN:
+                green = responder_value;
                 break;
 
             default:
                 break;
+        }
+
+        if (status) {
+            g_strip_handle->set_pixel(g_strip_handle, 0, red, blue, green);
+            g_strip_handle->refresh(g_strip_handle, 100);
+        } else {
+            g_strip_handle->clear(g_strip_handle, 100);
         }
     }
 
@@ -167,8 +214,8 @@ static void espnow_event_handler(void* handler_args, esp_event_base_t base, int3
             espnow_ctrl_bind_info_t *info = (espnow_ctrl_bind_info_t *)event_data;
             ESP_LOGI(TAG, "band, uuid: " MACSTR ", initiator_type: %d", MAC2STR(info->mac), info->initiator_attribute);
             
-            g_strip_handle->set_pixel(g_strip_handle, 0, 0x0, 0x88, 0x0);
-            ESP_ERROR_CHECK(g_strip_handle->clear(g_strip_handle, 100));
+            g_strip_handle->set_pixel(g_strip_handle, 0, 0x0, 255, 0x0);
+            ESP_ERROR_CHECK(g_strip_handle->refresh(g_strip_handle, 100));
             break;
         }
 
@@ -176,8 +223,8 @@ static void espnow_event_handler(void* handler_args, esp_event_base_t base, int3
             espnow_ctrl_bind_info_t *info = (espnow_ctrl_bind_info_t *)event_data;
             ESP_LOGI(TAG, "unband, uuid: " MACSTR ", initiator_type: %d", MAC2STR(info->mac), info->initiator_attribute);
             
-            g_strip_handle->set_pixel(g_strip_handle, 0, 0x88, 0x0, 0x00);
-            ESP_ERROR_CHECK(g_strip_handle->clear(g_strip_handle, 100));
+            g_strip_handle->set_pixel(g_strip_handle, 0, 255, 0x0, 0x00);
+            ESP_ERROR_CHECK(g_strip_handle->refresh(g_strip_handle, 100));
             break;
         }
 
