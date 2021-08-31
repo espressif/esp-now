@@ -9,16 +9,16 @@ variables:
   ESPNOW_PATH: "$CI_PROJECT_DIR"
   IDF_CI_BUILD: "1"
   # Docker images
-  BOT_DOCKER_IMAGE_TAG: ":latest-3cf42c4c"
+  BOT_DOCKER_IMAGE_TAG: ":latest-96719e52"
 
 before_script:
-  - export IDF_PATH=~/.espressif/idf/esp-idf-v4.2
-  # - cd $IDF_PATH
-  # - git pull
-  # - git submodule update --init --recursive
-  # - ./install.sh
-  # - . ./export.sh
-  # - cd -
+  - export IDF_PATH=~/.espressif/idf/esp-idf-v4.3
+  - cd $IDF_PATH
+  - git pull
+  - git submodule update --init --recursive
+  - ./install.sh
+  - . ./export.sh
+  - cd -
 
 build_template_cmake: &build_template
   stage: build
@@ -33,15 +33,21 @@ build_template_cmake: &build_template
   script:
     - cd examples/wireless_debug
     - cd -
-    # - ./tools/ci/build_examples_cmake.sh examples/wireless_debug esp32
-    # - ./tools/ci/build_examples_cmake.sh examples/wireless_debug esp32s2
-    # - ./tools/ci/build_examples_cmake.sh examples/wireless_debug esp32c3
+    - ./tools/ci/build_examples_cmake.sh examples/wireless_debug esp32
+    - ./tools/ci/build_examples_cmake.sh examples/wireless_debug esp32s2
+    - ./tools/ci/build_examples_cmake.sh examples/wireless_debug esp32c3
 
-    # - ./tools/ci/build_examples_cmake.sh examples/get-started esp32
-    # - ./tools/ci/build_examples_cmake.sh examples/control esp32
-    # - ./tools/ci/build_examples_cmake.sh examples/debug esp32
-    # - ./tools/ci/build_examples_cmake.sh examples/ota esp32
-    # - ./tools/ci/build_examples_cmake.sh examples/provisioning esp32
+    - ./tools/ci/build_examples_cmake.sh examples/get-started esp32
+    - ./tools/ci/build_examples_cmake.sh examples/control esp32
+    - ./tools/ci/build_examples_cmake.sh examples/debug esp32
+    - ./tools/ci/build_examples_cmake.sh examples/ota esp32
+    - ./tools/ci/build_examples_cmake.sh examples/provisioning esp32
+
+    - ./tools/ci/build_examples_cmake.sh examples/dev_kits/button_remote_control esp32
+    - ./tools/ci/build_examples_cmake.sh examples/dev_kits/button_touch esp32s2
+    - ./tools/ci/build_examples_cmake.sh examples/dev_kits/button_wall_switch esp32
+    - ./tools/ci/build_examples_cmake.sh examples/dev_kits/light_pwm esp32
+    - ./tools/ci/build_examples_cmake.sh examples/dev_kits/sensor_human_infrared esp32
 
 push_master_to_github:
   stage: deploy
