@@ -34,7 +34,7 @@
 
 #include "protocol_examples_common.h"
 
-#define char *TAG = "app_main";
+static const char *TAG = "app_main";
 
 #ifdef CONFIG_ESPNOW_OTA_INITATOR
 static size_t firmware_download(const char *url)

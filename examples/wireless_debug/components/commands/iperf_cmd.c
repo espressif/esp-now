@@ -76,9 +76,9 @@ static int espnow_config_func(int argc, char **argv)
         return ESP_OK;
     }
 
-    if (wifi_config_args.country_code->count) {
+    if (espnow_config_args.country_code->count) {
         wifi_country_t country = {0};
-        const char *country_code = wifi_config_args.country_code->sval[0];
+        const char *country_code = espnow_config_args.country_code->sval[0];
 
         if (!strcasecmp(country_code, "US")) {
             strcpy(country.cc, "US");
@@ -96,7 +96,7 @@ static int espnow_config_func(int argc, char **argv)
             return ESP_ERR_INVALID_ARG;
         }
 
-        ret = esp_wifi_set_country(&country);
+        esp_wifi_set_country(&country);
     }
 
     if (espnow_config_args.channel->count) {
@@ -121,7 +121,7 @@ static int espnow_config_func(int argc, char **argv)
 void register_espnow_config()
 {
     espnow_config_args.channel     = arg_int0("c", "channel", "<channel (1 ~ 13)>", "Channel of ESP-NOW");
-    wifi_config_args.country_code  = arg_str0("C", "country_code", "<country_code ('CN', 'JP, 'US')>", "Set the current country code");
+    espnow_config_args.country_code  = arg_str0("C", "country_code", "<country_code ('CN', 'JP, 'US')>", "Set the current country code");
     espnow_config_args.rate     = arg_int0("r", "rate", "<rate (wifi_phy_rate_t)>", "Wi-Fi PHY rate encodings");
     espnow_config_args.protocol = arg_int0("p", "protocol", "<protocol_bitmap[1, 2, 4, 8]>", "Set protocol type of specified interface");
     espnow_config_args.tx_power = arg_int0("t", "tx_power", "<tx_power ([8, 84])>", "Set maximum transmitting power after WiFi start");
@@ -129,7 +129,7 @@ void register_espnow_config()
     espnow_config_args.end      = arg_end(9);
 
     const esp_console_cmd_t cmd = {
-        .command = "config",
+        .command = "espnow_config",
         .help = "ESP-NOW configuration",
         .hint = NULL,
         .func = &espnow_config_func,
@@ -523,7 +523,7 @@ void register_espnow_iperf()
     espnow_iperf_args.end       = arg_end(6);
 
     const esp_console_cmd_t cmd = {
-        .command  = "iperf",
+        .command  = "espnow_iperf",
         .help     = "ESP-NOW iperf",
         .hint     = NULL,
         .func     = &espnow_iperf_func,
