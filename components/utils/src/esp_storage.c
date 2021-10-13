@@ -18,6 +18,7 @@
 
 #include "nvs.h"
 #include "nvs_flash.h"
+#include "esp_ota_ops.h"
 
 #include "esp_utils.h"
 #include "esp_storage.h"
@@ -34,11 +35,24 @@ esp_err_t esp_storage_init()
         if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
             // NVS partition was truncated and needs to be erased
             // Retry nvs_flash_init
-            ESP_ERROR_CHECK(nvs_flash_erase());
-            ret = nvs_flash_init();
+            ret = nvs_flash_erase();
+            
+            if(ret == ESP_OK) {
+                ret = nvs_flash_init();
+            }
         }
 
-        ESP_ERROR_CHECK(ret);
+        if (ret != ESP_OK) {
+            ESP_LOGE(TAG, "nvs_flash_init, err_str: %s", esp_err_to_name(ret));
+
+            const esp_partition_t *partition = esp_ota_get_next_update_partition(NULL);
+
+            if (partition) {
+                ret = esp_ota_set_boot_partition(partition);
+                ESP_ERROR_RETURN(ret != ESP_OK, ret, "esp_ota_set_boot_partition failed!");
+                ESP_LOGI(__func__, "The next reboot will fall back to the previous version");
+            }
+        }
 
         init_flag = true;
     }

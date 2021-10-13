@@ -320,17 +320,16 @@ static void espnow_iperf_responder_task(void *arg)
             iperf_data->type = IPERF_BANDWIDTH_STOP_ACK;
             ESP_LOGD(TAG, "iperf_data->seq: %d",  iperf_data->seq);
 
-            if (!g_iperf_cfg.frame_head.broadcast) {
-                espnow_add_peer(g_iperf_cfg.addr, NULL);
-            }
+            espnow_frame_head_t frame_head = {
+                .filter_adjacent_channel = true,
+            };
 
+            espnow_add_peer(g_iperf_cfg.addr, NULL);
             ret = espnow_send(g_iperf_cfg.type, g_iperf_cfg.addr, iperf_data,
-                              sizeof(espnow_iperf_data_t), &g_iperf_cfg.frame_head, portMAX_DELAY);
+                              sizeof(espnow_iperf_data_t), &frame_head, portMAX_DELAY);
             ESP_ERROR_CONTINUE(ret != ESP_OK, "<%s> espnow_send", esp_err_to_name(ret));
 
-            if (!g_iperf_cfg.frame_head.broadcast) {
-                espnow_del_peer(g_iperf_cfg.addr);
-            }
+            espnow_del_peer(g_iperf_cfg.addr);
         }
     }
 

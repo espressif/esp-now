@@ -144,7 +144,7 @@ static esp_err_t firmware_download(const char *url)
             goto EXIT;
         }
 
-        if (i % 10 == 0 || recv_size == total_size) {
+        if (i % 100 == 0 || recv_size == total_size) {
             ESP_LOGI(TAG, "Firmware download size: %d, progress rate: %d%%",
                      recv_size, recv_size * 100 / total_size);
         }

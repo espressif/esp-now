@@ -31,7 +31,12 @@
 #define SEND_CB_FAIL                    BIT1
 
 #define ESPNOW_MSG_CACHE                32
+
+#ifndef CONFIG_ESPNOW_VERSION
 #define ESPNOW_VERSION                  2
+#else
+#define ESPNOW_VERSION                  CONFIG_ESPNOW_VERSION
+#endif
 
 /* Event source task related definitions */
 ESP_EVENT_DEFINE_BASE(ESP_EVENT_ESPNOW);
@@ -275,7 +280,7 @@ EXIT:
 /**< callback function of sending ESPNOW data */
 void espnow_send_cb(const uint8_t *addr, esp_now_send_status_t status)
 {
-    if (!addr) {
+    if (!addr || !g_event_group) {
         ESP_LOGW(TAG, "Send cb args error, addr is NULL");
         return ;
     }

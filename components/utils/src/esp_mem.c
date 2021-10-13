@@ -150,7 +150,7 @@ void esp_mem_print_task()
 
     ESP_LOGI(TAG, "---------------- The State Of Tasks ----------------");
     ESP_LOGI(TAG, "- HWM   : usage high water mark (Byte)");
-    ESP_LOGI(TAG, "- Status: blocked ('B'), ready ('R'), deleted ('D') or suspended ('S')\n");
+    ESP_LOGI(TAG, "- Status: blocked ('B'), ready ('R'), deleted ('D') or suspended ('S')");
     ESP_LOGI(TAG, "TaskName\t\tStatus\tPrio\tHWM\tTaskNum\tCoreID\tRunTimeCounter\tPercentage");
 
     for (int i = 0; i < uxArraySize; i++) {

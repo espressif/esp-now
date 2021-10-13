@@ -44,6 +44,7 @@ static const char *TAG = "common_cmd";
 static struct {
     struct arg_str *addr;
     struct arg_str *command;
+    struct arg_lit *channel_all;
     struct arg_end *end;
 } command_args;
 
@@ -56,6 +57,10 @@ static int command_func(int argc, char **argv)
         arg_print_errors(stderr, command_args.end, argv[0]);
         return ESP_FAIL;
     }
+
+    espnow_frame_head_t frame_head = {
+        .filter_adjacent_channel = true,
+    };
 
     esp_err_t ret = ESP_OK;
     size_t addrs_num = 0;
@@ -77,14 +82,21 @@ static int command_func(int argc, char **argv)
     ESP_ERROR_RETURN(addrs_num <= 0, ESP_ERR_INVALID_ARG,
                      "The format of the address is incorrect. Please enter the format as xx:xx:xx:xx:xx:xx");
 
-    if (addrs_num ==1 && ESPNOW_ADDR_IS_BROADCAST(addr_list[0])) {
+    if (command_args.channel_all->count) {
+        frame_head.channel = ESPNOW_CHANNEL_ALL;
+    }
+
+    if (addrs_num == 1 && ESPNOW_ADDR_IS_BROADCAST(addr_list[0])) {
+        frame_head.broadcast        = true;
+        frame_head.retransmit_count = ESPNOW_RETRANSMIT_MAX_COUNT;
+        frame_head.forward_rssi     = -25;
+        frame_head.forward_ttl      = 1;
+
         ret = espnow_send(ESPNOW_TYPE_DEBUG_COMMAND, addr_list[0], command_args.command->sval[0], 
-                    strlen(command_args.command->sval[0]) + 1, NULL, portMAX_DELAY);
+                    strlen(command_args.command->sval[0]) + 1, &frame_head, portMAX_DELAY);
         ESP_ERROR_RETURN(ret != ESP_OK, ret, "espnow_send");
     } else if(addrs_num < 8) {
-        espnow_frame_head_t frame_head = {
-            .filter_adjacent_channel = true,
-        };
+        frame_head.filter_adjacent_channel = true;
 
         for(int i = 0; i < addrs_num; ++i) {
             espnow_add_peer(addr_list[i], NULL);
@@ -94,14 +106,21 @@ static int command_func(int argc, char **argv)
             espnow_del_peer(addr_list[i]);
         }
     } else {
-        espnow_addr_t temp_group = {0x0};
+        espnow_addr_t temp_group    = {0x0};
+        frame_head.broadcast        = true;
+        frame_head.retransmit_count = ESPNOW_RETRANSMIT_MAX_COUNT;
+        frame_head.forward_rssi     = -25;
+        frame_head.forward_ttl      = 1;
+
         esp_fill_random(temp_group, sizeof(espnow_addr_t));
-        espnow_send_group(addr_list, addrs_num, temp_group, NULL, true, portMAX_DELAY);
+        espnow_send_group(addr_list, addrs_num, temp_group, &frame_head, true, portMAX_DELAY);
         ret = espnow_send(ESPNOW_TYPE_DEBUG_COMMAND, temp_group, command_args.command->sval[0], 
-                          strlen(command_args.command->sval[0]) + 1, NULL, portMAX_DELAY);
+                          strlen(command_args.command->sval[0]) + 1, &frame_head, portMAX_DELAY);
         ESP_ERROR_RETURN(ret != ESP_OK, ret, "espnow_send");
-        espnow_send_group(addr_list, addrs_num, temp_group, NULL, false, portMAX_DELAY);
+        espnow_send_group(addr_list, addrs_num, temp_group, &frame_head, false, portMAX_DELAY);
     }
+
+    ESP_FREE(addr_list);
 
     return ESP_OK;
 }
@@ -111,9 +130,10 @@ static int command_func(int argc, char **argv)
  */
 void register_command()
 {
-    command_args.addr    = arg_str1(NULL, NULL, "<addr (xx:xx:xx:xx:xx:xx)>", "MAC of the monitored device");
-    command_args.command = arg_str1(NULL, NULL, "<\"command\">", "Console command for the monitored device");
-    command_args.end     = arg_end(2);
+    command_args.addr        = arg_str1(NULL, NULL, "<addr_list (xx:xx:xx:xx:xx:xx,xx:xx:xx:xx:xx:xx)>", "MAC of the monitored devices");
+    command_args.command     = arg_str1(NULL, NULL, "<\"command\">", "Console command for the monitored device");
+    command_args.channel_all = arg_lit0("a", "channel_all", "Send packets on all channels");
+    command_args.end         = arg_end(2);
 
     const esp_console_cmd_t cmd = {
         .command = "command",
@@ -437,7 +457,7 @@ static int scan_func(int argc, char **argv)
 
     char *data = "beacon";
     espnow_frame_head_t frame_head = {
-        .retransmit_count = 10,
+        .retransmit_count = ESPNOW_RETRANSMIT_MAX_COUNT,
         .broadcast = true,
         .magic     = esp_random(),
         .filter_adjacent_channel = true,
@@ -465,12 +485,14 @@ static int scan_func(int argc, char **argv)
             esp_wifi_set_channel(country.schan + i, WIFI_SECOND_CHAN_NONE);
             frame_head.channel = country.schan + i;
 
-            esp_err_t ret = espnow_send(ESPNOW_TYPE_DEBUG_COMMAND, addr,
-                                        data, strlen(data) + 1, &frame_head, portMAX_DELAY);
-            ESP_ERROR_RETURN(ret != ESP_OK, ret, "espnow_send");
+            for(int count = 0; count < 3; ++count) {
+                esp_err_t ret = espnow_send(ESPNOW_TYPE_DEBUG_COMMAND, addr,
+                                            data, strlen(data) + 1, &frame_head, portMAX_DELAY);
+                ESP_ERROR_RETURN(ret != ESP_OK, ret, "espnow_send");
+                vTaskDelay(100);
+            }
 
             /**< Waiting to receive the response message */
-            vTaskDelay(200);
         }
 
         esp_wifi_set_channel(primary, second);
@@ -727,11 +749,11 @@ static int control_func(int argc, char **argv)
         size_t size = 0;
         espnow_ctrl_responder_get_bindlist(NULL, &size);
 
-        if(size > 0){
+        if (size > 0) {
             espnow_ctrl_bind_info_t *list = ESP_CALLOC(size, sizeof(espnow_ctrl_bind_info_t));
             espnow_ctrl_responder_get_bindlist(list, &size);
 
-            for(int i = 0; i < size; ++i) {
+            for (int i = 0; i < size; ++i) {
                 ESP_LOGI("control_func", "mac: "MACSTR", initiator_type: %d, initiator_value: %d",
                          MAC2STR(list[i].mac), list[i].initiator_attribute >> 8, list[i].initiator_attribute & 0xff);
             }
