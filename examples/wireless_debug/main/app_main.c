@@ -6,6 +6,9 @@
    software is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
    CONDITIONS OF ANY KIND, either express or implied.
 */
+
+#define CONFIG_ESPNOW_VERSION 0
+
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -151,7 +154,7 @@ static void wifi_init_softap(uint8_t channel)
             .ssid = CONFIG_EXAMPLE_WIFI_SOFTAP_SSID,
             .ssid_len = strlen(CONFIG_EXAMPLE_WIFI_SOFTAP_SSID),
             .channel = channel,
-            .max_connection = 1,
+            .max_connection = 2,
         },
     };
 

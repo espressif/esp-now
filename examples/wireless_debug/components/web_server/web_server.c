@@ -72,7 +72,9 @@ static esp_err_t rest_common_get_handler(httpd_req_t *req)
     if (fd == -1) {
         ESP_LOGD(TAG, "[%s, %d] filepath: %s", __func__, __LINE__, filepath);
 
-        sprintf(filepath, "%s/index.html", rest_context->base_path);
+        const char *scratch = "index.html";
+        sprintf(filepath, "%s/%s", rest_context->base_path, scratch);
+
         fd = open(filepath, O_RDONLY, 0);
     }
 
@@ -368,7 +370,7 @@ static esp_err_t ota_data_handler(httpd_req_t *req)
 
         recv_size += size;
     
-        if (i % 10 == 0 || recv_size == total_size) {
+        if (i % 100 == 0 || recv_size == total_size) {
             ESP_LOGI(TAG, "Firmware download size: %d, progress rate: %d%%",
                      recv_size, recv_size * 100 / total_size);
         }

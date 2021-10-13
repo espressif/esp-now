@@ -32,6 +32,16 @@
 #include "driver/gpio.h"
 #include "driver/uart.h"
 
+#if CONFIG_IDF_TARGET_ESP32
+#include "esp32/rom/spi_flash.h"
+#elif CONFIG_IDF_TARGET_ESP32S2
+#include "esp32s2/rom/spi_flash.h"
+#elif CONFIG_IDF_TARGET_ESP32S3
+#include "esp32s3/rom/spi_flash.h"
+#elif CONFIG_IDF_TARGET_ESP32C3
+#include "esp32c3/rom/spi_flash.h"
+#endif
+
 static const char *TAG = "debug_commands";
 
 wifi_pkt_rx_ctrl_t g_rx_ctrl = {0};
@@ -51,6 +61,7 @@ static struct {
     struct arg_lit *info;
     struct arg_end *end;
 } log_args;
+
 
 /**
  * @brief  A function which implements version command.
@@ -85,13 +96,32 @@ static int version_func(int argc, char **argv)
             break;
     }
 
-    ESP_LOGI(__func__, "compile_time: %s %s, CPU_model: %s, CPU_cores: %d, esp-idf: %s, silicon: %d, feature: %s%s%s%s%d%s",
-             __DATE__, __TIME__, chip_name, chip_info.cores ,esp_get_idf_version(), chip_info.revision,
-             chip_info.features & CHIP_FEATURE_WIFI_BGN ? "/802.11bgn" : "",
-             chip_info.features & CHIP_FEATURE_BLE ? "/BLE" : "",
-             chip_info.features & CHIP_FEATURE_BT ? "/BT" : "",
-             chip_info.features & CHIP_FEATURE_EMB_FLASH ? "/Embedded-Flash:" : "/External-Flash:",
-             spi_flash_get_chip_size() / (1024 * 1024), " MB");
+    struct flash_chip_info {
+        const char *manufacturer;
+        uint8_t mfg_id;
+    } flash_chip[] = {
+        { "MXIC",        0xC2},
+        { "ISSI",        0x9D},
+        { "WinBond",     0xEF},
+        { "GD",          0xC8},
+        { "XM25QU64A",   0x20},
+        { NULL,          0xff},
+    };
+
+    const char *flash_manufacturer = "Unknow";
+    uint32_t raw_flash_id    = g_rom_flashchip.device_id;
+    uint8_t mfg_id           = (raw_flash_id >> 16) & 0xFF;
+    // uint32_t flash_id        = raw_flash_id & 0xFFFF;
+
+    for (int i = 0; flash_chip[i].manufacturer; i++) {
+        if (mfg_id == flash_chip[i].mfg_id) {
+            flash_manufacturer = flash_chip[i].manufacturer;
+            break;
+        }
+    }
+
+    ESP_LOGI(__func__, "chip_name: %s, chip_cores: %d, chip_revision: %d, flash_manufacturer: %s, flash_id: 0x%x, flash_size: %dMB",
+             chip_name, chip_info.cores, chip_info.revision, flash_manufacturer, raw_flash_id, g_rom_flashchip.chip_size /1024/1024);
 
     return ESP_OK;
 }
@@ -609,6 +639,7 @@ static void register_wifi_config()
 }
 
 static struct {
+    struct arg_int *config;
     struct arg_int *set;
     struct arg_int *get;
     struct arg_int *level;
@@ -625,11 +656,14 @@ static int gpio_func(int argc, char **argv)
         return ESP_FAIL;
     }
 
-    if (gpio_args.set->count && gpio_args.level->count) {
-        uint32_t gpio_num = gpio_args.set->ival[0];
-
+    if (gpio_args.config->count) {
+        uint32_t gpio_num = gpio_args.config->ival[0];
         esp_err_t ret = gpio_reset_pin(gpio_num);
         ESP_ERROR_RETURN(ret != ESP_OK, ret, "gpio_reset_pin, gpio_num: %d", gpio_num);
+    }
+
+    if (gpio_args.set->count && gpio_args.level->count) {
+        uint32_t gpio_num = gpio_args.set->ival[0];
 
         gpio_set_direction(gpio_num, GPIO_MODE_OUTPUT);
         gpio_set_level(gpio_num, gpio_args.level->ival[0]);
@@ -638,9 +672,6 @@ static int gpio_func(int argc, char **argv)
 
     if (gpio_args.get->count) {
         uint32_t gpio_num = gpio_args.set->ival[0];
-
-        esp_err_t ret = gpio_reset_pin(gpio_num);
-        ESP_ERROR_RETURN(ret != ESP_OK, ret, "gpio_reset_pin, gpio_num: %d", gpio_num);
 
         gpio_set_direction(gpio_num, GPIO_MODE_INPUT);
         ESP_LOGI(TAG, "Get gpio num: %d, level: %d", gpio_num, gpio_get_level(gpio_num));
@@ -654,8 +685,9 @@ static int gpio_func(int argc, char **argv)
  */
 static void register_gpio()
 {
-    gpio_args.set = arg_int0("s", "set", "<num>", "GPIO set output level");
+    gpio_args.get = arg_int0("c", "config", "<num>", "GPIO common configuration");
     gpio_args.get = arg_int0("g", "get", "<num>", "GPIO get input level");
+    gpio_args.set = arg_int0("s", "set", "<num>", "GPIO set output level");
     gpio_args.level = arg_int0("l", "level", "<0 or 1>", "level. 0: low ; 1: high");
     gpio_args.end = arg_end(1);
 

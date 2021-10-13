@@ -2,8 +2,6 @@
 
 Demonstrate through the `BOOT` button and `RGB LED` on the development board, the interaction process between the device that initiates the control command and the controlled device
 
-<img src="../../docs/_static/en/esp32-s2-saola-1.png" width="550">
-
 ## What to expect in this example?
 
 This example uses at least two ESP32 development boards (for example: ESP32-S2-Saola-1 or ESP32-C3-DevKitM-1), you need to use the BOOT button and RGB LED on the development board to demonstrate

@@ -32,9 +32,26 @@ static const char *TAG = "espnow_ota_initatior";
 static bool g_ota_send_running_flag   = false;
 static SemaphoreHandle_t g_ota_send_exit_sem = NULL;
 
+#ifndef CONFIG_ESPNOW_OTA_RETRY_COUNT
 #define CONFIG_ESPNOW_OTA_RETRY_COUNT           50
-#define CONFIG_ESPNOW_OTA_WAIT_RESPONSE_TIMEOUT (10 * 1000)
+#endif
+
+#ifndef CONFIG_ESPNOW_OTA_SEND_RETRY_NUM
 #define CONFIG_ESPNOW_OTA_SEND_RETRY_NUM        1
+#endif
+
+#ifndef CONFIG_ESPNOW_OTA_SEND_FORWARD_TTL
+#define CONFIG_ESPNOW_OTA_SEND_FORWARD_TTL      0
+#endif
+
+#ifndef CONFIG_ESPNOW_OTA_SEND_FORWARD_RSSI
+#define CONFIG_ESPNOW_OTA_SEND_FORWARD_RSSI     -65
+#endif
+
+#ifndef CONFIG_ESPNOW_OTA_WAIT_RESPONSE_TIMEOUT
+#define CONFIG_ESPNOW_OTA_WAIT_RESPONSE_TIMEOUT (10 * 1000)
+#endif
+
 
 static bool addrs_remove(uint8_t addrs_list[][ESPNOW_ADDR_LEN],
                          size_t *addrs_num, const uint8_t addr[6])
@@ -68,9 +85,11 @@ esp_err_t espnow_ota_initator_scan(espnow_ota_responder_t **info_list, size_t *n
 
     espnow_frame_head_t frame_head = {
         .retransmit_count = 10,
-        .broadcast = true,
-        .magic     = esp_random(),
+        .broadcast        = true,
+        .magic            = esp_random(),
         .filter_adjacent_channel = true,
+        .forward_ttl      = CONFIG_ESPNOW_OTA_SEND_FORWARD_TTL,
+        .forward_rssi     = CONFIG_ESPNOW_OTA_SEND_FORWARD_RSSI,
     };
 
     *num       = 0;
@@ -121,8 +140,7 @@ esp_err_t espnow_ota_initator_scan(espnow_ota_responder_t **info_list, size_t *n
 static esp_err_t espnow_ota_request_status(uint8_t (*progress_array)[ESPNOW_OTA_PROGRESS_MAX_SIZE],
         const espnow_ota_status_t *status, espnow_ota_result_t *result)
 {
-    esp_err_t ret                      = ESP_OK;
-
+    esp_err_t ret       = ESP_OK;
     uint8_t src_addr[6] = {0};
     size_t data_size    = 0;
     espnow_ota_status_t *response_data = ESP_MALLOC(ESPNOW_DATA_LEN);
@@ -168,6 +186,8 @@ static esp_err_t espnow_ota_request_status(uint8_t (*progress_array)[ESPNOW_OTA_
         .retransmit_count = 10,
         .magic    = esp_random(),
         .filter_adjacent_channel = true,
+        .forward_ttl      = CONFIG_ESPNOW_OTA_SEND_FORWARD_TTL,
+        .forward_rssi     = CONFIG_ESPNOW_OTA_SEND_FORWARD_RSSI,
     };
 
     for (int i = 0, wait_ticks = pdMS_TO_TICKS(500); i < 3 && response_num > 0; ++i, wait_ticks = pdMS_TO_TICKS(100)) {
@@ -286,9 +306,11 @@ esp_err_t espnow_ota_initator_send(const uint8_t addrs_list[][6], size_t addrs_n
     g_ota_send_running_flag = true;
 
     espnow_frame_head_t frame_head = {
-        .broadcast = true,
+        .broadcast        = true,
         .retransmit_count = CONFIG_ESPNOW_OTA_SEND_RETRY_NUM,
-        .group      = true,
+        .group            = true,
+        .forward_ttl      = CONFIG_ESPNOW_OTA_SEND_FORWARD_TTL,
+        .forward_rssi     = CONFIG_ESPNOW_OTA_SEND_FORWARD_RSSI,
     };
 
     if (addrs_num == 1 && ESPNOW_ADDR_IS_BROADCAST(addrs_list[0])) {

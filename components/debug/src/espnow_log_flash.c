@@ -48,7 +48,7 @@ static bool g_espnow_log_flash_init_flag = false;
 static const esp_partition_t *g_log_part = NULL;
 static const char *TAG                   = "espnow_log_flash";
 
-esp_err_t log_info_storage_init()
+static esp_err_t log_info_storage_init()
 {
     esp_err_t err = nvs_flash_init_partition(CONFIG_DEBUG_LOG_PARTITION_LABEL_NVS);
     ESP_ERROR_RETURN(err != ESP_OK, err, "NVS Flash init failed");
@@ -82,7 +82,7 @@ static void *log_info_storage_get(const char *key)
     return value;
 }
 
-esp_err_t log_info_storage_set(const char *key, void *data, size_t len)
+static esp_err_t log_info_storage_set(const char *key, void *data, size_t len)
 {
     nvs_handle handle;
     esp_err_t err;
@@ -104,7 +104,7 @@ esp_err_t log_info_storage_set(const char *key, void *data, size_t len)
     return ESP_OK;
 }
 
-esp_err_t log_info_storage_erase(const char *key)
+static esp_err_t log_info_storage_erase(const char *key)
 {
     nvs_handle handle;
     esp_err_t err;
