@@ -102,6 +102,7 @@ const espnow_addr_t ESPNOW_ADDR_NONE        = {0};
 const espnow_addr_t ESPNOW_ADDR_BROADCAST   = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0XFF};
 const espnow_group_t ESPNOW_ADDR_GROUP_OTA  =  {'O', 'T', 'A', 0x0, 0x0, 0x0};
 const espnow_group_t ESPNOW_ADDR_GROUP_PROV = {'P', 'R', 'O', 'V', 0x0, 0x0};
+const espnow_group_t ESPNOW_ADDR_GROUP_SEC = {'S', 'E', 'C', 0x0, 0x0, 0x0};
 static uint8_t g_msg_magic_cache_next = 0;
 static espnow_frame_head_t g_espnow_frame_head_default = ESPNOW_FRAME_CONFIG_DEFAULT();
 
