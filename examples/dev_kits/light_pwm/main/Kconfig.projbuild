@@ -18,7 +18,8 @@ menu "Example Configuration"
             int "Light red pin GPIO number"
             depends on LIGHT_TYPE_CUSTOM
             range 0 46
-            default 10 if IDF_TARGET_ESP32 || IDF_TARGET_ESP32S2
+            default 25 if IDF_TARGET_ESP32
+            default 10 if IDF_TARGET_ESP32S2
             default 1  if IDF_TARGET_ESP32C3
             help
                 There are more enumerations like that
@@ -30,7 +31,8 @@ menu "Example Configuration"
             int "Light green pin GPIO number"
             depends on LIGHT_TYPE_CUSTOM
             range 0 46
-            default 6 if IDF_TARGET_ESP32 || IDF_TARGET_ESP32S2
+            default 26 if IDF_TARGET_ESP32
+            default 6 if IDF_TARGET_ESP32S2
             default 2 if IDF_TARGET_ESP32C3
             help
                 There are more enumerations like that
@@ -42,7 +44,8 @@ menu "Example Configuration"
             int "Light blue pin GPIO number"
             depends on LIGHT_TYPE_CUSTOM
             range 0 46
-            default 7 if IDF_TARGET_ESP32 || IDF_TARGET_ESP32S2
+            default 27 if IDF_TARGET_ESP32
+            default 7 if IDF_TARGET_ESP32S2
             default 3 if IDF_TARGET_ESP32C3
             help
                 There are more enumerations like that
