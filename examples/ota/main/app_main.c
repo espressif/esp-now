@@ -185,6 +185,7 @@ void app_main()
      * examples/protocols/README.md for more information about this function.
      */
     ESP_ERROR_CHECK(example_connect());
+    ESP_ERROR_CHECK(esp_wifi_set_ps(WIFI_PS_NONE));
 
     esp_storage_init();
     espnow_config_t espnow_config = ESPNOW_INIT_CONFIG_DEFAULT();
@@ -199,7 +200,7 @@ void app_main()
 
     firmware_send(firmware_size, sha_256);
 
-#elif ESPNOW_OTA_RESPONDER
+#elif CONFIG_ESPNOW_OTA_RESPONDER
 
     espnow_ota_config_t ota_config = {
         .skip_version_check       = true,
