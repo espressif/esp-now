@@ -18,7 +18,6 @@ There are two roles defined in ESP-NOW according to the data flow, initiator and
 ## TODO List
   - [ ] Gateway
   - [ ] Low-power
-  - [ ] Data Encryption
   - [ ] Frequency-Hopping
   - [ ] ESP8266 supporting
 
@@ -89,6 +88,17 @@ ESP-NOW can be used to receive the running log for debugging. It can be used in 
     - Wireless Test: monitor the RF performance, ping packet test, distance and RF performance test.
     - Module Test: flash read time test, time accuracy test.
     - Version Verification: verify whether the factory version of the device is the specified version.
+
+### Data Encryption
+
+ESP-NOW can protect the data security with ECDH and AES128-CCM.
+
+1. **Quick Configuration**: 16 devices can be configurated in 5 seconds.
+2. **Multiple Devices Handshake**: ESP-NOW initiator can support multiple devices handshake at same time. 
+3. **Safety**: 
+    - ECDH and Proof of Possession (PoP) string used to authorize session and derive shared key
+    - AES256-CTR mode encryption of the configuration data
+    - AES128-CCM mode encryption of ESP-NOW data.
 
 ## Resources
 - [ESP-NOW API guide](https://docs.espressif.com/projects/esp-idf/en/latest/esp32c3/api-reference/network/esp_now.html)
