@@ -35,6 +35,7 @@ typedef uint8_t (espnow_group_t)[6];
 ESPNOW_DECLARE_COMMON_ADDR(ESPNOW_ADDR_NONE);
 ESPNOW_DECLARE_COMMON_ADDR(ESPNOW_ADDR_BROADCAST);
 ESPNOW_DECLARE_COMMON_ADDR(ESPNOW_ADDR_GROUP_OTA);
+ESPNOW_DECLARE_COMMON_ADDR(ESPNOW_ADDR_GROUP_SEC);
 ESPNOW_DECLARE_COMMON_ADDR(ESPNOW_ADDR_GROUP_PROV);
 
 /**
@@ -116,6 +117,8 @@ typedef enum {
     ESPNOW_TYPE_DEBUG_LOG,     /**< Equipment debugging */
     ESPNOW_TYPE_DEBUG_COMMAND, /**< Equipment debugging */
     ESPNOW_TYPE_DATA,          /**< User-defined use */
+    ESPNOW_TYPE_SECURITY_STATUS,/**< Security status packet */
+    ESPNOW_TYPE_SECURITY,      /**< Security handshake packet */
     ESPNOW_TYPE_RESERVED,      /**< reserved for other functiond */
     ESPNOW_TYPE_MAX,
 } espnow_type_t;
