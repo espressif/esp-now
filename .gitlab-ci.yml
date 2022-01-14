@@ -8,12 +8,10 @@ variables:
   MAKEFLAGS: "-j5 --no-keep-going"
   ESPNOW_PATH: "$CI_PROJECT_DIR"
   IDF_CI_BUILD: "1"
-  # Docker images
-  BOT_DOCKER_IMAGE_TAG: ":latest-96719e52"
 
 before_script:
-  - export IDF_PATH=~/.espressif/idf/esp-idf-v4.3
   - cd $IDF_PATH
+  - git checkout release/v4.3
   - git pull
   - git submodule update --init --recursive
   - ./install.sh
@@ -22,7 +20,7 @@ before_script:
 
 build_template_cmake: &build_template
   stage: build
-  image: $CI_DOCKER_REGISTRY/ae-esp32-ci-env$BOT_DOCKER_IMAGE_TAG
+  image: espressif/idf:release-v4.3
   tags:
     - build
   variables:
