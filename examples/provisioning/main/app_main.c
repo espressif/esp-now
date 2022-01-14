@@ -65,7 +65,7 @@ esp_err_t provisioning_responder()
     ESP_ERROR_RETURN(ret != ESP_OK, ret, "espnow_prov_responder_beacon");
 
     for (int32_t start_ticks = xTaskGetTickCount(), recv_ticks = pdMS_TO_TICKS(30 * 1000); recv_ticks > 0;
-            recv_ticks -= (xTaskGetTickCount() - start_ticks)) {
+            recv_ticks = pdMS_TO_TICKS(30 * 1000) - (xTaskGetTickCount() - start_ticks)) {
         ret = espnow_prov_responder_recv(initator_addr, &initator_info, &rx_ctrl, recv_ticks);
         ESP_ERROR_BREAK(ret == ESP_ERR_TIMEOUT, "");
 
