@@ -78,6 +78,8 @@ typedef struct {
         uint8_t debug_log;
         uint8_t debug_command;
         uint8_t data;
+        uint8_t sec_status;
+        uint8_t sec;
         uint8_t reserved;
     } qsize;                    /**< Size of packet buffer queue */
 } espnow_config_t;
@@ -99,6 +101,8 @@ typedef struct {
                 .debug_log     = 0, \
                 .debug_command = 0, \
                 .data          = 0, \
+                .sec_status    = 0, \
+                .sec           = 0, \
                 .reserved      = 0, \
                 }, \
     }
