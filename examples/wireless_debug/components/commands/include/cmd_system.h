@@ -1,4 +1,4 @@
-/* Console example — various system commands
+/* Various system commands - declarations
 
    This example code is in the Public Domain (or CC0 licensed, at your option.)
 
@@ -6,6 +6,7 @@
    software is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
    CONDITIONS OF ANY KIND, either express or implied.
 */
+
 #pragma once
 
 #ifdef __cplusplus
