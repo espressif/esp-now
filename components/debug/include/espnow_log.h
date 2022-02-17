@@ -29,13 +29,13 @@ extern "C" {
 #include "esp_mem.h"
 
 /**
- *@brief Configuration mdebug print enable, whether the output information according to the client needs to know.
- *       please assign CONFIG_DEBUG_LOG_PRINTF_ENABLE a value.
+ *@brief Configuration of debug log stored in flash.
+ *       Whether to output information according to the client needs.
+ *       Please assign CONFIG_DEBUG_LOG_PRINTF_ENABLE a value.
  *
  * @note CONFIG_DEBUG_LOG_PRINTF_ENABLE = 1  enable
  *       CONFIG_DEBUG_LOG_PRINTF_ENABLE = 0  disable
  */
-// #define CONFIG_DEBUG_LOG_PRINTF_ENABLE
 #ifdef CONFIG_DEBUG_LOG_PRINTF_ENABLE
 #define DEBUG_LOG_PRINTF(fmt, ...) printf("D [%s, %d]: " fmt, TAG, __LINE__, __VA_ARGS__)
 #else
@@ -45,25 +45,42 @@ extern "C" {
 #define DEBUG_LOG_MALLOC malloc
 #define DEBUG_LOG_FREE   free
 
+/**
+ * @brief Enumerated list of debug event id
+ */
 #define ESP_EVENT_ESPNOW_LOG_FLASH_FULL      (ESP_EVENT_ESPNOW_DEBUG_BASE + 1)
 
+/**
+ * @brief  The log callback function
+ *
+ * @attention Each time a log is sent, the callback function will be called if defined.
+ *
+ * @param[in]  data  the log data
+ * @param[in]  size  the log data size in bytes
+ * @param[in]  tag  the log tag
+ * @param[in]  level  the log level
+ *
+ * @return
+ *     - ESP_OK
+ *     - ESP_FAIL
+ */
 typedef esp_err_t (*espnow_log_custom_write_cb)(const char *data, size_t size, const char *tag, esp_log_level_t level);
 
 /**
  * @brief Log sending configuration
  */
 typedef struct {
-    esp_log_level_t log_level_uart;
-    esp_log_level_t log_level_flash;
-    esp_log_level_t log_level_espnow;
-    esp_log_level_t log_level_custom;
-    espnow_log_custom_write_cb log_custom_write;
+    esp_log_level_t log_level_uart;                 /**< Level of log printed from uart */
+    esp_log_level_t log_level_flash;                /**< Level of log stored in flash */
+    esp_log_level_t log_level_espnow;               /**< Level of log sent from espnow */
+    esp_log_level_t log_level_custom;               /**< Level of log defined by customer */
+    espnow_log_custom_write_cb log_custom_write;    /**< Customer defined log callback function */
 } espnow_log_config_t;
 
 /**
  * @brief  Get the configuration of the log during wireless debugging
  *
- * @param  config The configuration of the log
+ * @param[out]  config  the configuration of the log
  *
  * @return
  *     - ESP_OK
@@ -74,7 +91,7 @@ esp_err_t espnow_log_get_config(espnow_log_config_t *config);
 /**
  * @brief  Set the configuration of the log during wireless debugging
  *
- * @param  config The configuration of the log
+ * @param[in]  config  the configuration of the log
  *
  * @return
  *     - ESP_OK
@@ -83,18 +100,20 @@ esp_err_t espnow_log_get_config(espnow_log_config_t *config);
 esp_err_t espnow_log_set_config(const espnow_log_config_t *config);
 
 /**
- * @brief Init log mdebug
- *        - Set log mdebug configuration
- *        - Create log mdebug task
+ * @brief Initialize log debug
+ *        - Set log debug configuration
+ *        - Create the log sendinng task
  *
+ * @param[in]  config  the configuration of the log
+ * 
  * @return
  *     - ESP_OK
  */
 esp_err_t espnow_log_init(const espnow_log_config_t *config);
 
 /**
- * @brief De-initialize log mdebug
- *      Call this once when done using log mdebug functions
+ * @brief De-initialize log debug
+ *        Call this once when done using log debug functions
  *
  * @return
  *     - ESP_OK
@@ -102,22 +121,20 @@ esp_err_t espnow_log_init(const espnow_log_config_t *config);
 esp_err_t espnow_log_deinit(void);
 
 /**
- * @brief Read memory data in flash
+ * @brief Read memory log data in flash
  *
- * @param data  Data from the flash's spiffs files in the log
- * @param size  Size from the flash's spiffs files in the log
+ * @param[out]  data  log data read from the flash's spiffs files
+ * @param[inout]  size  size of the read data in bytes
  *
  * @return
  *      - ESP_OK
- *      - read_size
+ *      - ESP_FAIL
  */
 esp_err_t espnow_log_flash_read(char *data, size_t *size);
 
 /**
- * @brief Create files size,For the data to be stored in the file
- *      for subsequent calls.paramters DEBUG_FLASH_FILE_MAX_NUM
- *      if files sizes change.
- *
+ * @brief Get the size of log stored in flash
+ * 
  * @return
  *      - size
  */

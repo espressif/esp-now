@@ -732,6 +732,8 @@ static void wifi_event_handler(void *arg, esp_event_base_t event_base,
 
 esp_err_t espnow_init(const espnow_config_t *config)
 {
+    ESP_PARAM_CHECK(config);
+
     if (g_espnow_config) {
         return ESP_OK;
     }

@@ -243,7 +243,7 @@ esp_err_t espnow_log_flash_write(const char *data, size_t size, esp_log_level_t 
         strftime(strtime_buf, sizeof(strtime_buf), "[%Y-%m-%d %H:%M:%S] ", &log_time);
 
         /**
-         * @brief Change the write file address, then wirte timestamp data
+         * @brief Change the write file address, then write timestamp data
          */
         err = esp_partition_write(g_log_part, (g_log_info + g_log_index)->addr + (g_log_info + g_log_index)->size, strtime_buf, strlen(strtime_buf));
         ESP_ERROR_RETURN(err != ESP_OK, err, "esp_partition_write");
@@ -251,7 +251,7 @@ esp_err_t espnow_log_flash_write(const char *data, size_t size, esp_log_level_t 
     }
 
     /**
-     * @brief Change the write file address, then wirte log data after the timestamp.
+     * @brief Change the write file address, then write log data after the timestamp.
      *
      * @note First need to get the length of the timestamp, then write the log data after the timestamp
      */

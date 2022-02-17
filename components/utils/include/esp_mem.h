@@ -44,19 +44,19 @@ extern "C" {
 /**
  * @brief Add to memory record
  *
- * @param ptr  Memory pointer
- * @param size Memory size
- * @param tag  Description tag
- * @param line Line number
+ * @param[in] ptr  memory pointer
+ * @param[in] size memory size
+ * @param[in] tag  description tag
+ * @param[in] line line number
  */
 void esp_mem_add_record(void *ptr, int size, const char *tag, int line);
 
 /**
  * @brief Remove from memory record
  *
- * @param ptr  Memory pointer
- * @param tag  Description tag
- * @param line Line number
+ * @param[in] ptr  memory pointer
+ * @param[in] tag  description tag
+ * @param[in] line line number
  */
 void esp_mem_remove_record(void *ptr, const char *tag, int line);
 
@@ -80,7 +80,7 @@ void esp_mem_print_task(void);
 /**
  * @brief  Malloc memory
  *
- * @param  size  Memory size
+ * @param[in]  size  memory size
  *
  * @return
  *     - valid pointer on success
@@ -101,8 +101,8 @@ void esp_mem_print_task(void);
 /**
  * @brief  Calloc memory
  *
- * @param  n     Number of block
- * @param  size  Block memory size
+ * @param[in]  n     number of block
+ * @param[in]  size  block memory size
  *
  * @return
  *     - valid pointer on success
@@ -123,8 +123,8 @@ void esp_mem_print_task(void);
 /**
  * @brief  Reallocate memory
  *
- * @param  ptr   Memory pointer
- * @param  size  Block memory size
+ * @param[in]  ptr   memory pointer
+ * @param[in]  size  block memory size
  *
  * @return
  *     - valid pointer on success
@@ -147,8 +147,8 @@ void esp_mem_print_task(void);
 /**
  * @brief  Reallocate memory, If it fails, it will retry until it succeeds
  *
- * @param  ptr   Memory pointer
- * @param  size  Block memory size
+ * @param[in]  ptr   memory pointer
+ * @param[in]  size  block memory size
  *
  * @return
  *     - valid pointer on success
@@ -170,7 +170,7 @@ void esp_mem_print_task(void);
 /**
  * @brief  Free memory
  *
- * @param  ptr  Memory pointer
+ * @param[in]  ptr  memory pointer
  */
 #define ESP_FREE(ptr) do { \
         if(ptr) { \
