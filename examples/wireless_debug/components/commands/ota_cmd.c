@@ -269,7 +269,7 @@ static int ota_func(int argc, char **argv)
 
 void register_ota()
 {
-    ota_args.download = arg_str0("d", "downloae", "<url>", "Firmware Download");
+    ota_args.download = arg_str0("d", "download", "<url>", "Firmware Download");
     ota_args.find     = arg_int0("f", "find", "<wait_tick>", "Find upgradeable devices");
     ota_args.send     = arg_str0("s", "send", "<xx:xx:xx:xx:xx:xx>,<xx:xx:xx:xx:xx:xx>", "Send firmware to selected device");
     ota_args.end      = arg_end(3);

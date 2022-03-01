@@ -47,10 +47,6 @@ static size_t firmware_download(const char *url)
     size_t total_size   = 0;
     uint32_t start_time = xTaskGetTickCount();
 
-    /**
-     * @note If you need to upgrade all devices, pass MWIFI_ADDR_ANY;
-     *       If you upgrade the incoming address list to the specified device
-     */
     esp_http_client_config_t config = {
         .url            = url,
         .transport_type = HTTP_TRANSPORT_UNKNOWN,

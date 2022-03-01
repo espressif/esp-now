@@ -84,6 +84,7 @@ static struct {
 static int do_ping_cmd(int argc, char **argv)
 {
     esp_ping_config_t config = ESP_PING_DEFAULT_CONFIG();
+    config.task_stack_size = 3072;
 
     int nerrors = arg_parse(argc, argv, (void **)&ping_args);
     if (nerrors != 0) {

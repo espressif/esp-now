@@ -62,7 +62,7 @@ static void espnow_event_handler(void* handler_args, esp_event_base_t base, int3
     switch (id) {
         case ESP_EVENT_ESPNOW_CTRL_BIND: {
             espnow_ctrl_bind_info_t *info = (espnow_ctrl_bind_info_t *)event_data;
-            ESP_LOGI(TAG, "band, uuid: " MACSTR ", initiator_type: %d", MAC2STR(info->mac), info->initiator_attribute);
+            ESP_LOGI(TAG, "bind, uuid: " MACSTR ", initiator_type: %d", MAC2STR(info->mac), info->initiator_attribute);
             light_driver_breath_start(0, 255, 0); /**< green blink */
             vTaskDelay(pdMS_TO_TICKS(3000));
             light_driver_breath_stop();
@@ -71,7 +71,7 @@ static void espnow_event_handler(void* handler_args, esp_event_base_t base, int3
 
         case ESP_EVENT_ESPNOW_CTRL_UNBIND: {
             espnow_ctrl_bind_info_t *info = (espnow_ctrl_bind_info_t *)event_data;
-            ESP_LOGI(TAG, "unband, uuid: " MACSTR ", initiator_type: %d", MAC2STR(info->mac), info->initiator_attribute);
+            ESP_LOGI(TAG, "unbind, uuid: " MACSTR ", initiator_type: %d", MAC2STR(info->mac), info->initiator_attribute);
             light_driver_breath_start(128, 128, 0); /**< yellow blink */
             vTaskDelay(pdMS_TO_TICKS(3000));
             light_driver_breath_stop();

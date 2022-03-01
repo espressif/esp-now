@@ -276,7 +276,7 @@ static esp_err_t wifi_scan_func(int argc, char **argv)
     uint8_t bssid[6]               = {0x0};
     uint8_t channel                = 1;
     wifi_second_chan_t second      = 0;
-    wifi_ap_record_t ap_record     = {0x0};
+    wifi_ap_record_t *ap_record    = NULL;
     wifi_scan_config_t scan_config = {
         .show_hidden = true,
         .scan_type   = WIFI_SCAN_TYPE_ACTIVE,
@@ -317,23 +317,34 @@ static esp_err_t wifi_scan_func(int argc, char **argv)
 
     ESP_ERROR_RETURN(ap_number <= 0, ESP_FAIL, "esp_wifi_scan_get_ap_num");
     ESP_LOGI(TAG, "Get number of APs found, number: %d", ap_number);
+    
+    ap_record = ESP_MALLOC(sizeof(wifi_ap_record_t) * ap_number);
+    ESP_ERROR_RETURN(ap_record == NULL, ESP_FAIL, "malloc ap_record");
+    memset(ap_record, 0, sizeof(wifi_ap_record_t) * ap_number);
+
+    int ret = esp_wifi_scan_get_ap_records(&ap_number, ap_record);
+    if (ret != ESP_OK) {
+        ESP_FREE(ap_record);
+        ESP_ERROR_RETURN(1, ret, "esp_wifi_scan_get_ap_records");
+    }
 
     for (int i = 0; i < ap_number; i++) {
-        memset(&ap_record, 0, sizeof(wifi_ap_record_t));
 
-        if (ap_record.rssi < filter_rssi) {
+        if (ap_record[i].rssi < filter_rssi) {
             continue;
         }
 
         ESP_LOGI(TAG, "Router, ssid: %s, bssid: " MACSTR ", channel: %u, rssi: %d",
-                 ap_record.ssid, MAC2STR(ap_record.bssid),
-                 ap_record.primary, ap_record.rssi);
+                 ap_record[i].ssid, MAC2STR(ap_record[i].bssid),
+                 ap_record[i].primary, ap_record[i].rssi);
     }
 
 
     if (channel > 0 && channel < 13) {
         ESP_ERROR_CHECK(esp_wifi_set_channel(channel, second));
     }
+    
+    ESP_FREE(ap_record);
 
     return ESP_OK;
 }
