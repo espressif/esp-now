@@ -1,4 +1,4 @@
-menu "ESP-NOW OTA Example Configuration"
+menu "Example Configuration"
     config FIRMWARE_UPGRADE_URL
         string "Firmware upgrade url endpoint"
         default "http://192.168.0.3:8070/hello-world.bin"

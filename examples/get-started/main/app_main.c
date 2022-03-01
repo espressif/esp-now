@@ -26,12 +26,8 @@
 
 #include "driver/uart.h"
 
-#define CONFIG_UART_PORT_NUM  UART_NUM_0
-#define CONFIG_UART_BAUD_RATE 115200
 #define CONFIG_UART_TX_IO     UART_PIN_NO_CHANGE
 #define CONFIG_UART_RX_IO     UART_PIN_NO_CHANGE
-
-#define CONFIG_RETRY_NUM      5
 
 static const char *TAG = "app_main";
 

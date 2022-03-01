@@ -1,4 +1,4 @@
-menu "ESP-NOW Security Example Configuration"
+menu "Example Configuration"
 
     config ESPNOW_SESSION_POP
         string "Proof of Possession"
