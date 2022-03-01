@@ -1,29 +1,28 @@
-# Get Started Examples
+# Get Started Example
 
-This example is used for ESP-NOW data communication. The device receives data through the serial port and transparently broadcasts it to all nodes through the serial port. The device that receives the data receives the data through the serial port.
+This example demonstrates how to use the ESP-NOW data to communicate.
+
+## Functionality
+
+One device receives data through the serial port and broadcasts it to all nodes through ESP-NOW data. The others will output the data through the serial port when receive the data.
+
+## Hardware Required
+
+This example can be executed on any platform board and at least two development boards are required.
 
 ## Configuration
 
-To run this example, at least two development boards are required to test the communication between the two devices
+Open the project configuration menu (`idf.py menuconfig`) to configure the packet retransmission count and the UART port for data communication using (Refer to Kconfig file).
 
-- The default configuration is as follows:
-   - Broadcast packet: send data once and retransmit 5 times, the more retransmission times, the lower the throughput rate
-   - Serial port: 115200, 1, 8
-- Modify the configuration You can modify the `app_main.c` directly to configure
-```c
-#define CONFIG_UART_PORT_NUM UART_NUM_0
-#define CONFIG_UART_BAUD_RATE 115200
-#define CONFIG_UART_TX_IO UART_PIN_NO_CHANGE
-#define CONFIG_UART_RX_IO UART_PIN_NO_CHANGE
-#define CONFIG_RETRY_NUM 5
-```
-## Run
+## Example Output
 
+ - Output sample from the receiving device:
 <div align=center>
 <img src="../../docs/_static/en/device_log.png" width="550">
 <p> Packet receiving device log </p>
 </div>
 
+ - Output sample from the sending device:
 <div align=center>
 <img src="../../docs/_static/en/serial_port.png" width="550">
 <p> The log of the sending device </p>
