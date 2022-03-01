@@ -2,6 +2,7 @@ menu "ESP-NOW OTA Example Configuration"
     config FIRMWARE_UPGRADE_URL
         string "Firmware upgrade url endpoint"
         default "http://192.168.0.3:8070/hello-world.bin"
+        depends on ESPNOW_OTA_INITATOR
         help
             URL of server which hosts the firmware image.
 
