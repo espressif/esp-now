@@ -685,7 +685,7 @@ static int gpio_func(int argc, char **argv)
  */
 static void register_gpio()
 {
-    gpio_args.get = arg_int0("c", "config", "<num>", "GPIO common configuration");
+    gpio_args.config = arg_int0("c", "config", "<num>", "GPIO common configuration");
     gpio_args.get = arg_int0("g", "get", "<num>", "GPIO get input level");
     gpio_args.set = arg_int0("s", "set", "<num>", "GPIO set output level");
     gpio_args.level = arg_int0("l", "level", "<0 or 1>", "level. 0: low ; 1: high");

@@ -53,21 +53,32 @@ static void log_read_task(void *arg)
         .transport_type = HTTP_TRANSPORT_UNKNOWN,
     };
 
+    client = esp_http_client_init(&config);
+    esp_http_client_set_method(client, HTTP_METHOD_POST);
+
     for (;;) {
-        client = esp_http_client_init(&config);
-        esp_http_client_set_method(client, HTTP_METHOD_POST);
+        vTaskDelay(pdMS_TO_TICKS(1000));
+
+        log_size = espnow_log_flash_size();
+        ESP_ERROR_CONTINUE(!log_size, "");
+
+        ret = esp_http_client_open(client, log_size);
+        if (ret != ESP_OK) {
+            ESP_LOGE(TAG, "Failed to open HTTP connection: %s", esp_err_to_name(ret));
+            esp_http_client_close(client);
+            continue;
+        }
 
         /**
          * @brief Read the log data and transfer the data out via http server
          */
-        for (size_t log_size = espnow_log_flash_size(), size = MIN(ESPNOW_DATA_LEN, log_size);
-                size > 0 && espnow_log_flash_read(log_data, &size) == ESP_OK && ret == ESP_OK;
+        for (size_t size = MIN(ESPNOW_DATA_LEN, log_size);
+                size > 0 && espnow_log_flash_read(log_data, &size) == ESP_OK;
                 log_size -= size, size = MIN(ESPNOW_DATA_LEN, log_size)) {
-            ret = esp_http_client_open(client, log_size);
-            ESP_ERROR_BREAK(ret != ESP_OK, "<%s> mwifi_write", esp_err_to_name(ret));
+            ret = esp_http_client_write(client, log_data, size);
+            ESP_ERROR_BREAK(ret != ESP_OK, "<%s> Failed to write HTTP data", esp_err_to_name(ret));
         }
 
-        esp_http_client_write(client, log_data, log_size);
         esp_http_client_close(client);
     }
 
