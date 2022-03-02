@@ -1,4 +1,4 @@
-menu "ESP-NOW Debug Example Configuration"
+menu "Example Configuration"
 
     config FLASH_LOG_POST_URL
         string "Flash log url endpoint"
