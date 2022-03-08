@@ -25,85 +25,94 @@
 extern "C" {
 #endif /**< _cplusplus */
 
-#define APP_KEY_LEN                 32
-#define KEY_LEN                     16
-#define IV_LEN                      8
-#define TAG_LEN                     4
-#define ESPNOW_SEC_PACKET_MAX_SIZE  (ESPNOW_DATA_LEN - TAG_LEN)  /**< Maximum length of a single packet transmitted */
+#define APP_KEY_LEN                 32      /**< Exchanged key length */
+#define KEY_LEN                     16      /**< Secret key length */
+#define IV_LEN                      8       /**< The initialization vector (nonce) length */
+#define TAG_LEN                     4       /**< The length of the authentication field */
+#define ESPNOW_SEC_PACKET_MAX_SIZE  (ESPNOW_DATA_LEN - TAG_LEN)  /**< Maximum length of a single encrypted packet transmitted */
 
 /**
  * @brief State of security
  */
 typedef enum {
-    ESPNOW_SEC_UNFINISHED,
-    ESPNOW_SEC_OVER,
+    ESPNOW_SEC_UNFINISHED,      /**< Security handshake is not finished */
+    ESPNOW_SEC_OVER,            /**< Security handshake is over and APP key is received */
 } espnow_sec_state_t;
 
 /**
  * @brief Struct of security
  */
 typedef struct {
-    int state;
-    uint8_t key[KEY_LEN];
-    uint8_t iv[IV_LEN];
-    uint8_t key_len;
-    uint8_t iv_len;
-    uint8_t tag_len;
-    void *cipher_ctx;
+    int state;                  /**< State defined by espnow_sec_state_t */
+    uint8_t key[KEY_LEN];       /**< Secret key */
+    uint8_t iv[IV_LEN];         /**< The initialization vector (nonce) */
+    uint8_t key_len;            /**< Secret key length */
+    uint8_t iv_len;             /**< The initialization vector (nonce) length */
+    uint8_t tag_len;            /**< The length of the authentication field */
+    void *cipher_ctx;           /**< The cipher context */
 } espnow_sec_t;
 
 /**
  * @brief Type of packet
  */
 typedef enum {
-    ESPNOW_SEC_TYPE_REQUEST,
-    ESPNOW_SEC_TYPE_INFO,
-    ESPNOW_SEC_TYPE_HANDSHAKE,
-    ESPNOW_SEC_TYPE_KEY,
-    ESPNOW_SEC_TYPE_KEY_RESP,
-    ESPNOW_SEC_TYPE_REST,
+    ESPNOW_SEC_TYPE_REQUEST,    /**< Request security information */
+    ESPNOW_SEC_TYPE_INFO,       /**< Security information */
+    ESPNOW_SEC_TYPE_HANDSHAKE,  /**< Handshake packet to get key */
+    ESPNOW_SEC_TYPE_KEY,        /**< Packet containing app key */
+    ESPNOW_SEC_TYPE_KEY_RESP,   /**< Response to confirm gotten the app key */
+    ESPNOW_SEC_TYPE_REST,       /**< Reset security information */
 } espnow_sec_type_t;
 
+/**
+ * @brief Security version
+ */
 typedef enum {
-    ESPNOW_SEC_VER_NONE,
-    ESPNOW_SEC_VER_V1_0,
-    ESPNOW_SEC_VER_V1_1,
+    ESPNOW_SEC_VER_NONE,        /**< No security */
+    ESPNOW_SEC_VER_V1_0,        /**< The default security version */
+    ESPNOW_SEC_VER_V1_1,        /**< Used in the future */
 } espnow_sec_ver_type_t;
 
+/**
+ * @brief Security information
+ */
 typedef struct {
-    uint8_t type;
-    uint8_t sec_ver;
-    uint8_t client_mac[6];
+    uint8_t type;               /**< ESPNOW_SEC_TYPE_REQUEST or ESPNOW_SEC_TYPE_INFO */
+    uint8_t sec_ver;            /**< Security version */
+    uint8_t client_mac[6];      /**< Mac address of initiator */
 } espnow_sec_info_t;
 
+/**
+ * @brief Responder security information
+ */
 typedef struct {
-    uint8_t mac[6];
-    int8_t rssi;
-    uint8_t channel;
-    uint8_t sec_ver;
+    uint8_t mac[6];             /**< Mac address of responder */
+    int8_t rssi;                /**< Packet rssi */
+    uint8_t channel;            /**< The channel of responder */
+    uint8_t sec_ver;            /**< The security version of responder */
 } espnow_sec_responder_t;
 
 /**
  * @brief Handshake packet
  */
 typedef struct {
-    uint8_t type;  /**< Type of packet, ESPNOW_SEC_TYPE_HANDSHAKE */
-    uint8_t size;  /**< Size */
-    uint8_t data[0]; /**< Message */
+    uint8_t type;               /**< Type of packet, ESPNOW_SEC_TYPE_HANDSHAKE */
+    uint8_t size;               /**< Size */
+    uint8_t data[0];            /**< Message */
 } __attribute__((packed)) espnow_sec_packet_t;
 
 /**
- * @brief List of devices' status during the security process
+ * @brief List of device status during the security process
  */
 typedef struct {
-    size_t unfinished_num;    /**< The number of devices to be set key */
+    size_t unfinished_num;          /**< The number of devices to be set key */
     espnow_addr_t *unfinished_addr; /**< MAC address of devices to be set key */
 
-    size_t successed_num;     /**< The number of devices that succeeded to set key */
+    size_t successed_num;           /**< The number of devices that succeeded to set key */
     espnow_addr_t *successed_addr;  /**< MAC address of devices that succeeded to set key */
 
-    size_t requested_num;     /**< The number of devices to be set key */
-    espnow_addr_t *requested_addr;  /**< This address is used to buffer the result of the request during the set key process */
+    size_t requested_num;           /**< Reserved */
+    espnow_addr_t *requested_addr;  /**< Reserved */
 } espnow_sec_result_t;
 
 /**
@@ -111,9 +120,9 @@ typedef struct {
  *
  * @attention Only called at the root
  *
- * @param  info_list      Destination nodes of mac
- * @param  num            Number of scaned nodes
- * @param  wait_ticks     Scan time in ticks
+ * @param[out]  info_list  destination nodes of mac
+ * @param[out]  num  number of scaned nodes
+ * @param[in]  wait_ticks  the maximum scanning time in ticks
  *
  * @return
  *    - ESP_OK
@@ -126,11 +135,11 @@ esp_err_t espnow_sec_initiator_scan(espnow_sec_responder_t **info_list, size_t *
  *
  * @attention Only called at the root
  *
- * @param  sec            The Security info to record state and key info
- * @param  pop_data       Proof of Possession (PoP) string
- * @param  dest_addrs     Destination nodes of mac
- * @param  dest_addrs_num Number of destination nodes
- * @param  result         Must call espnow_sec_initator_result_free to free memory
+ * @param[in]  sec  the security info to record state and key info
+ * @param[in]  pop_data  Proof of Possession (PoP) string
+ * @param[in]  dest_addrs  destination nodes of mac
+ * @param[in]  dest_addrs_num  number of destination nodes
+ * @param[out]  result  must call espnow_sec_initator_result_free to free memory
  *
  * @return
  *    - ESP_OK
@@ -148,9 +157,9 @@ esp_err_t espnow_sec_initiator_start(espnow_sec_t *sec, const char *pop_data, co
 esp_err_t espnow_sec_initiator_stop();
 
 /**
- * @brief  Free memory in the results list
+ * @brief Free memory in the results list
  *
- * @param  result Pointer to device security status
+ * @param[in]  result  pointer to device security status
  *
  * @return
  *    - ESP_OK
@@ -161,8 +170,8 @@ esp_err_t espnow_sec_initator_result_free(espnow_sec_result_t *result);
 /**
  * @brief Start security process
  *
- * @param  sec            The Security info to record state and key info
- * @param  pop_data       Proof of Possession (PoP) string
+ * @param[in]  sec  the security info to record state and key info
+ * @param[in]  pop_data  Proof of Possession (PoP) string
  * 
  * @return
  *    - ESP_OK
@@ -182,7 +191,7 @@ esp_err_t espnow_sec_responder_stop();
 /**
  * @brief Initialize the specified security info
  * 
- * @param  sec            The Security info to initialize. This must not be NULL.
+ * @param[in]  sec  the security info to initialize. This must not be NULL.
  * 
  *    - ESP_OK
  *    - ESP_ERR_INVALID_ARG
@@ -192,7 +201,7 @@ esp_err_t espnow_sec_init(espnow_sec_t *sec);
 /**
  * @brief Clear the specified security info
  * 
- * @param  sec            The Security info to clear. This must not be NULL.
+ * @param[in]  sec  the security info to clear. This must not be NULL.
  * 
  *    - ESP_OK
  *    - ESP_ERR_INVALID_ARG
@@ -202,8 +211,8 @@ esp_err_t espnow_sec_deinit(espnow_sec_t *sec);
 /**
  * @brief Set the security key info
  * 
- * @param  sec            The Security info to set.
- * @param  app_key        Raw key info to use to set encryption key and iv.
+ * @param[in]  sec  the security info to set.
+ * @param[in]  app_key  raw key info used to set encryption key and iv.
  * 
  *    - ESP_OK
  *    - ESP_ERR_INVALID_ARG
@@ -211,16 +220,16 @@ esp_err_t espnow_sec_deinit(espnow_sec_t *sec);
 esp_err_t espnow_sec_setkey(espnow_sec_t *sec, uint8_t app_key[APP_KEY_LEN]);
 
 /**
- * @brief   Encrypt and send ESPNOW data
- *          Encryption with 128 bit AES-CCM
+ * @brief Encrypt and send ESPNOW data
+ *        Encryption with 128 bit AES-CCM
  *
- * @param   sec            The Security info to used for encryption.
- * @param   type           ESPNOW data type
- * @param   dest_addr      Peer MAC address
- * @param   data           Input data to be encrypted and sent
- * @param   size           Input data length, the maximum length of data must be less than ESPNOW_SEC_PACKET_MAX_SIZE
- * @param   data_head      If data_head is NULL, Use ESPNOW_FRAME_CONFIG_DEFAULT configuration
- * @param   wait_ticks     Send time in ticks
+ * @param[in]   sec            the security info to used for encryption.
+ * @param[in]   type           ESPNOW data type
+ * @param[in]   dest_addr      peer MAC address
+ * @param[in]   data           input data to be encrypted and sent
+ * @param[in]   size           input data length, the maximum length of data must be no more than ESPNOW_SEC_PACKET_MAX_SIZE
+ * @param[in]   data_head      if data_head is NULL, use ESPNOW_FRAME_CONFIG_DEFAULT configuration
+ * @param[in]   wait_ticks     the maximum waiting time in ticks
  *
  * @return
  *    - ESP_OK
@@ -230,16 +239,16 @@ esp_err_t espnow_sec_send(espnow_sec_t *sec, espnow_type_t type, const uint8_t *
                       size_t size, const espnow_frame_head_t *data_head, TickType_t wait_ticks);
 
 /**
- * @brief   Recive ESPNOW data and decrypt
- *          Decryption with 128 bit AES-CCM
+ * @brief Recive ESPNOW data and decrypt
+ *        Decryption with 128 bit AES-CCM
  *
- * @param   sec            The Security info to used for decryption.
- * @param   type           ESPNOW data type
- * @param   src_addr       Peer MAC address
- * @param   data           Output received and decrypted data
- * @param   size           Length of output data
- * @param   rx_ctrl        Received packet radio metadata header
- * @param   wait_ticks     Recive time in ticks
+ * @param[in]  sec  the security info to used for decryption
+ * @param[in]  type  ESPNOW data type
+ * @param[out]  src_addr  peer MAC address
+ * @param[out]  data  output received and decrypted data
+ * @param[out]  size  length of output data
+ * @param[out]  rx_ctrl  received packet radio metadata header
+ * @param[in]  wait_ticks  the maximum waiting time in ticks
  *
  * @return
  *    - ESP_OK

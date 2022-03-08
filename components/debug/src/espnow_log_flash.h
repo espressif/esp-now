@@ -20,42 +20,27 @@ extern "C" {
 #endif /**< _cplusplus */
 
 /**
- * @brief Initespnow_log_flash
- *      Create Several files under the spiffs folder,open the file.Open the
- *      file for the storage of the next step data.paramters DEBUG_FLASH_FILE_MAX_NUM
- *      if files sizes change.
- *
+ * @brief Initialize espnow log flash
+ *        Find and get log flash partition which size is not smaller than LOG_FLASH_FILE_MAX_SIZE. 
+ *        Create several files under the spiffs folder. 
+ *        Open the file in the next step for the storage of the log data.
+ * 
  * @return
  *      - ESP_OK
  */
 esp_err_t espnow_log_flash_init();
 
 /**
- * @brief Deinit medbug_flash
- *      If you open the file, close the file accordingly.
+ * @brief Deinit log flash
+ *        Log flash operation will be stopped.
  *
  * @return
  *      - ESP_OK
  */
 esp_err_t espnow_log_flash_deinit();
 
-
 /**
- * @brief Read memory data in flash
- *
- * @param data  Data from the flash's spiffs files in the log
- * @param size  Size from the flash's spiffs files in the log
- *
- * @return
- *      - ESP_OK
- *      - read_size
- */
-esp_err_t espnow_log_flash_read(char *data, size_t *size);
-
-
-
-/**
- * @brief Erase when the data and pointers is full
+ * @brief Erase the flash when the log partition is full
  *
  * @return
  *      - ESP_OK
@@ -63,22 +48,13 @@ esp_err_t espnow_log_flash_read(char *data, size_t *size);
 esp_err_t espnow_log_flash_erase();
 
 /**
- * @brief Create files size,For the data to be stored in the file
- *      for subsequent calls.paramters DEBUG_FLASH_FILE_MAX_NUM
- *      if files sizes change.
- *
- * @return
- *      - size
- */
-size_t espnow_log_flash_size();
-
-/**
- * @brief Write memory data in flash
+ * @brief Write memory log data in flash
  *
  * @note Don't include timestamp in interface input data
  *
- * @param data  Data from the flash's spiffs files in the log
- * @param size  Size from the flash's spiffs files in the log
+ * @param[in]  data  log data to be stored in flash's spiffs files
+ * @param[in]  size  size of the data in bytes
+ * @param[in]  level  level of the log
  *
  * @return
  *      - ESP_OK

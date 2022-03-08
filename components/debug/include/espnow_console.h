@@ -22,17 +22,17 @@ extern "C" {
 #endif /**< _cplusplus */
 
 /**
- * @brief 
+ * @brief Console configuration
  */
 typedef struct {
     struct {
-        bool uart;
-        bool espnow;
-    } monitor_command;
+        bool uart;                  /**< Receiving command from uart */
+        bool espnow;                /**< Receiving command from espnow */
+    } monitor_command;              /**< Command monitor configuration */
     struct {
-        const char *base_path;
-        const char *partition_label;
-    } store_history;
+        const char *base_path;      /**< Path where partition should be registered (e.g. "/spiflash") */
+        const char *partition_label;/**< Label of the partition which should be used */
+    } store_history;                /**< Command story history configuration */
 } espnow_console_config_t;
 
 /**
@@ -42,6 +42,8 @@ typedef struct {
  *          - Initialize filesystem
  *          - Create console handle task
  *
+ * @param[in]  config  pointer to the console configuration structure
+ * 
  * @return
  *     - ESP_OK
  *     - ESP_FAIL
@@ -59,7 +61,7 @@ esp_err_t espnow_console_init(const espnow_console_config_t *config);
 esp_err_t espnow_console_deinit(void);
 
 /**
- * @brief Common commands
+ * @brief Register Common commands
  */
 void espnow_console_commands_register();
 

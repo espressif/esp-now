@@ -36,16 +36,6 @@ typedef struct espnow_group_item {
 
 static SLIST_HEAD(group_item_list_, espnow_group_item) g_group_item_list;
 
-/**
- * @brief      Set group ID addresses
- *
- * @param[in]  addr  pointer to new group ID addresses
- * @param[in]  num  the number of group ID addresses
- *
- * @return
- *    - ESP_OK
- *    - ESP_FAIL
- */
 esp_err_t espnow_add_group(const espnow_group_t group_id)
 {
     espnow_group_item_t *item = NULL;
@@ -69,16 +59,6 @@ esp_err_t espnow_add_group(const espnow_group_t group_id)
     return ESP_OK;
 }
 
-/**
- * @brief      Delete group ID addresses
- *
- * @param[in]  addr  pointer to deleted group ID address
- * @param[in]  num  the number of group ID addresses
- *
- * @return
- *    - ESP_OK
- *    - ESP_FAIL
- */
 esp_err_t espnow_del_group(const espnow_group_t group_id)
 {
     espnow_group_item_t *item = NULL;
@@ -94,12 +74,6 @@ esp_err_t espnow_del_group(const espnow_group_t group_id)
     return ESP_OK;
 }
 
-
-/**
- * @brief      Get the number of group ID addresses
- *
- * @return     the number of group ID addresses
- */
 int espnow_get_group_num(void)
 {
     int count = 0;
@@ -112,16 +86,6 @@ int espnow_get_group_num(void)
     return count;
 }
 
-/**
- * @brief      Get group ID addresses
- *
- * @param[out] addr  pointer to group ID addresses
- * @param[in]  num  the number of group ID addresses
- *
- * @return
- *    - ESP_OK
- *    - ESP_FAIL
- */
 esp_err_t espnow_get_group_list(espnow_group_t group_id_list[], size_t num)
 {
     espnow_group_item_t *item = NULL;
@@ -138,11 +102,6 @@ esp_err_t espnow_get_group_list(espnow_group_t group_id_list[], size_t num)
     return ESP_OK;
 }
 
-/**
- * @brief      Check whether the specified group address is my group
- *
- * @return     true/false
- */
 bool espnow_is_my_group(const espnow_group_t group_id)
 {
     espnow_group_item_t *item = NULL;

@@ -31,10 +31,9 @@ extern const protocomm_security_t protocomm_client_security1;
 /**
  * @brief   Generating the Command0
  *
- * @param[out] outbuf     Pointer to internally allocated output buffer,
- *                        where the resulting response data output from
- *                        the registered handler is to be stored
- * @param[out] outlen     Buffer length of the allocated output buffer
+ * @param[out]  outbuf  pointer to internally allocated output buffer,
+ *                      where the Command0 is to be stored
+ * @param[out]  outlen  buffer length of the allocated output buffer
  * 
  * @return
  *  - ESP_OK : Request handled successfully

@@ -58,8 +58,8 @@ typedef struct esp_time_config {
  * @note If `IDF monitor` is used, addresses in the backtrace will be converted
  *       to file names and line numbers.
  *
- * @param  err [description]
- * @return     [description]
+ * @param[in]  err [description]
+ * @return         [description]
  */
 #define ESP_ERROR_ASSERT(err) do { \
         esp_err_t __err_rc = (err); \
@@ -108,7 +108,7 @@ typedef struct esp_time_config {
  * Useful if you want to reboot after a delay, to allow other tasks to finish
  * their operations (Eg. MQTT publish to indicate OTA success)
  *
- * @param[in] ticks Time in ticks after which the chip should reboot
+ * @param[in]  wait_ticks  time in ticks after which the chip should reboot
  *
  * @return
  *    - ESP_OK
@@ -135,6 +135,8 @@ int esp_reboot_total_count(void);
 /**
  * @brief Determine if the restart is caused by an exception.
  *
+ * @param[in]  erase_coredump  erase all coredump partition
+ * 
  * @return
  *     - true
  *     - false
@@ -155,7 +157,7 @@ esp_err_t esp_timesync_start(void);
 /**
  * @brief Check if current time is updated
  *
- * This API checks if the current system time is updated against the reference time of 1-Jan-2019.
+ * This API checks if the current system time is updated against the reference time of 1-Jan-2020.
  *
  * @return
  *      - true if time is updated
@@ -166,10 +168,10 @@ bool esp_timesync_check(void);
 /**
  * @brief Wait for time synchronization
  *
- * This API waits for the system time to be updated against the reference time of 1-Jan-2019.
+ * This API waits for the system time to be updated against the reference time of 1-Jan-2020.
  * This is a blocking call.
  *
- * @param[in] uint32_t Number of ticks to wait for time synchronization.
+ * @param[in]  wait_ms  number of ticks to wait for time synchronization.
  *
  * @return
  *      - ESP_OK
@@ -179,7 +181,7 @@ esp_err_t esp_timesync_wait(uint32_t wait_ms);
 /**
  * @brief Interval printing system information
  *
- * @param[in] uint32_t Interval of printing system log information
+ * @param[in]  interval_ms  interval of printing system log information
  *
  */
 void esp_print_system_info(uint32_t interval_ms);
@@ -187,9 +189,12 @@ void esp_print_system_info(uint32_t interval_ms);
 /**
  * @brief Convert MAC from string to hex
  *
+ * @param[in]  mac_str  mac address string in format MACSTR
+ * @param[out]  mac_hex  mac address array in hex
+ * 
  * @return
  *      - NULL: fail
- *      - mac_hex: sucess
+ *      - mac_hex: success
  */
 uint8_t *mac_str2hex(const char *mac_str, uint8_t *mac_hex);
 

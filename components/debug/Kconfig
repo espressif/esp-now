@@ -36,7 +36,7 @@ menu "ESP-NOW Debug Configuration"
             help
                 Offset of the log information partition
 
-        config DEBUG_PRINTF_ENABLE
+        config DEBUG_LOG_PRINTF_ENABLE
             bool "Output the `printf` information of the espnow module"
             default n
             help

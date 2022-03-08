@@ -21,10 +21,8 @@ extern "C"
 {
 #endif
 
-/** Intialise ESP QCloud Storage
- *
- * This API is internally called by esp_init(). Applications may call this
- * only if access to the ESP QCloud storage is required before esp_init().
+/** 
+ * @brief Intialise ESP Storage
  *
  * @return
  *     - ESP_FAIL
@@ -33,13 +31,13 @@ extern "C"
 esp_err_t esp_storage_init(void);
 
 /**
- * @brief save the information with given key
+ * @brief Save the information with given key
  *
- * @param  key    Key name. Maximal length is 15 characters. Shouldn't be empty.
- * @param  value  The value to set.
- * @param  length length of binary value to set, in bytes; Maximum length is
- *                1984 bytes (508000 bytes or (97.6% of the partition size - 4000) bytes
- *                whichever is lower, in case multi-page blob support is enabled).
+ * @param[in]  key    key name. Maximal length is 15 characters. Shouldn't be empty.
+ * @param[in]  value  the value to set
+ * @param[in]  length length of binary value to set, in bytes; Maximum length is
+ *             1984 bytes or (508000 bytes or (97.6% of the partition size - 4000) bytes
+ *             whichever is lower, in case multi-page blob support is enabled).
  *
  * @return
  *     - ESP_FAIL
@@ -48,18 +46,11 @@ esp_err_t esp_storage_init(void);
 esp_err_t esp_storage_set(const char *key, const void *value, size_t length);
 
 /**
- * @brief  Load the information,
- *         esp_err_t esp_storage_load(const char *key, void *value, size_t *length);
- *         esp_err_t esp_storage_load(const char *key, void *value, size_t length);
+ * @brief Load the information with given key
  *
- * @attention  The interface of this api supports size_t and size_t * types.
- *             When the length parameter of the pass is size_t, it is only the
- *             length of the value. When the length parameter of the pass is size_t *,
- *             the length of the saved information can be obtained.
- *
- * @param  key    The corresponding key of the information that want to load
- * @param  value  The corresponding value of key
- * @param  length The length of the value, Pointer type will return length
+ * @param[in]  key  the corresponding key of the information that want to load
+ * @param[out]  value  the corresponding value of key
+ * @param[in]  length  the length of the value, can be 0 or no less than the value length
  *
  * @return
  *     - ESP_FAIL
@@ -67,10 +58,10 @@ esp_err_t esp_storage_set(const char *key, const void *value, size_t length);
  */
 esp_err_t esp_storage_get(const char *key, void *value, size_t length);
 
-/*
+/**
  * @brief  Erase the information with given key
  *
- * @param  key The corresponding key of the information that want to erase
+ * @param[in]  key  the corresponding key of the information that want to erase
  *
  * @return
  *     - ESP_FAIL
