@@ -11,7 +11,7 @@ variables:
 
 before_script:
   - cd $IDF_PATH
-  - git checkout release/v4.3
+  - git checkout release/v4.4
   - git pull
   - git submodule update --init --recursive
   - ./install.sh
@@ -20,7 +20,7 @@ before_script:
 
 build_template_cmake: &build_template
   stage: build
-  image: espressif/idf:release-v4.3
+  image: espressif/idf:release-v4.4
   tags:
     - build
   variables:
@@ -40,12 +40,7 @@ build_template_cmake: &build_template
     - ./tools/ci/build_examples_cmake.sh examples/debug esp32
     - ./tools/ci/build_examples_cmake.sh examples/ota esp32
     - ./tools/ci/build_examples_cmake.sh examples/provisioning esp32
-
-    - ./tools/ci/build_examples_cmake.sh examples/dev_kits/button_remote_control esp32
-    - ./tools/ci/build_examples_cmake.sh examples/dev_kits/button_touch esp32s2
-    - ./tools/ci/build_examples_cmake.sh examples/dev_kits/button_wall_switch esp32
-    - ./tools/ci/build_examples_cmake.sh examples/dev_kits/light_pwm esp32
-    - ./tools/ci/build_examples_cmake.sh examples/dev_kits/sensor_human_infrared esp32
+    - ./tools/ci/build_examples_cmake.sh examples/security esp32
 
 push_master_to_github:
   stage: deploy
