@@ -76,7 +76,7 @@ static void log_read_task(void *arg)
                 size > 0 && espnow_log_flash_read(log_data, &size) == ESP_OK;
                 log_size -= size, size = MIN(ESPNOW_DATA_LEN, log_size)) {
             ret = esp_http_client_write(client, log_data, size);
-            ESP_ERROR_BREAK(ret != ESP_OK, "<%s> Failed to write HTTP data", esp_err_to_name(ret));
+            ESP_ERROR_BREAK(ret < 0, "<%s> Failed to write HTTP data", esp_err_to_name(ret));
         }
 
         esp_http_client_close(client);
