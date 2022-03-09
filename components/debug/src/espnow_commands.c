@@ -333,7 +333,7 @@ static void register_reset()
 }
 
 /**
- * @brief  A function which implements reset command.
+ * @brief  A function which implements fallback command.
  */
 static int fallback_func(int argc, char **argv)
 {
@@ -393,7 +393,7 @@ static void register_heap()
 }
 
 /**
- * @brief  A function which implements heap command.
+ * @brief  A function which implements beacon command.
  */
 static int beacon_func(int argc, char **argv)
 {
@@ -418,7 +418,7 @@ static int beacon_func(int argc, char **argv)
 }
 
 /**
- * @brief  Register heap command.
+ * @brief  Register beacon command.
  */
 static void register_espnow_beacon()
 {
@@ -647,7 +647,7 @@ static struct {
 } gpio_args;
 
 /**
- * @brief  A function which implements `gpio`
+ * @brief  A function which implements gpio command.
  */
 static int gpio_func(int argc, char **argv)
 {
@@ -713,7 +713,7 @@ static struct {
 } uart_args;
 
 /**
- * @brief  A function which implements `gpio`
+ * @brief  A function which implements uart command.
  */
 static int uart_func(int argc, char **argv)
 {
@@ -798,7 +798,7 @@ static struct {
 } time_args;
 
 /**
- * @brief  A function which implements `gpio`
+ * @brief  A function which implements time command.
  */
 static int time_func(int argc, char **argv)
 {
