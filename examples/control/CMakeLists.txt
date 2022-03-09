@@ -10,8 +10,7 @@ if(NOT DEFINED ESPNOW_PATH)
     set(ESPNOW_PATH ${CMAKE_CURRENT_LIST_DIR}/../..)
 endif()
 
-set(EXTRA_COMPONENT_DIRS ${ESPNOW_PATH}/components
-                         ${ESPNOW_PATH}/examples/dev_kits/common_components/led)
+set(EXTRA_COMPONENT_DIRS ${ESPNOW_PATH}/components)
 
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 
