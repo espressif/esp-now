@@ -1,4 +1,4 @@
-# ESP-NOW (Beta)
+# ESP-NOW
 This project provides examples to simplify the use of ESP-NOW.  
 
 ESP-NOW is a kind of connectionless Wi-Fi communication protocol that is defined by Espressif. Different from traditional Wi-Fi protocols, the first five upper layers in OSI are simplified to one layer in ESP-NOW, so the data does not need to go through the physical layer, data link layer, network layer, transport layer in turn, which reduces the delay caused by packet loss under congested network, and leads to quickly response time.
@@ -19,16 +19,14 @@ There are two roles defined in ESP-NOW according to the data flow, initiator and
   - [ ] Gateway
   - [ ] Low-power
   - [ ] Frequency-Hopping
-  - [ ] ESP8266 supporting
+  - [ ] ESP8266 and ESP32-S3 supporting
 
 ## Quick Start
 ### Hardware Preparation
 Chips of ESP32、ESP32-C3、ESP32-S2 are recommended, ESP8266 and ESP32-S3 will be supported soon.
 
-`examples/dev_kits` includes examples based on specific development boards. You need to buy the related boards before running the examples.
-
 ### Set up Development Environment
-Setting the environment and getting ESP-IDF (release/v4.3 or tag v4.3.x) follow the [Step](https://docs.espressif.com/projects/esp-idf/en/release-v4.3/esp32/index.html) .
+Setting the environment and getting ESP-IDF (release/v4.4 or tag v4.4) follow the [Step](https://docs.espressif.com/projects/esp-idf/en/release-v4.4/esp32/index.html) .
 
 ### Get the ESP-NOW project
 Download ESP-NOW using the following:
@@ -41,8 +39,8 @@ git clone --recursive https://github.com/espressif/esp-now.git
 It is recommended to first erase the flash if you are using this for the first time and then flash the firmware. Here are the steps:
 ```shell
 $ cd /path/to/esp-now/examples/get-started/
-$ export ESPPORT=/dev/tty.SLAB_USBtoUART #
-$ idf.py set-target esp32s2
+$ export ESPPORT=/dev/tty.SLAB_USBtoUART
+$ idf.py set-target esp32c3
 $ idf.py erase_flash
 $ idf.py flash monitor
 ```
@@ -52,11 +50,9 @@ $ idf.py flash monitor
 There are some obvious advantages in ESP-NOW:
 
 1. **Quick Response**: After power-on, the devices can transmit data and control other paired devices directly without any wireless connection, and the response speed is in milliseconds.
-2. **Low-power**: ESP-NOW simplifies the five layer protocols into one layer, which leads to easier communication process and lower power consumption. A control button can be used for two years just with two AA batteries.
-3. **Good Compatibility**: When the device connects to a router or works as a hotpot, it can also realize a fast and stable communication by ESP-NOW. And the device can keep stable connection through ESP-NOW even if the router is faulty or the network is unstable.
-4. **Long-distance Communication**: ESP-NOW supports long-distance communication. It can be applied to outdoor scenes and can keep stable connection even the devices are seperated by walls even floors.
-5. **Multilayer Control**: The multi-hop control of devices can be realized by ESP-NOW. Hundreds of devices can be controlled through unicast, broadcast and group control.
-6. **Multiple Control Methods**: ESP-NOW supports the touch switch, LCD screen, different sensors and voice control.
+2. **Good Compatibility**: When the device connects to a router or works as a hotpot, it can also realize a fast and stable communication by ESP-NOW. And the device can keep stable connection through ESP-NOW even if the router is faulty or the network is unstable.
+3. **Long-distance Communication**: ESP-NOW supports long-distance communication. It can be applied to outdoor scenes and can keep stable connection even the devices are seperated by walls even floors.
+4. **Multi-hop Control**: The multi-hop control of devices can be realized by ESP-NOW. Hundreds of devices can be controlled through unicast, broadcast and group control.
 
 ### Provision
 
