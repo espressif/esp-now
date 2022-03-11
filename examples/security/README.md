@@ -1,8 +1,9 @@
-# Security Examples
+# Security Example
 
-It introduces a quick way to configurate `ESP-NOW` encryption key to devices.
+This example demonstrates how to configurate `ESP-NOW` encryption key to devices.
 
-## Process
+## Functionality
+The process flow is as follows:
 
 <img src="../../docs/_static/en/espnow_security_en.png" width="450">
 
@@ -10,20 +11,28 @@ It introduces a quick way to configurate `ESP-NOW` encryption key to devices.
 
 - ECDH and confirm details refer to [security-schemes](https://docs.espressif.com/projects/esp-idf/zh_CN/latest/esp32/api-reference/provisioning/provisioning.html#security-schemes)
 
+## Hardware Required
 
-> Proof of Possession (PoP) string used to authorize session and derive shared key. Set the same in initiator and responder:
+This example can be executed on any platform board and at least two development boards are required.
+
+## Configuration
+
+Open the project configuration menu (`idf.py menuconfig`) to configure the Proof of Possession (PoP) string. It is used to authorize session and derive shared key. Set the same in initiator and responder:
 
 ```
 idf.py menuconfig
-    ESP-NOW Security Example Configuration  --->
+    Example Configuration  --->
         Proof of Possession  --->
             "espnow_pop"
 ```
+
+## How to Use the Example
+
 ### Step 1: Build & Flash & Run the Responders
 - Select the ESP-NOW security responder Mode:
 ```
 idf.py menuconfig
-    ESP-NOW Security Example Configuration  --->
+    Example Configuration  --->
         ESP-NOW Mode  --->
             () ESP-NOW SEC initator Mode
             (X) ESP-NOW SEC responder Mode
@@ -34,7 +43,7 @@ idf.py menuconfig
 - Select the ESP-NOW security initator Mode:
 ```
 idf.py menuconfig
-    ESP-NOW Security Example Configuration  --->
+    Example Configuration  --->
         ESP-NOW Mode  --->
             (X) ESP-NOW SEC initator Mode
             () ESP-NOW SEC responder Mode
@@ -51,8 +60,9 @@ idf.py menuconfig
 - In the example, message will be received from the serial port and broadcast to others in encrypted mode.
 - Other node receives the espnow message and decrypt the data.
 
-## Log Output
-Responder:
+## Example Output
+
+Output sample from the responder:
 ```
 I (550) wifi:Set ps type: 0
 
@@ -65,7 +75,7 @@ I (716965) app_main: espnow_sec_send, count: 43, size: 23, data: Message from re
 I (751668) app_main: espnow_sec_recv, <83> [24:0a:c4:d6:d3:00][1][-16][25]: Message from initiator
 ```
 
-Initiator:
+Output sample from the initiator:
 ```
 I (564) wifi:Set ps type: 0
 
