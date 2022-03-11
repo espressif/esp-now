@@ -187,7 +187,7 @@ void espnow_recv_cb(const uint8_t *addr, const uint8_t *data, int size)
         uint32_t *magic = ESP_MALLOC(sizeof(uint32_t));
         *magic = frame_head->magic;
 
-        if (queue_over_write(g_espnow_queue[ESPNOW_TYPE_ACK], &magic, 0) != pdPASS) {
+        if (!g_espnow_queue[ESPNOW_TYPE_ACK] || queue_over_write(g_espnow_queue[ESPNOW_TYPE_ACK], &magic, 0) != pdPASS) {
             ESP_LOGW(TAG, "[%s, %d] Send receive queue failed", __func__, __LINE__);
             ESP_FREE(magic);
             return ;
@@ -265,7 +265,7 @@ FORWARD_DATA:
             q_data->frame_head.forward_ttl--;
         }
 
-        if (queue_over_write(g_espnow_queue[ESPNOW_TYPE_FORWARD], &q_data, 0) != pdPASS) {
+        if (!g_espnow_queue[ESPNOW_TYPE_FORWARD] || queue_over_write(g_espnow_queue[ESPNOW_TYPE_FORWARD], &q_data, 0) != pdPASS) {
             ESP_LOGW(TAG, "[%s, %d] Send receive queue failed", __func__, __LINE__);
             ESP_FREE(q_data);
             return ;
@@ -422,7 +422,7 @@ esp_err_t espnow_send(espnow_type_t type, const uint8_t *dest_addr, const void *
                 if (frame_head->ack) {
                     uint32_t *ack_magic = NULL;
 
-                    while (xQueueReceive(g_espnow_queue[ESPNOW_TYPE_ACK], &ack_magic,  0) == pdPASS) {
+                    while (g_espnow_queue[ESPNOW_TYPE_ACK] && xQueueReceive(g_espnow_queue[ESPNOW_TYPE_ACK], &ack_magic,  0) == pdPASS) {
                         if (*ack_magic == frame_head->magic) {
                             espnow_data->frame_head.ack = false;
                             ret = ESP_OK;
@@ -470,7 +470,7 @@ EXIT:
                       xTaskGetTickCount() - start_ticks < wait_ticks ?
                       wait_ticks - (xTaskGetTickCount() - start_ticks) : 0;
 
-        while (xQueueReceive(g_espnow_queue[ESPNOW_TYPE_ACK], &ack_magic, MIN(write_ticks,
+        while (g_espnow_queue[ESPNOW_TYPE_ACK] && xQueueReceive(g_espnow_queue[ESPNOW_TYPE_ACK], &ack_magic, MIN(write_ticks,
                              g_espnow_config->send_max_timeout)) == pdPASS) {
             if (*ack_magic == frame_head->magic) {
                 ESP_FREE(espnow_data);
@@ -593,7 +593,7 @@ esp_err_t espnow_recv(espnow_type_t type,  uint8_t *src_addr, void *data,
         memcpy(ack_data->src_addr, ESPNOW_ADDR_SELF, 6);
         memcpy(ack_data->dest_addr, espnow_data->src_addr, 6);
 
-        if (queue_over_write(g_espnow_queue[ESPNOW_TYPE_FORWARD], &ack_data, MIN(wait_ticks, g_espnow_config->send_max_timeout)) != pdPASS) {
+        if (!g_espnow_queue[ESPNOW_TYPE_FORWARD] || queue_over_write(g_espnow_queue[ESPNOW_TYPE_FORWARD], &ack_data, MIN(wait_ticks, g_espnow_config->send_max_timeout)) != pdPASS) {
             ESP_LOGW(TAG, "[%s, %d] Send receive queue failed", __func__, __LINE__);
             ESP_FREE(ack_data);
             ret = ESP_FAIL;
@@ -622,7 +622,7 @@ static void espnow_forward_task(void *arg)
     uint8_t primary           = 0;
     wifi_second_chan_t second = 0;
 
-    while (g_espnow_config) {
+    while (g_espnow_config && g_espnow_queue[ESPNOW_TYPE_FORWARD]) {
         if (xQueueReceive(g_espnow_queue[ESPNOW_TYPE_FORWARD], &espnow_data, g_espnow_config->send_max_timeout) == pdFAIL) {
             continue;
         }
@@ -784,26 +784,31 @@ esp_err_t espnow_deinit(void)
 {
     ESP_ERROR_RETURN(!g_espnow_config, ESP_ERR_ESPNOW_NOT_INIT, "ESPNOW is not initialized");
 
-    for (int i = 0; i < ESPNOW_TYPE_MAX; ++i) {
-        uint8_t *tmp_data = NULL;
-        xQueueHandle tmp_queue = g_espnow_queue[i];
-
-        g_espnow_queue[i] = NULL;
-
-        while (tmp_queue && xQueueReceive(tmp_queue, &tmp_data, 0)) {
-            ESP_FREE(tmp_data);
-        }
-
-        vQueueDelete(tmp_queue);
-    }
-
-    vEventGroupDelete(g_event_group);
-    g_event_group = NULL;
-
     /**< De-initialize ESPNOW function */
     ESP_ERROR_CHECK(esp_now_unregister_recv_cb());
     ESP_ERROR_CHECK(esp_now_unregister_send_cb());
     ESP_ERROR_CHECK(esp_now_deinit());
+
+    for (int i = 0; i < ESPNOW_TYPE_MAX; ++i) {
+        if (g_espnow_queue[i]) {
+            uint8_t *tmp_data = NULL;
+
+            while (xQueueReceive(g_espnow_queue[i], &tmp_data, 0)) {
+                ESP_FREE(tmp_data);
+            }
+
+            vQueueDelete(g_espnow_queue[i]);
+            g_espnow_queue[i] = NULL;
+        }
+    }
+
+    ESP_ERROR_CHECK(esp_event_handler_unregister(WIFI_EVENT, ESP_EVENT_ANY_ID, wifi_event_handler));
+
+    vSemaphoreDelete(g_send_lock);
+    g_send_lock = NULL;
+
+    vEventGroupDelete(g_event_group);
+    g_event_group = NULL;
 
     ESP_FREE(g_espnow_config);
     g_espnow_config = NULL;
@@ -813,6 +818,8 @@ esp_err_t espnow_deinit(void)
 
 esp_err_t espnow_set_qsize(espnow_type_t type, size_t size)
 {
+    ESP_ERROR_RETURN(!g_espnow_config, ESP_ERR_ESPNOW_NOT_INIT, "ESPNOW is not initialized");
+
     uint8_t *qsize = (uint8_t *)&g_espnow_config->qsize;
 
     if (qsize[type] && qsize[type] == size) {
@@ -825,7 +832,7 @@ esp_err_t espnow_set_qsize(espnow_type_t type, size_t size)
         while (xQueueReceive(g_espnow_queue[type], &tmp, 0)) {
             ESP_FREE(tmp);
         }
-        
+
         vQueueDelete(g_espnow_queue[type]);
         g_espnow_queue[type] = NULL;
     }
@@ -833,6 +840,7 @@ esp_err_t espnow_set_qsize(espnow_type_t type, size_t size)
     if (size) {
         g_espnow_queue[type] = xQueueCreate(size, sizeof(espnow_data_t *));
         ESP_ERROR_RETURN(!g_espnow_queue[type], ESP_FAIL, "Create espnow %d queue fail", type);
+        qsize[type] = size;
     }
 
     return ESP_OK;
@@ -840,6 +848,8 @@ esp_err_t espnow_set_qsize(espnow_type_t type, size_t size)
 
 esp_err_t espnow_get_qsize(espnow_type_t type, size_t *size)
 {
+    ESP_ERROR_RETURN(!g_espnow_config, ESP_ERR_ESPNOW_NOT_INIT, "ESPNOW is not initialized");
+
     uint8_t *qsize = (uint8_t *)&g_espnow_config->qsize;
 
     *size = qsize[type];
