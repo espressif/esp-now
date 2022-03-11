@@ -547,7 +547,7 @@ static int provisioning_func(int argc, char **argv)
     esp_err_t ret = ESP_OK;
 
     if (prov_args.beacon->count) {
-        ESP_LOGI(TAG, "Find upgradeable devices");
+        ESP_LOGI(TAG, "Find provisioning devices");
 
         espnow_prov_responder_t responder_info = {
             .product_id = "debug_board"
@@ -564,7 +564,7 @@ static int provisioning_func(int argc, char **argv)
         ESP_LOGI(TAG, "|        mac       | Channel | RSSI | Product Id | Device Name | Auth Mode |");
     
         for (int32_t start_ticks = xTaskGetTickCount(), recv_ticks = prov_args.beacon->ival[0]; recv_ticks > 0;
-            recv_ticks -= (xTaskGetTickCount() - start_ticks)) {
+            recv_ticks = prov_args.beacon->ival[0] - (xTaskGetTickCount() - start_ticks)) {
             initator_addr_list = ESP_REALLOC(initator_addr_list, (num + 1) * sizeof(espnow_addr_t));
             ret = espnow_prov_responder_recv(initator_addr_list[num], &initator_info, &rx_ctrl, recv_ticks);
 
