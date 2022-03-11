@@ -187,7 +187,7 @@ esp_err_t espnow_prov_responder_recv(espnow_addr_t initator_addr, espnow_prov_in
     espnow_set_qsize(ESPNOW_TYPE_PROV, 8);
 
     for (int32_t start_ticks = xTaskGetTickCount(), recv_ticks = wait_ticks; recv_ticks > 0;
-            recv_ticks -= (xTaskGetTickCount() - start_ticks)) {
+            recv_ticks = wait_ticks -(xTaskGetTickCount() - start_ticks)) {
         ret = espnow_recv(ESPNOW_TYPE_PROV, initator_addr, recv_data, &recv_size, rx_ctrl, recv_ticks);
         ESP_ERROR_BREAK(ret == ESP_ERR_TIMEOUT, "");
         ESP_ERROR_CONTINUE(recv_data->type != ESPNOW_PROV_TYPE_DEVICE,
