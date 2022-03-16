@@ -28,6 +28,13 @@ idf.py build
 cd build
 python -m SimpleHTTPServer 8070
 ```
+>  When build the firmware with ESP32, please set `Flash SPI speed` to `80 MHz` to keep the same with ota example, or the firmware may crash when boot after upgrade.
+```shell
+idf.py menuconfig
+	Component config --> 
+		Serial flasher config --> 
+			Flash SPI speed(80 MHz)
+```
 
 While running the server, you may go to `http：// localhost：8070/` to browse the build directory.
 
