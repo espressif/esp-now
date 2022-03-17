@@ -1,34 +1,29 @@
-# ESP-NOW Debug Receiver Board Demo
+# ESP-NOW Debug Demo
 
-ESP-NOW debug receiver board receives running log and coredump data from ESP-NOW devices via [ESP-NOW](https://esp-idf.readthedocs.io/en/latest/api-reference/wifi/esp_now.html) wireless transmission technology.
+This example demonstrates how to debug the ESP-NOW devices.
 
 ## Functionality
 
-ESP-NOW debug receiver board provides the following features:
+ESP-NOW debug receiver board or monitored device provides the following features through uart or espnow command:
 
- - [Wi-Fi configuration](#Wi-Fi-Command): sets Wi-Fi information needed in STA mode, including router SSID, password, BSSID and work channel, and saves/erases the configuration information. 
- - [Wi-Fi scan](#Wi-Fi-Command): works in STA mode, and scans AP or ESP-NOW devices nearby, sets filters such as filtered by RSSI, SSID or BSSID, and sets passive scan time in each channel. 
- - [ESP-NOW configuration](#ESP-NOW-Command): provides control, provisioning, ota, configuration and iperf commands
+ - [Wi-Fi configuration](#Wi-Fi-Command): provides WiFi configuration, WiFi scan, WiFi ping commands.
+ - [ESP-NOW configuration](#ESP-NOW-Command): provides control, provisioning, ota, configuration and iperf commands.
+ - [System command]: provides heap, version, restart, power save, reset, rollback, coredump commands.
+ - [Peripherals command]: provides GPIO, UART commands.
  - [Command](#Command-Command): runs commands on specific devices.
  - [General command](#Other-Command): includes help command to print all currently supported commands.
+
+ESP-NOW debug receiver board also provides the following features:
+ - Receives running log from ESP-NOW devices via [ESP-NOW](https://esp-idf.readthedocs.io/en/latest/api-reference/wifi/esp_now.html) wireless transmission technology.
  - [Web server](#Web-Server): starts a HTTP web server, and PC web browser can get running log and status from the server.
+
+ESP-NOW monitored device also provides the following features:
+- The device log data will be stored in flash and sent through espnow data.
+- The monitored device also implements the function of transferring log data to the TCP server on the HTTP network.
 
 > Note:
 > 1. ESP-NOW debug receiver board can receive debugging data from devices only when the board is on the same Wi-Fi channel with the devices.
 > 2. If the ESP-NOW debug receiver board is on the same channel with devices, you don't need to connect the board with the router.
-> 3. The following code needs to be added to the monitored ESP-NOW device:
-  ```c
-        espnow_console_config_t console_config = {
-            .monitor_command.espnow = true,
-        };
-        espnow_log_config_t log_config = {
-            .log_level_espnow  = ESP_LOG_INFO,
-        };
-
-        espnow_console_init(&console_config);
-        espnow_console_commands_register();
-        espnow_log_init(&log_config);
-   ```
 
 ## Hardware Required
 
@@ -36,7 +31,11 @@ This example can be executed on any platform board and at least two development 
 
 ## Configuration
 
-Open the project configuration menu (`idf.py menuconfig`) to configure web server to debug devices through the web pages (Refer to Kconfig file).
+Open the project configuration menu (`idf.py menuconfig`) to configure "ESP-NOW debug monitor Mode" on debug receiver board or "ESP-NOW debug monitored Mode" on monitored devices.
+
+For debug monitor mode, configure web server to debug devices through the web pages (Refer to Kconfig file).
+
+For debug monitored mode, post monitored device log to HTTP server (Refer to Kconfig file).
 
 ## How to Use the Example
 
@@ -51,7 +50,7 @@ Open the project configuration menu (`idf.py menuconfig`) to configure web serve
 
 ### Serial Port Commands
 
-* ESP-NOW debug receiver board supports the following serial port commands: help, wifi_config, wifi_scan, wifi_ping and command, provisioning, control, ota.
+* ESP-NOW debug receiver board or monitored device supports the following serial port commands: help, wifi_config, wifi_scan, wifi_ping and command, provisioning, control, ota.
 
 * The interaction of serial port commands follows the following rules:
     1. PC sends commands to ESP-NOW debug receiver board through serial port with a baud rate of 115200.
@@ -226,6 +225,7 @@ Open the project configuration menu (`idf.py menuconfig`) to configure web serve
 * `help`: prints all currently supported commands.
 
 ### Web Server
+The function is closed by default. If you want to use the function, please follow the steps.
 - Open Web server under `Example Configuration` Options:
    * Set `Enable WebServer debugging` to `y`,default is `n`.
    * Set `mDNS Host Name`, default is `espnow-webserver`
@@ -236,13 +236,32 @@ Open the project configuration menu (`idf.py menuconfig`) to configure web serve
 
 <img src="../../docs/_static/zh_CN/web_server.png" width="1000">
 
+### Post monitored device log to HTTP server
+The function is closed by default. If you want to use the function, please follow the steps.
+1. Run HTTP server with follow command or start tcp server on PC or phone.
+```shell
+python -m SimpleHTTPServer 8070
+```
+2. Configure the devices with `idf.py menuconfig` under `Example Configuration` Options:
+   * Set "Post flash log to http server" to 'y'.
+   * Set the server URL "Flash log url endpoint"
+3. Build & flash & run the device, connect the device to the Router (Access-Point) by wifi command or provision command.
+
+After the device connected to the Router (Access-Point), it will post log to the HTTP server.
+>Note:
+1. ESP32 and phone should be connected to the same router, so that data information can be collected on the network assistant tool. 
+
 ## Note
 
-### Impact on Performance
+1. Impact on Performance. Since ESP-NOW uses a Wi-Fi interface to send and receive data packages, delay may occur in receiving commands or in data transmission if there is a large amount of data to be transmitted among ESP-NOW devices. By testing in a good network, we provide the following thresholds, and with such configuration parameters, the delay caused to devices is negligible.
 
-Since ESP-NOW uses a Wi-Fi interface to send and receive data packages, delay may occur in receiving commands or in data transmission if there is a large amount of data to be transmitted among ESP-NOW devices.
+   * Fifty ESP-NOW devices (The more the devices, the worse the network.)
+   * Set logging level to `info` (The lower the level, the worse the network may be.)
 
-By testing in a good network, we provide the following thresholds, and with such configuration parameters, the delay caused to devices is negligible.
-
-* Fifty ESP-NOW devices (The more the devices, the worse the network.)
-* Set logging level to `info` (The lower the level, the worse the network may be.)
+2. It should also be noted that when using a new chip for burning, the chip needs to be erased and then burned.
+3. The log_info area is added to the partition table in this example as a space to save logs. The chip needs to be erased before programming.
+4. The head of the data is a timestamp. It is just an experiment and there is no real-time calibration. It can be modified according to the user's own needs.
+5. Get the status of log mode `uart`, `flash`, `espnow` in the console command `log -i`. The `console` command can't be used to disable the log configuration, because the main program has been forced to be enabled. If the user do not want to use such a function, the main program can be disable.
+    ```
+    // espnow_log_init(&log_config);
+    ```

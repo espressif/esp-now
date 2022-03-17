@@ -1,14 +1,33 @@
 menu "Example Configuration"
 
+    choice ESPNOW_DEBUG_MODE
+        bool "ESP-NOW Debug Mode"
+        default ESPNOW_DEBUG_MONITORED
+        help
+            Select the ESP-NOW Debug Mode.
+
+        config ESPNOW_DEBUG_MONITOR
+            bool "ESP-NOW debug monitor Mode"
+            help
+                Select the ESP-NOW debug monitor Mode.
+
+        config ESPNOW_DEBUG_MONITORED
+            bool "ESP-NOW debug monitored Mode"
+            help
+                Select the ESP-NOW debug monitored Mode.
+
+    endchoice
+
     config EXAMPLE_WEB_SERVER
         bool "Enable WebServer debugging"
         default n
+        depends on ESPNOW_DEBUG_MONITOR
         help
             Enable WebServer debugging
 
     config EXAMPLE_MDNS_HOST_NAME
         string "mDNS Host Name"
-        depends on EXAMPLE_WEB_SERVER
+        depends on EXAMPLE_WEB_SERVER && ESPNOW_DEBUG_MONITOR
         default "espnow-webserver"
         help
             Specify the domain name used in the mDNS service.
@@ -17,16 +36,30 @@ menu "Example Configuration"
 
     config EXAMPLE_WIFI_SOFTAP_SSID
         string "Wi-Fi SoftAP SSID"
-        depends on EXAMPLE_WEB_SERVER
+        depends on EXAMPLE_WEB_SERVER && ESPNOW_DEBUG_MONITOR
         default "espnow-webserver"
         help
             SoftAP SSID (network name) for the example to connect to.
 
     config EXAMPLE_WEB_MOUNT_POINT
         string "Website mount point in VFS"
-        depends on EXAMPLE_WEB_SERVER
+        depends on EXAMPLE_WEB_SERVER && ESPNOW_DEBUG_MONITOR
         default "/www"
         help
             Specify the mount point in VFS.
+
+    config POST_LOG_TO_HTTP_SERVER
+        bool "Post flash log to http server"
+        default n
+        depends on ESPNOW_DEBUG_MONITORED
+        help
+            Post flash log to http server.
+
+    config FLASH_LOG_POST_URL
+        string "Flash log url endpoint"
+        default "http://192.168.0.3:8070/flash_log"
+        depends on POST_LOG_TO_HTTP_SERVER
+        help
+            Flash log url endpoint.
 
 endmenu
