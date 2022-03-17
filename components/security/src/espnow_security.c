@@ -71,19 +71,13 @@ esp_err_t espnow_sec_setkey(espnow_sec_t *sec, uint8_t app_key[APP_KEY_LEN])
     return ESP_OK;
 }
 
-esp_err_t espnow_sec_send(espnow_sec_t *sec, espnow_type_t type, const uint8_t *dest_addr, const void *data,
+esp_err_t espnow_sec_send(espnow_sec_t *sec, const uint8_t *dest_addr, const void *data,
                       size_t size, const espnow_frame_head_t *data_head, TickType_t wait_ticks)
 {
     ESP_PARAM_CHECK(sec);
     ESP_PARAM_CHECK(data);
     ESP_PARAM_CHECK(size);
     ESP_PARAM_CHECK(size <= ESPNOW_SEC_PACKET_MAX_SIZE);
-
-    /* Following type are not encrypted */
-    if (type == ESPNOW_TYPE_ACK || type == ESPNOW_TYPE_FORWARD
-            || type == ESPNOW_TYPE_SECURITY_STATUS || type == ESPNOW_TYPE_SECURITY) {
-        return espnow_send(type, dest_addr, data, size, data_head, wait_ticks);
-    }
 
     if (sec->state != ESPNOW_SEC_OVER) {
         ESP_LOGE(TAG, "Security state is not over");
@@ -102,46 +96,64 @@ esp_err_t espnow_sec_send(espnow_sec_t *sec, espnow_type_t type, const uint8_t *
         return ESP_FAIL;
     }
 
-    ret = espnow_send(type, dest_addr, encrypt_data, encrypt_len, data_head, wait_ticks);
+    ret = espnow_send(ESPNOW_TYPE_SECURITY_DATA, dest_addr, encrypt_data, encrypt_len, data_head, wait_ticks);
 
     ESP_FREE(encrypt_data);
 
     return ret;
 }
 
-esp_err_t espnow_sec_recv(espnow_sec_t *sec, espnow_type_t type,  uint8_t *src_addr, void *data,
-                      size_t *size, wifi_pkt_rx_ctrl_t *rx_ctrl, TickType_t wait_ticks)
+static espnow_sec_t *g_sec = NULL;
+static type_handle_t g_sec_cb = NULL;
+
+static esp_err_t espnow_sec_data_process(uint8_t *src_addr, void *data,
+                      size_t size, wifi_pkt_rx_ctrl_t *rx_ctrl)
 {
-    ESP_PARAM_CHECK(sec);
+    ESP_PARAM_CHECK(src_addr);
+    ESP_PARAM_CHECK(data);
+    ESP_PARAM_CHECK(size);
+    ESP_PARAM_CHECK(rx_ctrl);
 
     int ret = ESP_OK;
-    ret = espnow_recv(type, src_addr, data, size, rx_ctrl, wait_ticks);
-    ESP_ERROR_RETURN(ret != ESP_OK, ret, "espnow_recv");
 
-    /* Following types are not encrypted */
-    if (type == ESPNOW_TYPE_ACK || type == ESPNOW_TYPE_FORWARD
-            || type == ESPNOW_TYPE_SECURITY_STATUS || type == ESPNOW_TYPE_SECURITY) {
-        return ret;
+    if (!g_sec || !g_sec_cb) {
+        ESP_LOGW(TAG, "Security or callback is null, return");
+        return ESP_OK;
     }
 
-    if (sec->state != ESPNOW_SEC_OVER) {
+    if (g_sec->state != ESPNOW_SEC_OVER) {
         ESP_LOGE(TAG, "Security state is not over");
         return ESP_FAIL;
     }
 
-    if (*size <= sec->tag_len) {
-        ESP_LOGE(TAG, "Data size %d not valid for security", *size);
+    if (size <= g_sec->tag_len) {
+        ESP_LOGE(TAG, "Data size %d not valid for security", size);
         return ESP_FAIL;
     }
 
-    *size -= sec->tag_len;
-    ret = mbedtls_ccm_auth_decrypt((mbedtls_ccm_context *)sec->cipher_ctx, *size, 
-                                        sec->iv, sec->iv_len, NULL, 0,
-                                        data, data, data + *size, sec->tag_len);
+    size -= g_sec->tag_len;
+    ret = mbedtls_ccm_auth_decrypt((mbedtls_ccm_context *)g_sec->cipher_ctx, size, 
+                                        g_sec->iv, g_sec->iv_len, NULL, 0,
+                                        data, data, data + size, g_sec->tag_len);
     if (ret != 0) {
         ESP_LOGE(TAG, "Failed at mbedtls_ccm_auth_decrypt with error code : %d", ret);
         return ESP_FAIL;
     }
 
+    ret = g_sec_cb(src_addr, data, size, rx_ctrl);
+
     return ret;
+}
+
+esp_err_t espnow_sec_recv(espnow_sec_t *sec, type_handle_t cb)
+{
+    ESP_PARAM_CHECK(sec);
+    ESP_PARAM_CHECK(cb);
+
+    g_sec = sec;
+    g_sec_cb = cb;
+
+    espnow_set_type(ESPNOW_TYPE_SECURITY_DATA, 1, espnow_sec_data_process);
+
+    return ESP_OK;
 }

@@ -32,6 +32,10 @@ static const char *TAG = "espnow_ota_initatior";
 static bool g_ota_send_running_flag   = false;
 static SemaphoreHandle_t g_ota_send_exit_sem = NULL;
 
+static size_t g_scan_num = 0;
+static espnow_ota_responder_t *g_info_list = NULL;
+static bool g_info_en = false;
+
 #ifndef CONFIG_ESPNOW_OTA_RETRY_COUNT
 #define CONFIG_ESPNOW_OTA_RETRY_COUNT           50
 #endif
@@ -74,14 +78,103 @@ static bool addrs_remove(uint8_t addrs_list[][ESPNOW_ADDR_LEN],
     return false;
 }
 
+static esp_err_t espnow_ota_info(uint8_t *src_addr, void *data,
+                      size_t size, wifi_pkt_rx_ctrl_t *rx_ctrl)
+{
+    espnow_ota_info_t *recv_data = (espnow_ota_info_t *)data;
+
+    for (int i = 0; i < g_scan_num; ++i) {
+        if (ESPNOW_ADDR_IS_EQUAL((g_info_list)[i].mac, src_addr)) {
+            return ESP_OK;
+        }
+    }
+
+    g_info_list = ESP_REALLOC(g_info_list, (g_scan_num + 1) * sizeof(espnow_ota_responder_t));
+    (g_info_list)[g_scan_num].channel = rx_ctrl->channel;
+    (g_info_list)[g_scan_num].rssi    = rx_ctrl->rssi;
+    memcpy((g_info_list)[g_scan_num].mac, src_addr, 6);
+    memcpy(&((g_info_list)[g_scan_num].app_desc), &recv_data->app_desc, sizeof(esp_app_desc_t));
+    g_scan_num++;
+
+    ESP_LOGV(TAG, "Application information:");
+    ESP_LOGV(TAG, "Project name:     %s", recv_data->app_desc.project_name);
+    ESP_LOGV(TAG, "App version:      %s", recv_data->app_desc.version);
+    ESP_LOGV(TAG, "Secure version:   %d", recv_data->app_desc.secure_version);
+    ESP_LOGV(TAG, "Compile time:     %s %s", recv_data->app_desc.date, recv_data->app_desc.time);
+    ESP_LOGV(TAG, "ESP-IDF:          %s", recv_data->app_desc.idf_ver);
+
+    return ESP_OK;
+}
+
+#define OTA_STATUS_QSIZE 32
+static xQueueHandle g_ota_queue = NULL;
+typedef struct {
+    uint8_t src_addr[6];
+    void *data;
+    size_t size;
+} espnow_ota_data_t;
+
+static esp_err_t espnow_ota_status_handle(uint8_t *src_addr, void *data, size_t size)
+{
+    ESP_PARAM_CHECK(src_addr);
+    ESP_PARAM_CHECK(data);
+    ESP_PARAM_CHECK(size);
+
+    if (g_ota_queue) {
+        espnow_ota_data_t ota_data = { 0 };
+        ota_data.data = ESP_MALLOC(size);
+        if (!ota_data.data) {
+            return ESP_FAIL;
+        }
+        memcpy(ota_data.data, data, size);
+        ota_data.size = size;
+        memcpy(ota_data.src_addr, src_addr, 6);
+        if (xQueueSend(g_ota_queue, &ota_data, 0) != pdPASS) {
+            ESP_LOGW(TAG, "[%s, %d] Send ota queue failed", __func__, __LINE__);
+            ESP_FREE(ota_data.data);
+            return ESP_FAIL;
+        }
+    }
+
+    return ESP_OK;
+}
+
+static esp_err_t espnow_ota_initiator_status_process(uint8_t *src_addr, void *data,
+                      size_t size, wifi_pkt_rx_ctrl_t *rx_ctrl)
+{
+    ESP_PARAM_CHECK(src_addr);
+    ESP_PARAM_CHECK(data);
+    ESP_PARAM_CHECK(size);
+    ESP_PARAM_CHECK(rx_ctrl);
+
+    esp_err_t ret = ESP_OK;
+    uint8_t data_type = ((uint8_t *)data)[0];
+
+    switch (data_type) {
+        case ESPNOW_OTA_TYPE_INFO:
+            ESP_LOGD(TAG, "ESPNOW_OTA_TYPE_INFO");
+            if (g_info_en){
+                ret = espnow_ota_info(src_addr, data, size, rx_ctrl);
+            }
+            break;
+
+        case ESPNOW_OTA_TYPE_STATUS:
+            ESP_LOGD(TAG, "ESPNOW_OTA_TYPE_STATUS");
+            ret = espnow_ota_status_handle(src_addr, data, size);
+            break;
+
+        default:
+            break;
+    }
+
+    ESP_ERROR_RETURN(ret != ESP_OK, ret, "espnow_ota_handle");
+    return ret;
+}
+
 esp_err_t espnow_ota_initator_scan(espnow_ota_responder_t **info_list, size_t *num, TickType_t wait_ticks)
 {
     esp_err_t ret = ESP_OK;
-    uint8_t recv_addr[6] = {0};
-    espnow_ota_info_t *recv_data = ESP_MALLOC(ESPNOW_DATA_LEN);
-    size_t recv_size = 0;
     espnow_ota_info_t request_ota_info = {.type = ESPNOW_OTA_TYPE_REQUEST};
-    wifi_pkt_rx_ctrl_t rx_ctrl = {0};
 
     espnow_frame_head_t frame_head = {
         .retransmit_count = 10,
@@ -92,47 +185,34 @@ esp_err_t espnow_ota_initator_scan(espnow_ota_responder_t **info_list, size_t *n
         .forward_rssi     = CONFIG_ESPNOW_OTA_SEND_FORWARD_RSSI,
     };
 
-    *num       = 0;
-    *info_list = NULL;
+    g_scan_num       = 0;
+    ESP_FREE(g_info_list);
 
-    espnow_set_qsize(ESPNOW_TYPE_OTA_STATUS, 32);
+    g_info_en = true;
+    espnow_set_type(ESPNOW_TYPE_OTA_STATUS, 1, espnow_ota_initiator_status_process);
 
-    for (int i = 0, start_ticks = xTaskGetTickCount(), recv_ticks = wait_ticks; i < 5 && wait_ticks - (xTaskGetTickCount() - start_ticks) > 0;
+    for (int i = 0, start_ticks = xTaskGetTickCount(), recv_ticks = 500; i < 5 && wait_ticks - (xTaskGetTickCount() - start_ticks) > 0;
             ++i, recv_ticks = 500) {
         ret = espnow_send(ESPNOW_TYPE_OTA_DATA, ESPNOW_ADDR_BROADCAST, &request_ota_info, 1, &frame_head, portMAX_DELAY);
-        ESP_ERROR_RETURN(ret != ESP_OK, ret, "espnow_send");
+        ESP_ERROR_GOTO(ret != ESP_OK, EXIT, "espnow_send");
 
-        for (; espnow_recv(ESPNOW_TYPE_OTA_STATUS, recv_addr, recv_data, &recv_size, &rx_ctrl, recv_ticks) == ESP_OK; recv_ticks = 100) {
-            ESP_ERROR_CONTINUE(recv_data->type != ESPNOW_OTA_TYPE_INFO, MACSTR ", type: %d", MAC2STR(recv_addr), recv_data->type);
-
-            bool info_list_is_exist = false;
-
-            for (int i = 0; i < *num; ++i) {
-                if (ESPNOW_ADDR_IS_EQUAL((*info_list)[i].mac, recv_addr)) {
-                    info_list_is_exist = true;
-                    break;
-                }
-            }
-
-            if (info_list_is_exist) {
-                continue;
-            }
-
-            *info_list = ESP_REALLOC(*info_list, (*num + 1) * sizeof(espnow_ota_responder_t));
-            (*info_list)[*num].channel = rx_ctrl.channel;
-            (*info_list)[*num].rssi    = rx_ctrl.rssi;
-            memcpy((*info_list)[*num].mac, recv_addr, 6);
-            memcpy(&((*info_list)[*num].app_desc), &recv_data->app_desc, sizeof(esp_app_desc_t));
-            (*num)++;
-
-            ESP_LOGV(TAG, "Application information:");
-            ESP_LOGV(TAG, "Project name:     %s", recv_data->app_desc.project_name);
-            ESP_LOGV(TAG, "App version:      %s", recv_data->app_desc.version);
-            ESP_LOGV(TAG, "Secure version:   %d", recv_data->app_desc.secure_version);
-            ESP_LOGV(TAG, "Compile time:     %s %s", recv_data->app_desc.date, recv_data->app_desc.time);
-            ESP_LOGV(TAG, "ESP-IDF:          %s", recv_data->app_desc.idf_ver);
-        }
+        vTaskDelay(recv_ticks);
     }
+
+    *info_list = g_info_list;
+    *num = g_scan_num;
+
+EXIT:
+    espnow_set_type(ESPNOW_TYPE_OTA_STATUS, 0, NULL);
+    g_info_en = false;
+
+    return ret;
+}
+
+esp_err_t espnow_ota_initator_scan_result_free(void)
+{
+    ESP_FREE(g_info_list);
+    g_scan_num = 0;
 
     return ESP_OK;
 }
@@ -142,8 +222,8 @@ static esp_err_t espnow_ota_request_status(uint8_t (*progress_array)[ESPNOW_OTA_
 {
     esp_err_t ret       = ESP_OK;
     uint8_t src_addr[6] = {0};
-    size_t data_size    = 0;
     espnow_ota_status_t *response_data = ESP_MALLOC(ESPNOW_DATA_LEN);
+    espnow_ota_data_t ota_data = { 0 };
 
     result->requested_num = 0;
     ESP_FREE(result->requested_addr);
@@ -151,9 +231,10 @@ static esp_err_t espnow_ota_request_status(uint8_t (*progress_array)[ESPNOW_OTA_
     /**
      * @brief Remove the device that the firmware upgrade has completed.
      */
-    while (espnow_recv(ESPNOW_TYPE_OTA_STATUS, src_addr, response_data, &data_size, NULL, 0) == ESP_OK) {
-        ESP_ERROR_CONTINUE(response_data->type != ESPNOW_OTA_TYPE_STATUS, MACSTR ", esponse_status.type: %d", MAC2STR(src_addr), response_data->type);
-
+    while (g_ota_queue && (xQueueReceive(g_ota_queue, &ota_data, 0) == pdPASS)) {
+        memcpy(src_addr, ota_data.src_addr, 6);
+        memcpy(response_data, ota_data.data, ota_data.size);
+        ESP_FREE(ota_data.data);
         if (response_data->written_size == response_data->total_size || response_data->error_code == ESP_ERR_ESPNOW_OTA_FINISH) {
             if (!addrs_remove(result->unfinished_addr, &result->unfinished_num, src_addr)) {
                 ESP_LOGW(TAG, "The device has been removed from the list waiting for the upgrade");
@@ -198,10 +279,12 @@ static esp_err_t espnow_ota_request_status(uint8_t (*progress_array)[ESPNOW_OTA_
 
         uint8_t mac_ota_wait[6] = {0};
 
-        while (response_num > 0) {
-            ret = espnow_recv(ESPNOW_TYPE_OTA_STATUS, src_addr, response_data, &data_size, NULL, wait_ticks);
-            ESP_ERROR_BREAK(ret != ESP_OK, "<%s> wait_ticks: %d", esp_err_to_name(ret), wait_ticks);
-            ESP_ERROR_CONTINUE(response_data->type != ESPNOW_OTA_TYPE_STATUS, "esponse_status.type: %d", response_data->type);
+        while (response_num > 0 && g_ota_queue) {
+            ret = xQueueReceive(g_ota_queue, &ota_data, wait_ticks);
+            ESP_ERROR_BREAK(ret != pdPASS, "<%s> wait_ticks: %d", esp_err_to_name(ret), wait_ticks);
+            memcpy(src_addr, ota_data.src_addr, 6);
+            memcpy(response_data, ota_data.data, ota_data.size);
+            ESP_FREE(ota_data.data);
             ret = response_data->error_code;
 
             if (response_data->error_code == ESP_ERR_ESPNOW_OTA_FIRMWARE_NOT_INIT) {
@@ -336,7 +419,9 @@ esp_err_t espnow_ota_initator_send(const uint8_t addrs_list[][6], size_t addrs_n
     }
 
     espnow_send_group(addrs_list, addrs_num, ESPNOW_ADDR_GROUP_OTA, NULL, true, portMAX_DELAY);
-    espnow_set_qsize(ESPNOW_TYPE_OTA_STATUS, 32);
+    g_ota_queue = xQueueCreate(OTA_STATUS_QSIZE, sizeof(espnow_ota_data_t));
+    ESP_ERROR_GOTO(!g_ota_queue, EXIT, "Create espnow ota queue fail");
+    espnow_set_type(ESPNOW_TYPE_OTA_STATUS, 1, espnow_ota_initiator_status_process);
 
     packet->type = ESPNOW_OTA_TYPE_DATA;
     packet->size = ESPNOW_OTA_PACKET_MAX_SIZE;
@@ -374,7 +459,17 @@ esp_err_t espnow_ota_initator_send(const uint8_t addrs_list[][6], size_t addrs_n
 
 EXIT:
 
-    // espnow_set_qsize(ESPNOW_TYPE_OTA_STATUS, 0);
+    espnow_set_type(ESPNOW_TYPE_OTA_STATUS, 0, NULL);
+    if (g_ota_queue) {
+        espnow_ota_data_t *tmp_data = NULL;
+
+        while (xQueueReceive(g_ota_queue, &tmp_data, 0)) {
+            ESP_FREE(tmp_data->data);
+        }
+
+        vQueueDelete(g_ota_queue);
+        g_ota_queue = NULL;
+    }
 
     if (result->unfinished_num > 0) {
         espnow_send_group(result->unfinished_addr, result->unfinished_num, ESPNOW_ADDR_GROUP_OTA, NULL, false, portMAX_DELAY);
@@ -427,7 +522,7 @@ esp_err_t espnow_ota_initator_stop()
     g_ota_send_running_flag = false;
 
     xSemaphoreTake(g_ota_send_exit_sem, portMAX_DELAY);
-    vQueueDelete(g_ota_send_exit_sem);
+    vSemaphoreDelete(g_ota_send_exit_sem);
     g_ota_send_exit_sem = NULL;
 
     return ESP_OK;

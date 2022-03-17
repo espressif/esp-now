@@ -43,45 +43,136 @@ typedef struct {
 
 static const char *TAG = "espnow_prov";
 
-esp_err_t espnow_prov_initator_scan(espnow_addr_t responder_addr, espnow_prov_responder_t *responder_info,
-                                    wifi_pkt_rx_ctrl_t *rx_ctrl, TickType_t wait_ticks)
+typedef struct {
+    bool beacon_en;
+    bool wifi_en;
+    bool fix_ch;
+    bool config;
+    espnow_prov_cb_t wifi_cb;
+    uint32_t stop_tick;
+    struct {
+        espnow_prov_responder_t *responder_info;
+        wifi_pkt_rx_ctrl_t *rx_ctrl;
+        uint8_t *addr;
+    } scan_info;
+} espnow_prov_init_t;
+
+typedef struct {
+    bool device_en;
+    espnow_prov_cb_t device_cb;
+    espnow_prov_wifi_t *wifi_config;
+} espnow_prov_resp_t;
+
+static espnow_prov_init_t *g_prov_init = NULL;
+static espnow_prov_resp_t *g_prov_resp = NULL;
+
+static esp_err_t espnow_prov_responder_send(const espnow_addr_t *initator_addr_list, size_t initator_addr_num,
+                                     const espnow_prov_wifi_t *wifi_config);
+
+static esp_err_t espnow_prov_recv(uint8_t *src_addr, void *data,
+                      size_t size, wifi_pkt_rx_ctrl_t *rx_ctrl)
 {
-    ESP_PARAM_CHECK(responder_info);
+    ESP_PARAM_CHECK(src_addr);
+    ESP_PARAM_CHECK(data);
+    ESP_PARAM_CHECK(size);
     ESP_PARAM_CHECK(rx_ctrl);
 
-    esp_err_t ret                 = ESP_OK;
-    espnow_prov_data_t *recv_data = ESP_MALLOC(sizeof(espnow_prov_data_t));
+    esp_err_t ret = ESP_OK;
+    uint8_t data_type = ((uint8_t *)data)[0];
+    espnow_prov_data_t *recv_data = (espnow_prov_data_t *)data;
 
-    wifi_country_t country = {0};
-    size_t recv_size = 0;
-    uint32_t start_ticks = xTaskGetTickCount();
-
-    espnow_set_qsize(ESPNOW_TYPE_PROV, 8);
-    esp_wifi_get_country(&country);
-
-    while (wait_ticks == portMAX_DELAY || xTaskGetTickCount() - start_ticks < wait_ticks) {
-        for (int i = 0; i < country.nchan; ++i) {
-            esp_wifi_set_channel(country.schan + i, WIFI_SECOND_CHAN_NONE);
-            ESP_LOGD(TAG, "espnow_send, channel: %d", country.schan + i);
-
-            while (espnow_recv(ESPNOW_TYPE_PROV, responder_addr, recv_data,
-                               &recv_size, rx_ctrl, pdMS_TO_TICKS(ESPNOW_PROV_BEACON_INTERVAL + 10)) == ESP_OK) {
-                ESP_ERROR_CONTINUE(recv_data->type != ESPNOW_PROV_TYPE_BEACON, "");
-                memcpy(responder_info, &recv_data->responder_info, sizeof(espnow_prov_responder_t));
-
-                ret = ESP_OK;
-                goto EXIT;
+    switch (data_type) {
+        case ESPNOW_PROV_TYPE_BEACON:
+            ESP_LOGD(TAG, "ESPNOW_PROV_TYPE_BEACON");
+            if (g_prov_init && g_prov_init->beacon_en) {
+                g_prov_init->fix_ch = true;
+                if (g_prov_init->scan_info.responder_info && g_prov_init->scan_info.rx_ctrl && g_prov_init->scan_info.addr) {
+                    memcpy(g_prov_init->scan_info.responder_info, &recv_data->responder_info, sizeof(espnow_prov_responder_t));
+                    memcpy(g_prov_init->scan_info.rx_ctrl, rx_ctrl, sizeof(wifi_pkt_rx_ctrl_t));
+                    memcpy(g_prov_init->scan_info.addr, src_addr, 6);
+                }
             }
-        }
-    }
+            break;
 
-EXIT:
-    ESP_FREE(recv_data);
+        case ESPNOW_PROV_TYPE_DEVICE:
+            ESP_LOGD(TAG, "ESPNOW_PROV_TYPE_DEVICE");
+            if (g_prov_resp && g_prov_resp->device_en) {
+                ret = ESP_OK;
+                if (g_prov_resp->device_cb) {
+                    ret = g_prov_resp->device_cb(src_addr, &recv_data->initator_info, size - 1, rx_ctrl);
+                }
+                if (ret == ESP_OK) {
+                    espnow_addr_t initator_addr = {0};
+                    memcpy(initator_addr, src_addr, 6);
+                    ret = espnow_prov_responder_send((const espnow_addr_t *)&initator_addr, 1, g_prov_resp->wifi_config);
+                }
+            }
+            break;
+
+        case ESPNOW_PROV_TYPE_WIFI:
+            ESP_LOGD(TAG, "ESPNOW_PROV_TYPE_WIFI");
+            if (g_prov_init && g_prov_init->wifi_en) {
+                ret = ESP_OK;
+                if (g_prov_init->wifi_cb) {
+                    ret = g_prov_init->wifi_cb(src_addr, &recv_data->wifi_config, size - 1, rx_ctrl);
+                }
+                if (ret == ESP_OK) {
+                    g_prov_init->config = true;
+                }
+            }
+            break;
+
+        default:
+            break;
+    }
 
     return ret;
 }
 
-esp_err_t espnow_prov_initator_send(const espnow_addr_t responder_addr, const espnow_prov_initator_t *initator_info)
+esp_err_t espnow_prov_initator_scan(espnow_addr_t responder_addr, espnow_prov_responder_t *responder_info,
+                                    wifi_pkt_rx_ctrl_t *rx_ctrl, TickType_t wait_ticks)
+{
+    ESP_PARAM_CHECK(responder_addr);
+    ESP_PARAM_CHECK(responder_info);
+    ESP_PARAM_CHECK(rx_ctrl);
+
+    esp_err_t ret                 = ESP_FAIL;
+
+    wifi_country_t country = {0};
+    uint32_t start_ticks = xTaskGetTickCount();
+
+    if (!g_prov_init) {
+        g_prov_init = ESP_CALLOC(1, sizeof(espnow_prov_init_t));
+    }
+
+    g_prov_init->beacon_en = true;
+    g_prov_init->fix_ch = false;
+    g_prov_init->scan_info.responder_info = responder_info;
+    g_prov_init->scan_info.rx_ctrl = rx_ctrl;
+    g_prov_init->scan_info.addr = responder_addr;
+
+    espnow_set_type(ESPNOW_TYPE_PROV, 1, espnow_prov_recv);
+    esp_wifi_get_country(&country);
+
+    while (g_prov_init->fix_ch == false && (wait_ticks == portMAX_DELAY || xTaskGetTickCount() - start_ticks < wait_ticks)) {
+        for (int i = 0; i < country.nchan && g_prov_init->fix_ch == false; ++i) {
+            esp_wifi_set_channel(country.schan + i, WIFI_SECOND_CHAN_NONE);
+            ESP_LOGD(TAG, "espnow_send, channel: %d", country.schan + i);
+            vTaskDelay(pdMS_TO_TICKS(ESPNOW_PROV_BEACON_INTERVAL + 10));
+        }
+    }
+
+    if (g_prov_init->fix_ch == true) {
+        ret = ESP_OK;
+    }
+
+    espnow_set_type(ESPNOW_TYPE_PROV, 0, NULL);
+    ESP_FREE(g_prov_init);
+
+    return ret;
+}
+
+esp_err_t espnow_prov_initator_send(const espnow_addr_t responder_addr, const espnow_prov_initator_t *initator_info, espnow_prov_cb_t cb, TickType_t wait_ticks)
 {
     ESP_PARAM_CHECK(responder_addr);
     ESP_PARAM_CHECK(initator_info);
@@ -93,6 +184,7 @@ esp_err_t espnow_prov_initator_send(const espnow_addr_t responder_addr, const es
     espnow_frame_head_t frame_head = {
         .filter_adjacent_channel = true,
     };
+    uint32_t start_ticks = xTaskGetTickCount();
 
     espnow_add_peer(responder_addr, NULL);
 
@@ -103,30 +195,22 @@ esp_err_t espnow_prov_initator_send(const espnow_addr_t responder_addr, const es
     ESP_FREE(prov_data);
     ESP_ERROR_RETURN(ret != ESP_OK, ret, "espnow_write");
 
-    return ESP_OK;
-}
+    if (!g_prov_init) {
+        g_prov_init = ESP_CALLOC(1, sizeof(espnow_prov_init_t));
+    }
+    g_prov_init->wifi_cb = cb;
+    g_prov_init->wifi_en = true;
+    g_prov_init->config = false;
+    espnow_set_type(ESPNOW_TYPE_PROV, 1, espnow_prov_recv);
 
-esp_err_t espnow_prov_initator_recv(espnow_addr_t responder_addr, espnow_prov_wifi_t *wifi_config, wifi_pkt_rx_ctrl_t *rx_ctrl, TickType_t wait_ticks)
-{
-    ESP_PARAM_CHECK(responder_addr);
-    ESP_PARAM_CHECK(wifi_config);
-    ESP_PARAM_CHECK(rx_ctrl);
-
-    esp_err_t ret                 = ESP_OK;
-    uint32_t start_ticks          = xTaskGetTickCount();
-    espnow_prov_data_t *recv_data = ESP_MALLOC(sizeof(espnow_prov_data_t));
-    size_t recv_size = 0;
-
-    while (wait_ticks == portMAX_DELAY || xTaskGetTickCount() - start_ticks < wait_ticks) {
-        ret = espnow_recv(ESPNOW_TYPE_PROV, responder_addr, recv_data, &recv_size, rx_ctrl, wait_ticks);
-        ESP_ERROR_BREAK(ret != ESP_OK, "<%s> espnow_recv", esp_err_to_name(ret));
-        ESP_ERROR_CONTINUE(recv_data->type != ESPNOW_PROV_TYPE_WIFI, "recv_data->type != ESPNOW_PROV_TYPE_WIFI: %d", recv_data->type);
-        memcpy(wifi_config, &recv_data->wifi_config, sizeof(espnow_prov_wifi_t));
-        break;
+    while (g_prov_init->config == false && (wait_ticks == portMAX_DELAY || xTaskGetTickCount() - start_ticks < wait_ticks)) {
+        vTaskDelay(pdMS_TO_TICKS(100));
     }
 
-    ESP_FREE(recv_data);
-    return ret;
+    espnow_set_type(ESPNOW_TYPE_PROV, 0, NULL);
+    ESP_FREE(g_prov_init);
+
+    return ESP_OK;
 }
 
 static uint32_t g_beacon_stop_tick = 0;
@@ -139,6 +223,11 @@ static void responder_beacon_timercb(void *timer)
         xTimerDelete(timer, 0);
         ESP_FREE(g_beacon_prov_data);
         ESP_LOGI(TAG, "Responder beacon end");
+        g_prov_resp->device_cb = NULL;
+        g_prov_resp->device_en = false;
+        ESP_FREE(g_prov_resp->wifi_config);
+        ESP_FREE(g_prov_resp);
+        espnow_set_type(ESPNOW_TYPE_PROV, 0, NULL);
         return ;
     }
 
@@ -153,9 +242,11 @@ static void responder_beacon_timercb(void *timer)
                 sizeof(espnow_prov_responder_t) + 1, &frame_head, 0);
 }
 
-esp_err_t espnow_prov_responder_beacon(const espnow_prov_responder_t *responder_info, TickType_t wait_ticks)
+esp_err_t espnow_prov_responder_start(const espnow_prov_responder_t *responder_info, TickType_t wait_ticks, 
+                                        const espnow_prov_wifi_t *wifi_config, espnow_prov_cb_t cb)
 {
     ESP_PARAM_CHECK(responder_info);
+    ESP_PARAM_CHECK(wifi_config);
 
     if (!g_beacon_prov_data) {
         g_beacon_prov_data = ESP_MALLOC(sizeof(espnow_prov_responder_t) + 1);
@@ -170,38 +261,35 @@ esp_err_t espnow_prov_responder_beacon(const espnow_prov_responder_t *responder_
     memcpy(&g_beacon_prov_data->responder_info, responder_info, sizeof(espnow_prov_responder_t));
     ESP_LOGI(TAG, "Responder beacon start, timer: %ds", pdTICKS_TO_MS(wait_ticks) / 1000);
 
+    if (!g_prov_resp) {
+        g_prov_resp = ESP_CALLOC(1, sizeof(espnow_prov_resp_t));
+    }
+
+    g_prov_resp->device_cb = cb;
+    g_prov_resp->device_en = true;
+    
+    if (!g_prov_resp->wifi_config) {
+        g_prov_resp->wifi_config = ESP_MALLOC(sizeof(espnow_prov_wifi_t));
+    }
+    memcpy(g_prov_resp->wifi_config, wifi_config, sizeof(espnow_prov_wifi_t));
+
+    espnow_set_type(ESPNOW_TYPE_PROV, 1, espnow_prov_recv);
+
     return ESP_OK;
 }
 
-esp_err_t espnow_prov_responder_recv(espnow_addr_t initator_addr, espnow_prov_initator_t *initator_info,
-                                     wifi_pkt_rx_ctrl_t *rx_ctrl, TickType_t wait_ticks)
-{
-    ESP_PARAM_CHECK(initator_info);
-    ESP_PARAM_CHECK(rx_ctrl);
-    ESP_PARAM_CHECK(wait_ticks != portMAX_DELAY);
-
-    esp_err_t ret     = ESP_OK;
-    size_t recv_size = 0;
-    espnow_prov_data_t *recv_data = ESP_MALLOC(ESPNOW_DATA_LEN);
-
-    espnow_set_qsize(ESPNOW_TYPE_PROV, 8);
-
-    for (int32_t start_ticks = xTaskGetTickCount(), recv_ticks = wait_ticks; recv_ticks > 0;
-            recv_ticks = wait_ticks -(xTaskGetTickCount() - start_ticks)) {
-        ret = espnow_recv(ESPNOW_TYPE_PROV, initator_addr, recv_data, &recv_size, rx_ctrl, recv_ticks);
-        ESP_ERROR_BREAK(ret == ESP_ERR_TIMEOUT, "");
-        ESP_ERROR_CONTINUE(recv_data->type != ESPNOW_PROV_TYPE_DEVICE,
-                           MACSTR ", type: %d", MAC2STR(initator_addr), recv_data->type);
-        memcpy(initator_info, &recv_data->initator_info, sizeof(espnow_prov_initator_t) + recv_data->initator_info.custom_size);
-        break;
-    }
-
-    ESP_FREE(recv_data);
-
-    return ret;
-}
-
-esp_err_t espnow_prov_responder_send(const espnow_addr_t *initator_addr_list, size_t initator_addr_num,
+/**
+ * @brief  Responder sends WiFi configuration
+ *
+ * @param[in]  initator_addr_list  mac address list of initiators
+ * @param[in]  initator_addr_num  initiator address number
+ * @param[in]  wifi_config  WiFi configuration information
+ * 
+ * @return
+ *    - ESP_OK
+ *    - ESP_ERR_INVALID_ARG
+ */
+static esp_err_t espnow_prov_responder_send(const espnow_addr_t *initator_addr_list, size_t initator_addr_num,
                                      const espnow_prov_wifi_t *wifi_config)
 {
     ESP_PARAM_CHECK(initator_addr_list);
@@ -231,7 +319,11 @@ esp_err_t espnow_prov_responder_send(const espnow_addr_t *initator_addr_list, si
     prov_data->type = ESPNOW_PROV_TYPE_WIFI;
 
     ret = espnow_send(ESPNOW_TYPE_PROV, dest_addr, prov_data, size, &frame_head, portMAX_DELAY);
-    ESP_ERROR_RETURN(ret != ESP_OK, ret, "espnow_send");
+    if (ret != ESP_OK) {
+        ESP_FREE(prov_data);
+        ESP_LOGW(TAG, "[%s, %d] <%s> " "espnow_send", __func__, __LINE__, esp_err_to_name(ret));
+        return ret;
+    }
 
     ESP_FREE(prov_data);
 

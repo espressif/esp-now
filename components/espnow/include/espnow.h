@@ -52,7 +52,7 @@ ESP_EVENT_DECLARE_BASE(ESP_EVENT_ESPNOW);
  * @brief The channel on which the device sends packets
  */
 #define ESPNOW_CHANNEL_CURRENT               0x0   /**< Only in the current channel */
-#define ESPNOW_CHANNEL_ALL                   0x0f  /**< Full channel contracting */
+#define ESPNOW_CHANNEL_ALL                   0x0f  /**< All supported channels */
 
 #define ESPNOW_RETRANSMIT_MAX_COUNT          0x1f  /**< Maximum number of retransmissions */
 #define ESPNOW_FORWARD_MAX_COUNT             0x1f  /**< Maximum number of forwards */
@@ -66,22 +66,23 @@ typedef struct {
     bool forward_switch_channel; /**< Forward data packet with exchange channel */
     uint8_t send_retry_num;      /**< Number of retransmissions */
     uint32_t send_max_timeout;   /**< Maximum timeout */
+    uint8_t qsize;               /**< Size of packet buffer queue */
     struct {
-        uint8_t ack;
-        uint8_t forward;
-        uint8_t group;
-        uint8_t provisoning;
-        uint8_t control_bind;
-        uint8_t control_data;
-        uint8_t ota_status;
-        uint8_t ota_data;
-        uint8_t debug_log;
-        uint8_t debug_command;
-        uint8_t data;
-        uint8_t sec_status;
-        uint8_t sec;
-        uint8_t reserved;
-    } qsize;                    /**< Size of packet buffer queue */
+        bool ack;
+        bool forward;
+        bool group;
+        bool provisoning;
+        bool control_bind;
+        bool control_data;
+        bool ota_status;
+        bool ota_data;
+        bool debug_log;
+        bool debug_command;
+        bool data;
+        bool sec_status;
+        bool sec;
+        bool reserved;
+    } receive_enable;            /**< Receive status of packet type */
 } espnow_config_t;
 
 #define ESPNOW_INIT_CONFIG_DEFAULT() { \
@@ -89,10 +90,11 @@ typedef struct {
     .forward_enable = true, \
     .send_retry_num = 10, \
     .send_max_timeout = pdMS_TO_TICKS(3000),\
-        .qsize = { \
-                .ack           = 8, \
-                .forward       = 8, \
-                .group         = 8, \
+    .qsize = 32, \
+    .receive_enable = { \
+                .ack           = 1, \
+                .forward       = 1, \
+                .group         = 1, \
                 .provisoning   = 0, \
                 .control_bind  = 0, \
                 .control_data  = 0, \
@@ -124,6 +126,7 @@ typedef enum {
     ESPNOW_TYPE_DATA,           /**< User-defined use */
     ESPNOW_TYPE_SECURITY_STATUS,/**< Security status packet */
     ESPNOW_TYPE_SECURITY,       /**< Security handshake packet */
+    ESPNOW_TYPE_SECURITY_DATA,  /**< Security packet */
     ESPNOW_TYPE_RESERVED,       /**< Reserved for other function */
     ESPNOW_TYPE_MAX,
 } espnow_type_t;
@@ -196,21 +199,19 @@ esp_err_t espnow_send(espnow_type_t type, const espnow_addr_t dest_addr, const v
                       size_t size, const espnow_frame_head_t *frame_config, TickType_t wait_ticks);
 
 /**
- * @brief   Receive ESPNOW data
+ * @brief   ESPNOW type data receive callback function
  *
- * @param[in]  type  received data type
  * @param[in]  src_addr  peer MAC address
  * @param[in]  data  received data
  * @param[in]  size  length of received data
  * @param[in]  rx_ctrl  received packet radio metadata header
- * @param[in]  wait_ticks  the maximum receiving time in ticks
  *
  * @return
  *    - ESP_OK
  *    - ESP_ERR_INVALID_ARG
  */
-esp_err_t espnow_recv(espnow_type_t type, espnow_addr_t src_addr, void *data,
-                      size_t *size, wifi_pkt_rx_ctrl_t *rx_ctrl, TickType_t wait_ticks);
+typedef esp_err_t (*type_handle_t)(uint8_t *src_addr, void *data,
+                      size_t size, wifi_pkt_rx_ctrl_t *rx_ctrl);
 
 /**
  * @brief De-initialize ESPNOW function
@@ -233,28 +234,29 @@ esp_err_t espnow_deinit(void);
 esp_err_t espnow_init(const espnow_config_t *config);
 
 /**
- * @brief Set the size of the buffer queue
+ * @brief Set the type data receive status and callback function
  *
  * @param[in]  type  data type defined by espnow_type_t
- * @param[in]  size  delete this queue if size is zero
+ * @param[in]  enable  enable or disable the data receive, false - disable, true - enable
+ * @param[in]  handle  the receive callback function
  *
  * @return
  *    - ESP_OK
  *    - ESP_ERR_INVALID_ARG
  */
-esp_err_t espnow_set_qsize(espnow_type_t type, size_t size);
+esp_err_t espnow_set_type(espnow_type_t type, bool enable, type_handle_t handle);
 
 /**
- * @brief Get the size of the buffer queue
+ * @brief Get the type data receive status
  *
  * @param[in]  type  data type defined by espnow_type_t
- * @param[out]  size  size of the queue
+ * @param[out]  enable  store the current receive status of the type data
  * 
  * @return
  *    - ESP_OK
  *    - ESP_ERR_INVALID_ARG
  */
-esp_err_t espnow_get_qsize(espnow_type_t type, size_t *size);
+esp_err_t espnow_get_type(espnow_type_t type, bool *enable);
 
 /**
  * @brief      Set group ID addresses

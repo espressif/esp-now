@@ -131,6 +131,14 @@ typedef struct {
 esp_err_t espnow_sec_initiator_scan(espnow_sec_responder_t **info_list, size_t *num, TickType_t wait_ticks);
 
 /**
+ * @brief Free memory in the scan information list
+ *
+ * @return
+ *    - ESP_OK
+ */
+esp_err_t espnow_sec_initiator_scan_result_free(void);
+
+/**
  * @brief  Root sends security to other nodes
  *
  * @attention Only called at the root
@@ -139,7 +147,7 @@ esp_err_t espnow_sec_initiator_scan(espnow_sec_responder_t **info_list, size_t *
  * @param[in]  pop_data  Proof of Possession (PoP) string
  * @param[in]  dest_addrs  destination nodes of mac
  * @param[in]  dest_addrs_num  number of destination nodes
- * @param[out]  result  must call espnow_sec_initator_result_free to free memory
+ * @param[out]  res  must call espnow_sec_initator_result_free to free memory
  *
  * @return
  *    - ESP_OK
@@ -235,7 +243,7 @@ esp_err_t espnow_sec_setkey(espnow_sec_t *sec, uint8_t app_key[APP_KEY_LEN]);
  *    - ESP_OK
  *    - ESP_FAIL
  */
-esp_err_t espnow_sec_send(espnow_sec_t *sec, espnow_type_t type, const uint8_t *dest_addr, const void *data,
+esp_err_t espnow_sec_send(espnow_sec_t *sec, const uint8_t *dest_addr, const void *data,
                       size_t size, const espnow_frame_head_t *data_head, TickType_t wait_ticks);
 
 /**
@@ -254,8 +262,7 @@ esp_err_t espnow_sec_send(espnow_sec_t *sec, espnow_type_t type, const uint8_t *
  *    - ESP_OK
  *    - ESP_FAIL
  */
-esp_err_t espnow_sec_recv(espnow_sec_t *sec, espnow_type_t type,  uint8_t *src_addr, void *data,
-                      size_t *size, wifi_pkt_rx_ctrl_t *rx_ctrl, TickType_t wait_ticks);
+esp_err_t espnow_sec_recv(espnow_sec_t *sec, type_handle_t cb);
 
 #ifdef __cplusplus
 }
