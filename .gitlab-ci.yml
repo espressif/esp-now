@@ -11,8 +11,8 @@ variables:
 
 before_script:
   - cd $IDF_PATH
-  - git checkout release/v4.4
-  - git pull
+  - git fetch origin tag v4.4.1
+  - git checkout v4.4.1
   - git submodule update --init --recursive
   - ./install.sh
   - . ./export.sh
@@ -37,7 +37,6 @@ build_template_cmake: &build_template
 
     - ./tools/ci/build_examples_cmake.sh examples/get-started esp32
     - ./tools/ci/build_examples_cmake.sh examples/control esp32
-    - ./tools/ci/build_examples_cmake.sh examples/debug esp32
     - ./tools/ci/build_examples_cmake.sh examples/ota esp32
     - ./tools/ci/build_examples_cmake.sh examples/provisioning esp32
     - ./tools/ci/build_examples_cmake.sh examples/security esp32
