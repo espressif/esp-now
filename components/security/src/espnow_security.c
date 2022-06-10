@@ -71,13 +71,17 @@ esp_err_t espnow_sec_setkey(espnow_sec_t *sec, uint8_t app_key[APP_KEY_LEN])
     return ESP_OK;
 }
 
-esp_err_t espnow_sec_send(espnow_sec_t *sec, const uint8_t *dest_addr, const void *data,
-                      size_t size, const espnow_frame_head_t *data_head, TickType_t wait_ticks)
+esp_err_t espnow_sec_auth_encrypt(espnow_sec_t *sec, const uint8_t *input, size_t ilen,
+                    uint8_t *output, size_t output_len,
+                    size_t *olen, size_t tag_len)
 {
     ESP_PARAM_CHECK(sec);
-    ESP_PARAM_CHECK(data);
-    ESP_PARAM_CHECK(size);
-    ESP_PARAM_CHECK(size <= ESPNOW_SEC_PACKET_MAX_SIZE);
+    ESP_PARAM_CHECK(input);
+    ESP_PARAM_CHECK(ilen);
+    ESP_PARAM_CHECK(output);
+    ESP_PARAM_CHECK(olen);
+    ESP_PARAM_CHECK(output_len >= ilen + tag_len);
+    ESP_PARAM_CHECK(tag_len);
 
     if (sec->state != ESPNOW_SEC_OVER) {
         ESP_LOGE(TAG, "Security state is not over");
@@ -85,75 +89,47 @@ esp_err_t espnow_sec_send(espnow_sec_t *sec, const uint8_t *dest_addr, const voi
     }
 
     int ret = ESP_OK;
-    uint8_t encrypt_len = size + sec->tag_len;
-    uint8_t *encrypt_data = ESP_MALLOC(size + sec->tag_len);
+    ret = mbedtls_ccm_encrypt_and_tag((mbedtls_ccm_context *)sec->cipher_ctx, ilen, sec->iv, sec->iv_len, NULL, 0,
+                                    input, output, output + ilen, tag_len);
+    *olen = ilen + tag_len;
 
-    ret = mbedtls_ccm_encrypt_and_tag((mbedtls_ccm_context *)sec->cipher_ctx, size, sec->iv, sec->iv_len, NULL, 0,
-                                    data, encrypt_data, encrypt_data + size, sec->tag_len);
     if (ret != 0) {
         ESP_LOGE(TAG, "Failed at mbedtls_ccm_encrypt_and_tag with error code : %d", ret);
-        ESP_FREE(encrypt_data);
         return ESP_FAIL;
     }
-
-    ret = espnow_send(ESPNOW_TYPE_SECURITY_DATA, dest_addr, encrypt_data, encrypt_len, data_head, wait_ticks);
-
-    ESP_FREE(encrypt_data);
 
     return ret;
 }
 
-static espnow_sec_t *g_sec = NULL;
-static type_handle_t g_sec_cb = NULL;
-
-static esp_err_t espnow_sec_data_process(uint8_t *src_addr, void *data,
-                      size_t size, wifi_pkt_rx_ctrl_t *rx_ctrl)
+esp_err_t espnow_sec_auth_decrypt(espnow_sec_t *sec, const uint8_t *input, size_t ilen,
+                    uint8_t *output, size_t output_len,
+                    size_t *olen, size_t tag_len)
 {
-    ESP_PARAM_CHECK(src_addr);
-    ESP_PARAM_CHECK(data);
-    ESP_PARAM_CHECK(size);
-    ESP_PARAM_CHECK(rx_ctrl);
+    ESP_PARAM_CHECK(sec);
+    ESP_PARAM_CHECK(input);
+    ESP_PARAM_CHECK(ilen);
+    ESP_PARAM_CHECK(output);
+    ESP_PARAM_CHECK(olen);
+    ESP_PARAM_CHECK(ilen > tag_len);
+    ESP_PARAM_CHECK(output_len >= ilen - tag_len);
+    ESP_PARAM_CHECK(tag_len);
 
-    int ret = ESP_OK;
-
-    if (!g_sec || !g_sec_cb) {
-        ESP_LOGW(TAG, "Security or callback is null, return");
-        return ESP_OK;
-    }
-
-    if (g_sec->state != ESPNOW_SEC_OVER) {
+    if (sec->state != ESPNOW_SEC_OVER) {
         ESP_LOGE(TAG, "Security state is not over");
         return ESP_FAIL;
     }
 
-    if (size <= g_sec->tag_len) {
-        ESP_LOGE(TAG, "Data size %d not valid for security", size);
-        return ESP_FAIL;
-    }
+    int ret = ESP_OK;
+    ilen -= tag_len;
+    ret = mbedtls_ccm_auth_decrypt((mbedtls_ccm_context *)sec->cipher_ctx, ilen, 
+                                        sec->iv, sec->iv_len, NULL, 0,
+                                        input, output, input + ilen, tag_len);
+    *olen = ilen;
 
-    size -= g_sec->tag_len;
-    ret = mbedtls_ccm_auth_decrypt((mbedtls_ccm_context *)g_sec->cipher_ctx, size, 
-                                        g_sec->iv, g_sec->iv_len, NULL, 0,
-                                        data, data, data + size, g_sec->tag_len);
     if (ret != 0) {
         ESP_LOGE(TAG, "Failed at mbedtls_ccm_auth_decrypt with error code : %d", ret);
         return ESP_FAIL;
     }
 
-    ret = g_sec_cb(src_addr, data, size, rx_ctrl);
-
     return ret;
-}
-
-esp_err_t espnow_sec_recv(espnow_sec_t *sec, type_handle_t cb)
-{
-    ESP_PARAM_CHECK(sec);
-    ESP_PARAM_CHECK(cb);
-
-    g_sec = sec;
-    g_sec_cb = cb;
-
-    espnow_set_type(ESPNOW_TYPE_SECURITY_DATA, 1, espnow_sec_data_process);
-
-    return ESP_OK;
 }
