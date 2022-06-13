@@ -1,9 +1,0 @@
-menu "Example Configuration"
-
-    config FLASH_LOG_POST_URL
-        string "Flash log url endpoint"
-        default "http://192.168.0.3:8070/flash_log"
-        help
-            Flash log url endpoint.
-
-endmenu

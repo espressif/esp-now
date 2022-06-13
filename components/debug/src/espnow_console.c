@@ -159,22 +159,22 @@ static void console_uart_handle_task(void *arg)
     vTaskDelete(NULL);
 }
 
-static void console_espnow_handle_task(void *arg)
+static esp_err_t console_espnow_handle(uint8_t *src_addr, void *data,
+                      size_t size, wifi_pkt_rx_ctrl_t *rx_ctrl)
 {
-    esp_err_t ret       = ESP_OK;
-    size_t        size = 0;
-    char *data = ESP_MALLOC(ESPNOW_DATA_LEN);
+    ESP_PARAM_CHECK(src_addr);
+    ESP_PARAM_CHECK(data);
+    ESP_PARAM_CHECK(size);
+    ESP_PARAM_CHECK(rx_ctrl);
 
-    espnow_set_qsize(ESPNOW_TYPE_DEBUG_COMMAND, 16);
+    esp_err_t ret       = ESP_OK;
 
     extern wifi_pkt_rx_ctrl_t g_rx_ctrl;
     extern uint8_t g_src_addr[ESPNOW_ADDR_LEN];
 
-    while (g_running_flag) {
-        ret = espnow_recv(ESPNOW_TYPE_DEBUG_COMMAND, g_src_addr, data, &size, &g_rx_ctrl, portMAX_DELAY);
-        ESP_ERROR_CONTINUE(ret != ESP_OK, "espnow_broadcast, ret: %x, err_name: %s", ret, esp_err_to_name(ret));
-
-        // printf("Debug: [%s, %d], data: %s\n", __func__, __LINE__, data);
+    if (g_running_flag) {
+        memcpy(&g_rx_ctrl, rx_ctrl, sizeof(wifi_pkt_rx_ctrl_t));
+        memcpy(g_src_addr, src_addr, 6);
 
         esp_err_t err = esp_console_run(data, &ret);
 
@@ -189,10 +189,7 @@ static void console_espnow_handle_task(void *arg)
         }
     }
 
-    espnow_set_qsize(ESPNOW_TYPE_DEBUG_COMMAND, 0);
-
-    ESP_FREE(data);
-    vTaskDelete(NULL);
+    return ret;
 }
 
 esp_err_t espnow_console_init(const espnow_console_config_t *config)
@@ -254,7 +251,7 @@ esp_err_t espnow_console_init(const espnow_console_config_t *config)
     }
 
     if (config->monitor_command.espnow) {
-        xTaskCreate(console_espnow_handle_task, "console_espnow", 1024 * 4, NULL, tskIDLE_PRIORITY + 1, NULL);
+        espnow_set_type(ESPNOW_TYPE_DEBUG_COMMAND, 1, console_espnow_handle);
     }
 
     return ESP_OK;
@@ -264,6 +261,7 @@ esp_err_t espnow_console_deinit()
 {
     esp_err_t ret = ESP_OK;
     g_running_flag = false;
+    espnow_set_type(ESPNOW_TYPE_DEBUG_COMMAND, 0, NULL);
 
     ret = esp_console_deinit();
     ESP_ERROR_RETURN(ret != ESP_OK, ret, "de-initialize console module");

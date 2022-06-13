@@ -109,31 +109,27 @@ static void app_driver_init(void)
     button_register_cb(button_handle, BUTTON_LONG_PRESS_START, initiator_unbind_press_cb);
 }
 
-static void responder_light_task(void *arg)
+static void espnow_ctrl_responder_data_cb(espnow_attribute_t initiator_attribute,
+                                     espnow_attribute_t responder_attribute,
+                                     uint32_t status)
 {
-    espnow_attribute_t initiator_attribute;
-    espnow_attribute_t responder_attribute;
+    ESP_LOGI(TAG, "espnow_ctrl_responder_recv, initiator_attribute: %d, responder_attribute: %d, value: %d",
+                initiator_attribute, responder_attribute, status);
 
-    bool status   = true;
+    if (status) {
+        g_strip_handle->set_pixel(g_strip_handle, 0, 255, 255, 255);
+        g_strip_handle->refresh(g_strip_handle, 100);
+    } else {
+        g_strip_handle->clear(g_strip_handle, 100);
+    }
+}
 
+static void responder_light(void)
+{
     app_driver_init();
 
     ESP_ERROR_CHECK(espnow_ctrl_responder_bind(30 * 1000, -55, NULL));
-    while (espnow_ctrl_responder_recv(&initiator_attribute, &responder_attribute, (uint32_t *)&status) == ESP_OK) {
-        ESP_LOGI(TAG, "espnow_ctrl_responder_recv, initiator_attribute: %d, responder_attribute: %d, value: %d",
-                 initiator_attribute, responder_attribute, status);
-
-        if (status) {
-            g_strip_handle->set_pixel(g_strip_handle, 0, 255, 255, 255);
-            g_strip_handle->refresh(g_strip_handle, 100);
-        } else {
-            g_strip_handle->clear(g_strip_handle, 100);
-        }
-    }
-
-    ESP_LOGW(TAG, "Responder light task is exit");
-
-    vTaskDelete(NULL);
+    espnow_ctrl_responder_data(espnow_ctrl_responder_data_cb);
 }
 
 static void espnow_event_handler(void* handler_args, esp_event_base_t base, int32_t id, void* event_data)
@@ -178,5 +174,5 @@ void app_main(void)
 
     esp_event_handler_register(ESP_EVENT_ESPNOW, ESP_EVENT_ANY_ID, espnow_event_handler, NULL);
 
-    xTaskCreate(responder_light_task, "responder_light_task", 4 * 1024, NULL, tskIDLE_PRIORITY + 1, NULL);
+    responder_light();
 }

@@ -38,13 +38,14 @@ typedef struct {
     int8_t rssi;
     uint32_t timestamp;
     espnow_ctrl_bind_cb_t cb;
+    espnow_ctrl_data_cb_t data_cb;
+    espnow_ctrl_data_raw_cb_t data_raw_cb;
     size_t size;
     espnow_ctrl_bind_info_t data[ESPNOW_BIND_LIST_MAX_SIZE];
 } espnow_bindlist_t;
 
 static const char *TAG = "espnow_ctrl";
 static espnow_bindlist_t g_bindlist = {0};
-static TaskHandle_t g_bind_responder_handle = NULL;
 static const espnow_frame_head_t g_initiator_frame = {
     .retransmit_count = 10,
     .broadcast        = true,
@@ -107,113 +108,105 @@ esp_err_t espnow_ctrl_responder_remove_bindlist(const espnow_ctrl_bind_info_t *i
     return ESP_OK;
 }
 
-static void espnow_ctrl_responder_bind_task(void *arg)
+static esp_err_t espnow_ctrl_responder_bind_process(uint8_t *src_addr, void *data,
+                      size_t size, wifi_pkt_rx_ctrl_t *rx_ctrl)
 {
-    esp_err_t ret           = ESP_OK;
-    uint8_t src_addr[6]     = {0};
-    size_t size            = 0;
-    espnow_ctrl_data_t data = {0};
-    wifi_pkt_rx_ctrl_t rx_ctrl = {0};
+    ESP_PARAM_CHECK(src_addr);
+    ESP_PARAM_CHECK(data);
+    ESP_PARAM_CHECK(size);
+    ESP_PARAM_CHECK(rx_ctrl);
 
-    espnow_set_qsize(ESPNOW_TYPE_CONTROL_BIND, 8);
+    espnow_ctrl_data_t *ctrl_data = (espnow_ctrl_data_t *)data;
+    if (ctrl_data->responder_value_b) {
+        ESP_LOGI(TAG, "bind, esp_log_timestamp: %d, timestamp: %d, rssi: %d, rssi: %d",
+                    esp_log_timestamp(), g_bindlist.timestamp, rx_ctrl->rssi, g_bindlist.rssi);
 
-    for (;;) {
-        ret = espnow_recv(ESPNOW_TYPE_CONTROL_BIND, src_addr, &data, &size, &rx_ctrl, portMAX_DELAY);
-        ESP_ERROR_CONTINUE(ret != ESP_OK, "espnow_recv, ESPNOW_TYPE_CONTROL_BIND");
+        bool bind_cb_flag = false;
 
-        if (data.responder_value_b) {
-            ESP_LOGD(TAG, "bind, esp_log_timestamp: %d, timestamp: %d, rssi: %d, rssi: %d",
-                     esp_log_timestamp(), g_bindlist.timestamp, rx_ctrl.rssi, g_bindlist.rssi);
+        if (g_bindlist.cb) {
+            bind_cb_flag = g_bindlist.cb(ctrl_data->initiator_attribute, src_addr, rx_ctrl->rssi);
+        }
 
-            bool bind_cb_flag = false;
+        if (bind_cb_flag || esp_log_timestamp() < g_bindlist.timestamp || rx_ctrl->rssi > g_bindlist.rssi) {
+            ESP_LOGI("control_func", "addr: "MACSTR", initiator_type: %d, initiator_value: %d",
+                        MAC2STR(src_addr), ctrl_data->initiator_attribute >> 8, ctrl_data->initiator_attribute & 0xff);
 
-            if (g_bindlist.cb) {
-                bind_cb_flag = g_bindlist.cb(data.initiator_attribute, src_addr, rx_ctrl.rssi);
+            if (!espnow_ctrl_responder_is_bindlist(src_addr, ctrl_data->initiator_attribute)) {
+                g_bindlist.data[g_bindlist.size].initiator_attribute = ctrl_data->initiator_attribute;
+                memcpy(g_bindlist.data[g_bindlist.size].mac, src_addr, 6);
+
+                esp_event_post(ESP_EVENT_ESPNOW, ESP_EVENT_ESPNOW_CTRL_BIND,
+                                g_bindlist.data + g_bindlist.size, sizeof(espnow_ctrl_bind_info_t), 0);
+                g_bindlist.size++;
+                esp_storage_set("bindlist", &g_bindlist, sizeof(g_bindlist));
             }
+        }
+    } else {
+        for (int i = 0; i < g_bindlist.size; ++i) {
+            if (!memcmp(g_bindlist.data[i].mac, src_addr, 6)
+                    && g_bindlist.data[i].initiator_attribute == ctrl_data->initiator_attribute) {
+                esp_event_post(ESP_EVENT_ESPNOW, ESP_EVENT_ESPNOW_CTRL_UNBIND,
+                                g_bindlist.data + i, sizeof(espnow_ctrl_bind_info_t), 0);
 
-            if (bind_cb_flag || esp_log_timestamp() < g_bindlist.timestamp || rx_ctrl.rssi >  g_bindlist.rssi) {
-                ESP_LOGI("control_func", "addr: "MACSTR", initiator_type: %d, initiator_value: %d",
-                         MAC2STR(src_addr), data.initiator_attribute >> 8, data.initiator_attribute & 0xff);
+                g_bindlist.size--;
 
-                if (!espnow_ctrl_responder_is_bindlist(src_addr, data.initiator_attribute)) {
-                    g_bindlist.data[g_bindlist.size].initiator_attribute = data.initiator_attribute;
+                if (g_bindlist.size > 0) {
+                    g_bindlist.data[g_bindlist.size].initiator_attribute = ctrl_data->initiator_attribute;
                     memcpy(g_bindlist.data[g_bindlist.size].mac, src_addr, 6);
-
-                    esp_event_post(ESP_EVENT_ESPNOW, ESP_EVENT_ESPNOW_CTRL_BIND,
-                                   g_bindlist.data + g_bindlist.size, sizeof(espnow_ctrl_bind_info_t), 0);
-                    g_bindlist.size++;
-                    esp_storage_set("bindlist", &g_bindlist, sizeof(g_bindlist));
                 }
-            }
-        } else {
-            for (int i = 0; i < g_bindlist.size; ++i) {
-                if (!memcmp(g_bindlist.data[i].mac, src_addr, 6)
-                        && g_bindlist.data[i].initiator_attribute == data.initiator_attribute) {
-                    esp_event_post(ESP_EVENT_ESPNOW, ESP_EVENT_ESPNOW_CTRL_UNBIND,
-                                   g_bindlist.data + i, sizeof(espnow_ctrl_bind_info_t), 0);
 
-                    g_bindlist.size--;
-
-                    if (g_bindlist.size > 0) {
-                        g_bindlist.data[g_bindlist.size].initiator_attribute = data.initiator_attribute;
-                        memcpy(g_bindlist.data[g_bindlist.size].mac, src_addr, 6);
-                    }
-
-                    esp_storage_set("bindlist", &g_bindlist, sizeof(g_bindlist));
-                }
+                esp_storage_set("bindlist", &g_bindlist, sizeof(g_bindlist));
             }
         }
     }
 
-    espnow_set_qsize(ESPNOW_TYPE_CONTROL_BIND, 0);
-    g_bind_responder_handle = NULL;
-
-    ESP_LOGW(TAG, "espnow_ctrl_responder_bind_task end");
-
-    vTaskDelete(NULL);
+    return ESP_OK;
 }
 
 esp_err_t espnow_ctrl_responder_bind(uint32_t wait_ms, int8_t rssi, espnow_ctrl_bind_cb_t cb)
 {
-    if (!g_bind_responder_handle) {
-        esp_storage_get("bindlist", &g_bindlist, sizeof(g_bindlist));
-        xTaskCreate(espnow_ctrl_responder_bind_task, "espnow_ctrl_responder_bind", 4096,
-                    NULL, tskIDLE_PRIORITY + 1, &g_bind_responder_handle);
-    }
+    esp_storage_get("bindlist", &g_bindlist, sizeof(g_bindlist));
 
     g_bindlist.cb        = cb;
     g_bindlist.timestamp = esp_log_timestamp() + wait_ms;
     g_bindlist.rssi      = rssi;
 
+    espnow_set_type(ESPNOW_TYPE_CONTROL_BIND, 1, espnow_ctrl_responder_bind_process);
+
     return ESP_OK;
 }
 
-esp_err_t espnow_ctrl_responder_recv(espnow_attribute_t *initiator_attribute,
-                                     espnow_attribute_t *responder_attribute,
-                                     uint32_t *responder_value)
+static esp_err_t espnow_ctrl_responder_data_process(uint8_t *src_addr, void *data,
+                      size_t size, wifi_pkt_rx_ctrl_t *rx_ctrl)
 {
-    esp_err_t ret           = ESP_OK;
-    espnow_ctrl_data_t data = {0};
-    size_t size             = 0;
-    uint8_t src_addr[6]     = {0};
+    ESP_PARAM_CHECK(src_addr);
+    ESP_PARAM_CHECK(data);
+    ESP_PARAM_CHECK(size);
+    ESP_PARAM_CHECK(rx_ctrl);
 
-    espnow_set_qsize(ESPNOW_TYPE_CONTROL_DATA, 8);
+    espnow_ctrl_data_t *ctrl_data = (espnow_ctrl_data_t *)data;
+    ESP_LOGD(TAG, "src_addr: "MACSTR", espnow_ctrl_responder_recv, value: %d",
+                MAC2STR(src_addr), ctrl_data->responder_value_i);
 
-    for (;;) {
-        ret = espnow_recv(ESPNOW_TYPE_CONTROL_DATA, src_addr, &data, &size, NULL, portMAX_DELAY);
-        ESP_ERROR_RETURN(ret != ESP_OK, ret, "<%s> espnow_recv", esp_err_to_name(ret));
-
-        ESP_LOGD(TAG, "src_addr: "MACSTR", espnow_ctrl_responder_recv, value: %d",
-                 MAC2STR(src_addr), data.responder_value_i);
-
-        if (espnow_ctrl_responder_is_bindlist(src_addr, data.initiator_attribute)) {
-            break;
-        }
+    if (espnow_ctrl_responder_is_bindlist(src_addr, ctrl_data->initiator_attribute) == false) {
+        return ESP_OK;
     }
 
-    *initiator_attribute = data.initiator_attribute;
-    *responder_attribute = data.responder_attribute;
-    *responder_value     = data.responder_value_i;
+    if (g_bindlist.data_cb) {
+        g_bindlist.data_cb(ctrl_data->initiator_attribute, ctrl_data->responder_attribute, ctrl_data->responder_value_i);
+    }
+
+    if (g_bindlist.data_raw_cb) {
+        g_bindlist.data_raw_cb(src_addr, ctrl_data, rx_ctrl);
+    }
+
+    return ESP_OK;
+}
+
+esp_err_t espnow_ctrl_responder_data(espnow_ctrl_data_cb_t cb)
+{
+    g_bindlist.data_cb        = cb;
+    espnow_set_type(ESPNOW_TYPE_CONTROL_DATA, 1, espnow_ctrl_responder_data_process);
 
     return ESP_OK;
 }
@@ -270,24 +263,10 @@ esp_err_t espnow_ctrl_send(const espnow_addr_t dest_addr, const espnow_ctrl_data
     return ESP_OK;
 }
 
-esp_err_t espnow_ctrl_recv(espnow_addr_t src_addr, espnow_ctrl_data_t *data, wifi_pkt_rx_ctrl_t *rx_ctrl, TickType_t wait_ticks)
+esp_err_t espnow_ctrl_recv(espnow_ctrl_data_raw_cb_t cb)
 {
-    ESP_PARAM_CHECK(src_addr);
-    ESP_PARAM_CHECK(data);
-    ESP_PARAM_CHECK(rx_ctrl);
-
-    esp_err_t ret = ESP_OK;
-    size_t size   = 0;
-    espnow_set_qsize(ESPNOW_TYPE_CONTROL_DATA, 8);
-
-    for (;;) {
-        ret = espnow_recv(ESPNOW_TYPE_CONTROL_DATA, src_addr, data, &size, rx_ctrl, wait_ticks);
-        ESP_ERROR_RETURN(ret != ESP_OK, ret, "<%s> espnow_recv", esp_err_to_name(ret));
-
-        if (espnow_ctrl_responder_is_bindlist(src_addr, data->initiator_attribute)) {
-            break;
-        }
-    }
+    g_bindlist.data_raw_cb        = cb;
+    espnow_set_type(ESPNOW_TYPE_CONTROL_DATA, 1, espnow_ctrl_responder_data_process);
 
     return ESP_OK;
 }

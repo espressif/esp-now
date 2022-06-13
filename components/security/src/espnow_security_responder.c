@@ -30,7 +30,6 @@ static uint8_t app_key[APP_KEY_LEN] = { 0 };
 static protocomm_t *g_espnow_pc = NULL;
 static espnow_sec_info_t g_sec_info = { 0 };
 static espnow_frame_head_t g_frame_config = { 0 };
-static bool g_sec_responder_flag = false;
 
 static esp_err_t espnow_sec_info(const uint8_t *src_addr)
 {
@@ -114,63 +113,52 @@ static esp_err_t espnow_sec_handle(const char *ep_name, uint8_t resp_type, const
     return ret;
 }
 
-static void espnow_sec_task(void *arg)
+static esp_err_t espnow_sec_responder_process(uint8_t *src_addr, void *data,
+                      size_t size, wifi_pkt_rx_ctrl_t *rx_ctrl)
 {
+    ESP_PARAM_CHECK(src_addr);
+    ESP_PARAM_CHECK(data);
+    ESP_PARAM_CHECK(size);
+    ESP_PARAM_CHECK(rx_ctrl);
+
     esp_err_t ret = ESP_OK;
-    uint8_t src_addr[6]  = { 0 };
-    uint8_t *data   = ESP_MALLOC(ESPNOW_DATA_LEN);
-    size_t size    = 0;
+    uint8_t data_type = ((uint8_t *)data)[0];
+    espnow_add_peer(src_addr, NULL);
 
-    g_espnow_pc = arg;
-    espnow_set_qsize(ESPNOW_TYPE_SECURITY, 16);
-    g_sec_responder_flag = true;
+    switch (data_type) {
+    case ESPNOW_SEC_TYPE_REQUEST:
+        ESP_LOGD(TAG, "ESPNOW_SEC_TYPE_INFO");
+        ret = espnow_sec_info(src_addr);
+        break;
 
-    while (g_sec_responder_flag) {
-        ret = espnow_recv(ESPNOW_TYPE_SECURITY, src_addr, data, &size, NULL, pdMS_TO_TICKS(100));
-        ESP_ERROR_CONTINUE(ret != ESP_OK, "");
+    case ESPNOW_SEC_TYPE_REST:
+        ESP_LOGD(TAG, "ESPNOW_SEC_TYPE_REST");
+        ret = espnow_sec_reset_info(src_addr);
+        break;
 
-        uint8_t data_type = ((uint8_t *)data)[0];
-        espnow_add_peer(src_addr, NULL);
+    case ESPNOW_SEC_TYPE_HANDSHAKE:
+        ESP_LOGD(TAG, "ESPNOW_SEC_TYPE_HANDSHAKE");
+        ret = espnow_sec_handle("espnow-session", ESPNOW_SEC_TYPE_HANDSHAKE, src_addr, data, size);
+        break;
 
-        switch (data_type) {
-        case ESPNOW_SEC_TYPE_REQUEST:
-            ESP_LOGD(TAG, "ESPNOW_SEC_TYPE_INFO");
-            ret = espnow_sec_info(src_addr);
-            break;
+    case ESPNOW_SEC_TYPE_KEY:
+        ESP_LOGD(TAG, "ESPNOW_SEC_TYPE_KEY");
+        ret = espnow_sec_handle("espnow-config", ESPNOW_SEC_TYPE_KEY_RESP, src_addr, data, size);
+        break;
 
-        case ESPNOW_SEC_TYPE_REST:
-            ESP_LOGD(TAG, "ESPNOW_SEC_TYPE_REST");
-            ret = espnow_sec_reset_info(src_addr);
-            break;
-
-        case ESPNOW_SEC_TYPE_HANDSHAKE:
-            ESP_LOGD(TAG, "ESPNOW_SEC_TYPE_HANDSHAKE");
-            ret = espnow_sec_handle("espnow-session", ESPNOW_SEC_TYPE_HANDSHAKE, src_addr, data, size);
-            break;
-
-        case ESPNOW_SEC_TYPE_KEY:
-            ESP_LOGD(TAG, "ESPNOW_SEC_TYPE_KEY");
-            ret = espnow_sec_handle("espnow-config", ESPNOW_SEC_TYPE_KEY_RESP, src_addr, data, size);
-            break;
-
-        default:
-            break;
-        }
-
-        espnow_del_peer(src_addr);
-        ESP_ERROR_CONTINUE(ret != ESP_OK, "espnow_sec_handle");
+    default:
+        break;
     }
 
-    espnow_set_qsize(ESPNOW_TYPE_SECURITY, 0);
-    g_sec_responder_flag = false;
-
-    ESP_FREE(data);
-    vTaskDelete(NULL);
+    espnow_del_peer(src_addr);
+    ESP_ERROR_RETURN(ret != ESP_OK, ret, "espnow_sec_handle");
+    return ret;
 }
 
 static esp_err_t protocomm_espnow_responder_start(protocomm_t *pc)
 {
-    xTaskCreate(espnow_sec_task, "espnow_sec", 3 * 1024, pc, tskIDLE_PRIORITY + 1, NULL);
+    g_espnow_pc = pc;
+    espnow_set_type(ESPNOW_TYPE_SECURITY, 1, espnow_sec_responder_process);
 
     return ESP_OK;
 }
@@ -204,7 +192,7 @@ static esp_err_t espnow_config_data_handler(uint32_t session_id, const uint8_t *
 
 static esp_err_t protocomm_espnow_responder_stop()
 {
-    g_sec_responder_flag = false;
+    espnow_set_type(ESPNOW_TYPE_SECURITY, 0, NULL);
 
     return ESP_OK;
 }

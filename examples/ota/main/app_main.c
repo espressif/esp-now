@@ -138,18 +138,23 @@ static void firmware_send(size_t firmware_size, uint8_t sha[ESPNOW_OTA_HASH_LEN]
     uint32_t start_time = xTaskGetTickCount();
     espnow_ota_result_t espnow_ota_result = {0};
     espnow_ota_responder_t *info_list = NULL;
+    espnow_addr_t *dest_addr_list = NULL;
     size_t num = 0;
 
     espnow_ota_initator_scan(&info_list, &num, pdMS_TO_TICKS(3000));
     ESP_LOGW(TAG, "espnow wait ota num: %d", num);
 
-    espnow_addr_t *dest_addr_list = ESP_MALLOC(num * ESPNOW_ADDR_LEN);
+    if (!num) {
+        goto EXIT;
+    }
+
+    dest_addr_list = ESP_MALLOC(num * ESPNOW_ADDR_LEN);
 
     for (size_t i = 0; i < num; i++) {
         memcpy(dest_addr_list[i], info_list[i].mac, ESPNOW_ADDR_LEN);
     }
 
-    ESP_FREE(info_list);
+    espnow_ota_initator_scan_result_free();
 
     ret = espnow_ota_initator_send(dest_addr_list, num, sha, firmware_size, ota_initator_data_cb, &espnow_ota_result);
     ESP_ERROR_GOTO(ret != ESP_OK, EXIT, "<%s> espnow_ota_initator_send", esp_err_to_name(ret));
@@ -165,6 +170,7 @@ static void firmware_send(size_t firmware_size, uint8_t sha[ESPNOW_OTA_HASH_LEN]
              espnow_ota_result.successed_num, espnow_ota_result.unfinished_num);
 
 EXIT:
+    ESP_FREE(dest_addr_list);
     espnow_ota_initator_result_free(&espnow_ota_result);
 }
 

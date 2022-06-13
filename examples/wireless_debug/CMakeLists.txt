@@ -8,7 +8,7 @@ endif()
 
 set(ESPNOW_PATH ${CMAKE_CURRENT_LIST_DIR}/../..)
 set(EXTRA_COMPONENT_DIRS ${ESPNOW_PATH}/components
-                         ${ESPNOW_PATH}/examples/wireless_debug/components/commands)
+                         ${ESPNOW_PATH}/examples/wireless_debug/components)
 
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 

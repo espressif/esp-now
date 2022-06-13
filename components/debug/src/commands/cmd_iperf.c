@@ -1,11 +1,16 @@
-/* Iperf commands
+// Copyright 2021 Espressif Systems (Shanghai) PTE LTD
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
 
-   This example code is in the Public Domain (or CC0 licensed, at your option.)
-
-   Unless required by applicable law or agreed to in writing, this
-   software is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
-   CONDITIONS OF ANY KIND, either express or implied.
-*/
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 #include <string.h>
 
@@ -16,8 +21,6 @@
 #include "esp_utils.h"
 
 #include "espnow.h"
-#include "sdcard.h"
-#include "debug_cmd.h"
 
 #include "espnow_console.h"
 #include "espnow_log.h"
@@ -167,6 +170,43 @@ typedef struct {
     uint8_t data[0];
 } espnow_iperf_data_t;
 
+#define IPERF_QUEUE_SIZE 10
+static xQueueHandle g_iperf_queue = NULL;
+typedef struct {
+    uint8_t src_addr[6];
+    void *data;
+    size_t size;
+    wifi_pkt_rx_ctrl_t rx_ctrl;
+} iperf_recv_data_t;
+
+static esp_err_t espnow_iperf_initiator_recv(uint8_t *src_addr, void *data,
+                      size_t size, wifi_pkt_rx_ctrl_t *rx_ctrl)
+{
+    ESP_PARAM_CHECK(src_addr);
+    ESP_PARAM_CHECK(data);
+    ESP_PARAM_CHECK(size);
+    ESP_PARAM_CHECK(rx_ctrl);
+
+    if (g_iperf_queue) {
+        iperf_recv_data_t iperf_data = { 0 };
+        iperf_data.data = ESP_MALLOC(size);
+        if (!iperf_data.data) {
+            return ESP_FAIL;
+        }
+        memcpy(iperf_data.data, data, size);
+        iperf_data.size = size;
+        memcpy(iperf_data.src_addr, src_addr, 6);
+        memcpy(&iperf_data.rx_ctrl, rx_ctrl, sizeof(wifi_pkt_rx_ctrl_t));
+        if (xQueueSend(g_iperf_queue, &iperf_data, 0) != pdPASS) {
+            ESP_LOGW(TAG, "[%s, %d] Send iperf recv queue failed", __func__, __LINE__);
+            ESP_FREE(iperf_data.data);
+            return ESP_FAIL;
+        }
+    }
+
+    return ESP_OK;
+}
+
 static void espnow_iperf_initiator_task(void *arg)
 {
     esp_err_t ret   = ESP_OK;
@@ -216,10 +256,17 @@ static void espnow_iperf_initiator_task(void *arg)
                           g_iperf_cfg.packet_len, &g_iperf_cfg.frame_head, portMAX_DELAY);
         ESP_ERROR_CONTINUE(ret != ESP_OK, "<%s> espnow_send", esp_err_to_name(ret));
 
-        size_t recv_size = 0;
         memset(iperf_data, 0, g_iperf_cfg.packet_len);
-        ret = espnow_recv(g_iperf_cfg.type, g_iperf_cfg.addr, iperf_data,
-                          &recv_size, &rx_ctrl, pdMS_TO_TICKS(1000));
+        iperf_recv_data_t recv_data = { 0 };
+        if (g_iperf_queue && xQueueReceive(g_iperf_queue, &recv_data, pdMS_TO_TICKS(1000)) == pdPASS) {
+            ret = ESP_OK;
+            memcpy(iperf_data, recv_data.data, recv_data.size);
+            memcpy(g_iperf_cfg.addr, recv_data.src_addr, 6);
+            memcpy(&rx_ctrl, &recv_data.rx_ctrl, sizeof(wifi_pkt_rx_ctrl_t));
+            ESP_FREE(recv_data.data);
+        } else {
+            ret = ESP_FAIL;
+        }
     } while (ret != ESP_OK && retry_count-- > 0 && iperf_data->type != IPERF_BANDWIDTH_STOP_ACK);
 
     if (ret != ESP_OK) {
@@ -245,33 +292,46 @@ static void espnow_iperf_initiator_task(void *arg)
     ESP_FREE(iperf_data);
     g_iperf_cfg.finish = true;
 
+    espnow_set_type(ESPNOW_TYPE_RESERVED, 0, NULL);
+    if (g_iperf_queue) {
+        iperf_recv_data_t *tmp_data = NULL;
+
+        while (xQueueReceive(g_iperf_queue, &tmp_data, 0)) {
+            ESP_FREE(tmp_data->data);
+        }
+
+        vQueueDelete(g_iperf_queue);
+        g_iperf_queue = NULL;
+    }
+
     vTaskDelete(NULL);
 }
 
-static void espnow_iperf_responder_task(void *arg)
+static esp_err_t espnow_iperf_responder(uint8_t *src_addr, void *data,
+                      size_t size, wifi_pkt_rx_ctrl_t *rx_ctrl)
 {
+    ESP_PARAM_CHECK(src_addr);
+    ESP_PARAM_CHECK(data);
+    ESP_PARAM_CHECK(size);
+    ESP_PARAM_CHECK(rx_ctrl);
+
     esp_err_t ret         = ESP_OK;
-    espnow_iperf_data_t *iperf_data   = ESP_MALLOC(ESPNOW_DATA_LEN);
-    wifi_pkt_rx_ctrl_t rx_ctrl = {0};
-    size_t recv_size    = 0;
-    uint32_t start_time = 0;
-    uint32_t recv_count = 0;
+    espnow_iperf_data_t *iperf_data   = (espnow_iperf_data_t *)data;
+    static uint32_t start_time;
+    static uint32_t recv_count;
+    static uint32_t report_time;
+    static uint32_t report_count;
 
-    ESP_LOGI(TAG, "[  Initiator MAC  ] Interval       Transfer     Bandwidth   RSSI");
+    memcpy(g_iperf_cfg.addr, src_addr, 6);
 
-    for (uint32_t report_time = 0, report_count = 0;
-            !g_iperf_cfg.finish;) {
-        ret = espnow_recv(g_iperf_cfg.type, g_iperf_cfg.addr, iperf_data,
-                          &recv_size, &rx_ctrl, pdMS_TO_TICKS(1000));
-        ESP_ERROR_CONTINUE(ret == ESP_ERR_TIMEOUT, "");
-        ESP_ERROR_BREAK(ret != ESP_OK, "<%s> espnow_recv", esp_err_to_name(ret));
-
+    if (!g_iperf_cfg.finish) {
         recv_count++;
 
         if (iperf_data->seq == 0) {
             recv_count   = 0;
             start_time  = esp_timer_get_time();
             report_time = start_time + g_iperf_cfg.report_interval * 1000 * 1000;
+            report_count = 0;
         }
 
         if (iperf_data->type == IPERF_BANDWIDTH && esp_timer_get_time() >= report_time) {
@@ -279,7 +339,7 @@ static void espnow_iperf_responder_task(void *arg)
             double report_size    = (iperf_data->seq - report_count) * g_iperf_cfg.packet_len / 1e6;
             ESP_LOGI(TAG, "["MACSTR"]  %2d-%2d sec  %2.2f MBytes  %0.2f Mbits/sec  %d dbm",
                      MAC2STR(g_iperf_cfg.addr), report_time_s - g_iperf_cfg.report_interval, report_time_s,
-                     report_size, report_size * 8 / g_iperf_cfg.report_interval, rx_ctrl.rssi);
+                     report_size, report_size * 8 / g_iperf_cfg.report_interval, rx_ctrl->rssi);
 
             report_time = esp_timer_get_time() + g_iperf_cfg.report_interval * 1000 * 1000;
             report_count = iperf_data->seq;
@@ -299,7 +359,7 @@ static void espnow_iperf_responder_task(void *arg)
                 espnow_del_peer(g_iperf_cfg.addr);
             }
 
-            ESP_ERROR_CONTINUE(ret != ESP_OK, "<%s> espnow_send", esp_err_to_name(ret));
+            ESP_ERROR_RETURN(ret != ESP_OK, ret, "<%s> espnow_send", esp_err_to_name(ret));
         } else if (iperf_data->type == IPERF_BANDWIDTH_STOP) {
             uint32_t total_count = iperf_data->seq + 1;
             uint32_t lost_count  = total_count - recv_count;
@@ -322,14 +382,19 @@ static void espnow_iperf_responder_task(void *arg)
             espnow_add_peer(g_iperf_cfg.addr, NULL);
             ret = espnow_send(g_iperf_cfg.type, g_iperf_cfg.addr, iperf_data,
                               sizeof(espnow_iperf_data_t), &frame_head, portMAX_DELAY);
-            ESP_ERROR_CONTINUE(ret != ESP_OK, "<%s> espnow_send", esp_err_to_name(ret));
+            ESP_ERROR_RETURN(ret != ESP_OK, ret, "<%s> espnow_send", esp_err_to_name(ret));
 
             espnow_del_peer(g_iperf_cfg.addr);
         }
     }
 
-    ESP_FREE(iperf_data);
-    vTaskDelete(NULL);
+    return ESP_OK;
+}
+
+static void espnow_iperf_responder_start(void)
+{
+    espnow_set_type(ESPNOW_TYPE_RESERVED, 1, espnow_iperf_responder);
+    ESP_LOGI(TAG, "[  Initiator MAC  ] Interval       Transfer     Bandwidth   RSSI");
 }
 
 static void espnow_iperf_ping_task(void *arg)
@@ -361,7 +426,17 @@ static void espnow_iperf_ping_task(void *arg)
         ESP_ERROR_CONTINUE(ret != ESP_OK, "<%s> espnow_send", esp_err_to_name(ret));
 
         do {
-            ret = espnow_recv(g_iperf_cfg.type, g_iperf_cfg.addr, iperf_data, &recv_size, &rx_ctrl, pdMS_TO_TICKS(1000));
+            iperf_recv_data_t recv_data = { 0 };
+            if (g_iperf_queue && xQueueReceive(g_iperf_queue, &recv_data, pdMS_TO_TICKS(1000)) == pdPASS) {
+                ret = ESP_OK;
+                memcpy(iperf_data, recv_data.data, recv_data.size);
+                memcpy(g_iperf_cfg.addr, recv_data.src_addr, 6);
+                memcpy(&rx_ctrl, &recv_data.rx_ctrl, sizeof(wifi_pkt_rx_ctrl_t));
+                recv_size = recv_data.size;
+                ESP_FREE(recv_data.data);
+            } else {
+                ret = ESP_FAIL;
+            }
 
             if (ret == ESP_OK && (iperf_data->type != IPERF_PING_ACK || iperf_data->seq != seq)) {
                 ESP_LOGW(TAG, "data_size: %d", recv_size);
@@ -396,6 +471,18 @@ static void espnow_iperf_ping_task(void *arg)
 
     if (!g_iperf_cfg.frame_head.broadcast) {
         espnow_del_peer(g_iperf_cfg.addr);
+    }
+
+    espnow_set_type(ESPNOW_TYPE_RESERVED, 0, NULL);
+    if (g_iperf_queue) {
+        iperf_recv_data_t *tmp_data = NULL;
+
+        while (xQueueReceive(g_iperf_queue, &tmp_data, 0)) {
+            ESP_FREE(tmp_data->data);
+        }
+
+        vQueueDelete(g_iperf_queue);
+        g_iperf_queue = NULL;
     }
 
     ESP_FREE(iperf_data);
@@ -468,7 +555,6 @@ static esp_err_t espnow_iperf_func(int argc, char **argv)
 
     g_iperf_cfg.finish = false;
 
-    espnow_set_qsize(ESPNOW_TYPE_RESERVED, 16);
     // esp_wifi_config_espnow_rate(ESP_IF_WIFI_STA, WIFI_PHY_RATE_MCS7_SGI);
 
     if (espnow_iperf_args.initiator->count) {
@@ -481,6 +567,10 @@ static esp_err_t espnow_iperf_func(int argc, char **argv)
         ESP_LOGI(TAG, "------------------------------------------------------------");
         ESP_LOGI(TAG, "time: %d, interval: %d, len: %d", g_iperf_cfg.transmit_time, g_iperf_cfg.report_interval,
                  g_iperf_cfg.packet_len);
+
+        g_iperf_queue = xQueueCreate(IPERF_QUEUE_SIZE, sizeof(iperf_recv_data_t));
+        ESP_ERROR_RETURN(!g_iperf_queue, ESP_FAIL, "Create espnow recv queue fail");
+        espnow_set_type(ESPNOW_TYPE_RESERVED, 1, espnow_iperf_initiator_recv);
 
         if (espnow_iperf_args.ping->count) {
             xTaskCreate(espnow_iperf_ping_task, "espnow_iperf_ping", 4 * 1024,
@@ -496,8 +586,7 @@ static esp_err_t espnow_iperf_func(int argc, char **argv)
         ESP_LOGI(TAG, "responder " MACSTR " listening", MAC2STR(sta_mac));
         ESP_LOGI(TAG, "ESP-NOW window size: 230 bytes");;
         ESP_LOGI(TAG, "------------------------------------------------------------");
-        xTaskCreate(espnow_iperf_responder_task, "espnow_iperf_responder", 4 * 1024,
-                    NULL, tskIDLE_PRIORITY + 1, NULL);
+        espnow_iperf_responder_start();
     }
 
     return ESP_OK;
@@ -525,4 +614,10 @@ void register_espnow_iperf()
     };
 
     ESP_ERROR_CHECK(esp_console_cmd_register(&cmd));
+}
+
+void register_iperf(void)
+{
+    register_espnow_config();
+    register_espnow_iperf();
 }

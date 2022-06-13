@@ -117,6 +117,28 @@ typedef struct {
 typedef bool (* espnow_ctrl_bind_cb_t)(espnow_attribute_t initiator_attribute, uint8_t mac[6], uint8_t rssi);
 
 /**
+ * @brief  The control data callback function
+ *
+ * @param[in]  initiator_attribute  the received initiator attribute
+ * @param[in]  responder_attribute  the received responder attribute
+ * @param[in]  responder_value  the received responder value
+ *
+ */
+typedef void (* espnow_ctrl_data_cb_t)(espnow_attribute_t initiator_attribute,
+                                     espnow_attribute_t responder_attribute,
+                                     uint32_t responder_value);
+
+/**
+ * @brief  The raw control data callback function
+ *
+ * @param[in]  src_addr  mac address of sender
+ * @param[in]  data  control data from sender
+ * @param[in]  rx_ctrl  received packet radio metadata header
+ *
+ */
+typedef void (* espnow_ctrl_data_raw_cb_t)(espnow_addr_t src_addr, espnow_ctrl_data_t *data, wifi_pkt_rx_ctrl_t *rx_ctrl);
+
+/**
  * @brief  The initiator sends a broadcast bind frame
  *
  * @param[in]  initiator_attribute  initiator attribute
@@ -160,19 +182,15 @@ esp_err_t espnow_ctrl_initiator_send(espnow_attribute_t initiator_attribute, esp
 esp_err_t espnow_ctrl_responder_bind(uint32_t wait_ms, int8_t rssi, espnow_ctrl_bind_cb_t cb);
 
 /**
- * @brief  The responder receives control data frame
+ * @brief  The responder registers control data callback function
  *
- * @attention The function will not return until received control data from bound device
- *
- * @param[out]  initiator_attribute  the received initiator attribute
- * @param[out]  responder_attribute  the received responder attribute
- * @param[out]  responder_value  the received responder value
+ * @param[in]  cb  the control data callback function
  *
  * @return
  *    - ESP_OK: succeed
  *    - others: fail
  */
-esp_err_t espnow_ctrl_responder_recv(espnow_attribute_t *initiator_attribute, espnow_attribute_t *responder_attribute, uint32_t *responder_value);
+esp_err_t espnow_ctrl_responder_data(espnow_ctrl_data_cb_t cb);
 
 /**
  * @brief  The responder gets bound list
@@ -227,20 +245,15 @@ esp_err_t espnow_ctrl_responder_remove_bindlist(const espnow_ctrl_bind_info_t *i
 esp_err_t espnow_ctrl_send(const espnow_addr_t dest_addr, const espnow_ctrl_data_t *data, const espnow_frame_head_t *frame_head, TickType_t wait_ticks);
 
 /**
- * @brief  Receive control data frame
+ * @brief  The responder registers raw control data callback function
  *
- * @attention  The function will return when received control data from bound device or timeout
- *
- * @param[out]  src_addr  mac address of sender
- * @param[out]  data  control data from sender
- * @param[out]  rx_ctrl  received packet radio metadata header
- * @param[in]  wait_ticks  the maximum waiting time in ticks
+ * @param[in]  cb  the raw control data callback function
  *
  * @return
  *    - ESP_OK: succeed
  *    - others: fail
  */
-esp_err_t espnow_ctrl_recv(espnow_addr_t src_addr, espnow_ctrl_data_t *data, wifi_pkt_rx_ctrl_t *rx_ctrl, TickType_t wait_ticks);
+esp_err_t espnow_ctrl_recv(espnow_ctrl_data_raw_cb_t cb);
 
 #ifdef __cplusplus
 }

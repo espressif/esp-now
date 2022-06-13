@@ -199,7 +199,7 @@ esp_err_t espnow_ota_initator_result_free(espnow_ota_result_t *result);
 /**
  * @brief  Root scans other nodes
  *
- * @param[out]  info_list  responder information list 
+ * @param[out]  info_list  responder information list
  * @param[out]  num  responder number
  * @param[in]  wait_ticks the maximum scanning time in ticks
  *
@@ -208,6 +208,14 @@ esp_err_t espnow_ota_initator_result_free(espnow_ota_result_t *result);
  *    - ESP_ERR_INVALID_ARG
  */
 esp_err_t espnow_ota_initator_scan(espnow_ota_responder_t **info_list, size_t *num, TickType_t wait_ticks);
+
+/**
+ * @brief  Free memory in the responder information list
+ *
+ * @return
+ *    - ESP_OK
+ */
+esp_err_t espnow_ota_initator_scan_result_free(void);
 
 /**
  * @brief Get the status of the upgrade

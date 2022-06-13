@@ -1,4 +1,4 @@
-/* Various system commands - declarations
+/* Wireless Debug Example
 
    This example code is in the Public Domain (or CC0 licensed, at your option.)
 
@@ -13,15 +13,12 @@
 extern "C" {
 #endif
 
-// Register all system functions
-void register_system(void);
-
-// Register common system functions: "version", "restart", "free", "heap", "tasks"
-void register_system_common(void);
-
-// Register deep and light sleep functions
-void register_system_sleep(void);
+void monitor();
+void monitored_device();
 
 #ifdef __cplusplus
 }
 #endif
+
+
+

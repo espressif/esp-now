@@ -391,23 +391,19 @@ esp_err_t espnow_ota_responder_stop()
     return ESP_OK;
 }
 
-static void espnow_ota_task(void *arg)
+static esp_err_t espnow_ota_responder_data_process(uint8_t *src_addr, void *data,
+                      size_t size, wifi_pkt_rx_ctrl_t *rx_ctrl)
 {
+    ESP_PARAM_CHECK(src_addr);
+    ESP_PARAM_CHECK(data);
+    ESP_PARAM_CHECK(size);
+    ESP_PARAM_CHECK(rx_ctrl);
+
     esp_err_t ret = ESP_OK;
-    uint8_t src_addr[6]  = { 0 };
-    uint8_t *data   = ESP_MALLOC(ESPNOW_DATA_LEN);
-    size_t size    = 0;
+    uint8_t data_type = ((uint8_t *)data)[0];
+    espnow_add_peer(src_addr, NULL);
 
-    espnow_set_qsize(ESPNOW_TYPE_OTA_DATA, 16);
-
-    for (;;) {
-        ret = espnow_recv(ESPNOW_TYPE_OTA_DATA, src_addr, data, &size, NULL, portMAX_DELAY);
-        ESP_ERROR_CONTINUE(ret != ESP_OK && ret != ESP_ERR_WIFI_TIMEOUT, "espnow_broadcast, ret: %x, err_name: %s", ret, esp_err_to_name(ret));
-
-        uint8_t data_type = ((uint8_t *)data)[0];
-        espnow_add_peer(src_addr, NULL);
-
-        switch (data_type) {
+    switch (data_type) {
         case ESPNOW_OTA_TYPE_REQUEST:
             ESP_LOGD(TAG, "ESPNOW_OTA_TYPE_INFO");
             ret = espnow_ota_info(src_addr);
@@ -425,16 +421,11 @@ static void espnow_ota_task(void *arg)
 
         default:
             break;
-        }
-
-        espnow_del_peer(src_addr);
-        ESP_ERROR_CONTINUE(ret != ESP_OK, "espnow_ota_handle");
     }
 
-    espnow_set_qsize(ESPNOW_TYPE_OTA_DATA, 0);
-
-    ESP_FREE(data);
-    vTaskDelete(NULL);
+    espnow_del_peer(src_addr);
+    ESP_ERROR_RETURN(ret != ESP_OK, ret, "espnow_ota_handle");
+    return ret;
 }
 
 esp_err_t espnow_ota_responder_start(const espnow_ota_config_t *config)
@@ -443,7 +434,7 @@ esp_err_t espnow_ota_responder_start(const espnow_ota_config_t *config)
 
     g_espnow_ota_config = ESP_MALLOC(sizeof(espnow_ota_config_t));
     memcpy(g_espnow_ota_config, config, sizeof(espnow_ota_config_t));
+    espnow_set_type(ESPNOW_TYPE_OTA_DATA, 1, espnow_ota_responder_data_process);
 
-    xTaskCreate(espnow_ota_task, "espnow_ota", 3 * 1024, NULL, tskIDLE_PRIORITY + 1, NULL);
     return ESP_OK;
 }

@@ -87,30 +87,21 @@ static void uart_read_task(void *arg)
     vTaskDelete(NULL);
 }
 
-static void uart_write_task(void *arg)
+static esp_err_t uart_write_handle(uint8_t *src_addr, void *data,
+                      size_t size, wifi_pkt_rx_ctrl_t *rx_ctrl)
 {
-    esp_err_t ret  = ESP_OK;
-    uint32_t count = 0;
-    char *data     = ESP_MALLOC(ESPNOW_DATA_LEN);
-    size_t size   = ESPNOW_DATA_LEN;
-    uint8_t addr[ESPNOW_ADDR_LEN] = {0};
-    wifi_pkt_rx_ctrl_t rx_ctrl    = {0};
+    ESP_PARAM_CHECK(src_addr);
+    ESP_PARAM_CHECK(data);
+    ESP_PARAM_CHECK(size);
+    ESP_PARAM_CHECK(rx_ctrl);
 
-    ESP_LOGI(TAG, "Uart write task is running");
+    static uint32_t count = 0;
 
-    for (;;) {
-        ret = espnow_recv(ESPNOW_TYPE_DATA, addr, data, &size, &rx_ctrl, portMAX_DELAY);
-        ESP_ERROR_CONTINUE(ret != ESP_OK, "<%s>", esp_err_to_name(ret));
+    ESP_LOGI(TAG, "espnow_recv, <%d> [" MACSTR "][%d][%d][%d]: %.*s", 
+            count++, MAC2STR(src_addr), rx_ctrl->channel, rx_ctrl->rssi, size, size, (char *)data);
+    // uart_write_bytes(CONFIG_UART_PORT_NUM, data, size);
 
-        ESP_LOGI(TAG, "espnow_recv, <%d> [" MACSTR "][%d][%d][%d]: %.*s", 
-                count++, MAC2STR(addr), rx_ctrl.channel, rx_ctrl.rssi, size, size, data);
-        // uart_write_bytes(CONFIG_UART_PORT_NUM, data, size);
-    }
-
-    ESP_LOGW(TAG, "Uart send task is exit");
-
-    ESP_FREE(data);
-    vTaskDelete(NULL);
+    return ESP_OK;
 }
 
 void app_main()
@@ -123,11 +114,11 @@ void app_main()
     wifi_init();
 
     espnow_config_t espnow_config = ESPNOW_INIT_CONFIG_DEFAULT();
-    espnow_config.qsize.data      = 64;
     espnow_init(&espnow_config);
+
+    espnow_set_type(ESPNOW_TYPE_DATA, 1, uart_write_handle);
 
     /* uart initialization */
     uart_initialize();
     xTaskCreate(uart_read_task, "uart_read_task", 4 * 1024, NULL, tskIDLE_PRIORITY + 1, NULL);
-    xTaskCreate(uart_write_task, "uart_write_task", 4 * 1024, NULL, tskIDLE_PRIORITY + 1, NULL);
 }
