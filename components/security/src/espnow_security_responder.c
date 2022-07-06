@@ -22,7 +22,7 @@
 #include <protocomm_security1.h>
 
 #include "espnow.h"
-#include "espnow_security.h"
+#include "espnow_security_handshake.h"
 
 static const char* TAG = "espnow_sec_resp";
 
@@ -183,11 +183,7 @@ static esp_err_t espnow_config_data_handler(uint32_t session_id, const uint8_t *
 
     ESP_LOGI(TAG, "Get APP key");
 
-    if (priv_data) {
-        espnow_sec_setkey((espnow_sec_t *)priv_data, app_key);
-    }
-
-    return ESP_OK;
+    return espnow_set_key(app_key);
 }
 
 static esp_err_t protocomm_espnow_responder_stop()
@@ -197,9 +193,8 @@ static esp_err_t protocomm_espnow_responder_stop()
     return ESP_OK;
 }
 
-esp_err_t espnow_sec_responder_start(espnow_sec_t *sec, const char *pop_data)
+esp_err_t espnow_sec_responder_start(const char *pop_data)
 {
-    ESP_PARAM_CHECK(sec);
     ESP_PARAM_CHECK(pop_data);
 
     if (g_espnow_pc) {
@@ -235,7 +230,7 @@ esp_err_t espnow_sec_responder_start(espnow_sec_t *sec, const char *pop_data)
     }
 
     /* Add protocomm endpoint for security key */
-    ret = protocomm_add_endpoint(pc, "espnow-config", espnow_config_data_handler, sec);
+    ret = protocomm_add_endpoint(pc, "espnow-config", espnow_config_data_handler, NULL);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Failed to set security key endpoint");
         protocomm_delete(pc);

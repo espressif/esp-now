@@ -71,8 +71,8 @@ I (642) wifi:mode : I (645) app_main: Uart read handle task is running
 I (645) app_main: Uart write task is running
 I (26512) espnow_sec_resp: Get APP key
 
-I (716965) app_main: espnow_sec_send, count: 43, size: 23, data: Message from responder.
-I (751668) app_main: espnow_sec_recv, <83> [24:0a:c4:d6:d3:00][1][-16][25]: Message from initiator
+I (716965) app_main: espnow_send, count: 43, size: 23, data: Message from responder.
+I (751668) app_main: espnow_recv, <83> [24:0a:c4:d6:d3:00][1][-16][23]: Message from initiator.
 ```
 
 Output sample from the initiator:
@@ -84,9 +84,9 @@ I (657) wifi:modeI (660) app_main: Uart read handle task is running
 I (660) app_main: Uart write task is running
 W (767) app_main: espnow wait security num: 1
 I (767) espnow_sec_init: count: 0, Secure_initator_send, requested_num: 1, unfinished_num: 1, successed_num: 0
-I (1807) app_main: App key is sent to the device to complete, Spend time: 1147ms, Scan time: 107ms
+I (1807) app_main: App key is sent to the device to complete, Spend time: 3629ms, Scan time: 2506ms
 I (1807) app_main: Devices security completed, successed_num: 1, unfinished_num: 0
 
-I (692257) app_main: espnow_sec_recv, <43> [24:0a:c4:04:5d:3c][1][-19][23]: Message from responder.
-I (726959) app_main: espnow_sec_send, count: 83, size: 25, data: Message from initiator.
+I (692257) app_main: espnow_recv, <43> [24:0a:c4:04:5d:3c][1][-19][23]: Message from responder.
+I (726959) app_main: espnow_send, count: 83, size: 23, data: Message from initiator.
 ```

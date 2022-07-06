@@ -26,7 +26,7 @@
 
 #include "esp_wifi.h"
 #include "espnow.h"
-#include "espnow_security.h"
+#include "espnow_security_handshake.h"
 
 static const char* TAG = "espnow_sec_init";
 
@@ -404,10 +404,10 @@ static esp_err_t protocomm_espnow_initiator_stop()
     return ESP_OK;
 }
 
-esp_err_t espnow_sec_initiator_start(espnow_sec_t *sec, const char *pop_data, const uint8_t addrs_list[][6], size_t addrs_num,
+esp_err_t espnow_sec_initiator_start(uint8_t key_info[APP_KEY_LEN], const char *pop_data, const uint8_t addrs_list[][6], size_t addrs_num,
                                     espnow_sec_result_t *res)
 {
-    ESP_PARAM_CHECK(sec);
+    ESP_PARAM_CHECK(key_info);
     ESP_PARAM_CHECK(pop_data);
     ESP_PARAM_CHECK(addrs_list);
     ESP_PARAM_CHECK(addrs_num);
@@ -419,16 +419,13 @@ esp_err_t espnow_sec_initiator_start(espnow_sec_t *sec, const char *pop_data, co
     const protocomm_security_t *espnow_sec = &protocomm_client_security1;
     int ret = ESP_OK;
 
-    esp_fill_random(app_key, APP_KEY_LEN);
+    memcpy(app_key, key_info, APP_KEY_LEN);
 
     g_sec_queue = xQueueCreate(SEC_QUEUE_SIZE, sizeof(espnow_sec_data_t));
     ESP_ERROR_RETURN(!g_sec_queue, ESP_FAIL, "Create espnow security queue fail");
     espnow_set_type(ESPNOW_TYPE_SECURITY, 1, espnow_initiator_sec_process);
 
     ret = protocomm_espnow_initiator_start(espnow_sec, &pop, addrs_list, addrs_num, res);
-    if (ret == ESP_OK) {
-        ret = espnow_sec_setkey(sec, app_key);
-    }
 
     espnow_set_type(ESPNOW_TYPE_SECURITY, 0, NULL);
     if (g_sec_queue) {

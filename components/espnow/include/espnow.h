@@ -16,12 +16,18 @@
 
 #include "esp_now.h"
 #include "esp_utils.h"
+#include "espnow_security.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif /**< _cplusplus */
 
-#define ESPNOW_DATA_LEN                     (230)
+#define ESPNOW_PAYLOAD_LEN                  (230)
+#ifdef CONFIG_APP_SECURITY
+#define ESPNOW_DATA_LEN                     ESPNOW_SEC_PACKET_MAX_SIZE
+#else
+#define ESPNOW_DATA_LEN                     ESPNOW_PAYLOAD_LEN
+#endif
 #define ESPNOW_ADDR_LEN                     (6)
 #define ESPNOW_DECLARE_COMMON_ADDR(addr)    extern const uint8_t addr[6];
 #define ESPNOW_ADDR_IS_EMPTY(addr)          (((addr)[0] | (addr)[1] | (addr)[2] | (addr)[3] | (addr)[4] | (addr)[5]) == 0x0)
@@ -67,6 +73,7 @@ typedef struct {
     uint8_t send_retry_num;      /**< Number of retransmissions */
     uint32_t send_max_timeout;   /**< Maximum timeout */
     uint8_t qsize;               /**< Size of packet buffer queue */
+    bool sec_enable;             /**< Encrypt espnow data payload when send and decrypt when receive */
     struct {
         bool ack;
         bool forward;
@@ -139,7 +146,8 @@ typedef struct {
     uint8_t channel              : 4;  /**< Set the channel where the packet is sent, ESPNOW_CHANNEL_CURRENT or ESPNOW_CHANNEL_ALL */
     bool filter_adjacent_channel : 1;  /**< Because espnow is sent through HT20, it can receive packets from adjacent channels */
     bool filter_weak_signal      : 1;  /**< When the signal received by the receiving device is lower than forward_rssi, frame_head data will be discarded */
-    uint16_t                     : 5;  /**< Reserved */
+    bool security                : 1;  /**< The payload data is encrypted if security is true */
+    uint16_t                     : 4;  /**< Reserved */
 
     /**
      * @brief Configure broadcast
@@ -326,6 +334,38 @@ esp_err_t espnow_send_group(const espnow_addr_t *addrs_list, size_t addrs_num,
                             const espnow_group_t group_id, espnow_frame_head_t *frame_head,
                             bool type, TickType_t wait_ticks);
 
+/**
+ * @brief Set the security key info
+ *        The security key info is used to derive key and stored to flash.
+ *        The derived key is used to encrypt espnow data payload when send and decrypt espnow data payload when receive.
+ *
+ * @attention Set sec_enable in espnow_config to true when espnow initializes, or the function will return failed.
+ * 
+ * @param[in]  key_info  security key info
+ * 
+ *    - ESP_OK
+ *    - ESP_ERR_INVALID_ARG
+ */
+esp_err_t espnow_set_key(uint8_t key_info[APP_KEY_LEN]);
+
+/**
+ * @brief Get the security key info stored in flash
+ *        If no security key info is stored in flash, the function will return failed.
+ *
+ * @param[out]  key_info  security key info
+ * 
+ *    - ESP_OK
+ *    - ESP_ERR_INVALID_ARG
+ */
+esp_err_t espnow_get_key(uint8_t key_info[APP_KEY_LEN]);
+
+/**
+ * @brief Erase the security key info stored in flash
+ *
+ *    - ESP_OK
+ *    - ESP_ERR_NVS_NOT_FOUND
+ */
+esp_err_t espnow_erase_key(void);
 #ifdef __cplusplus
 }
 #endif /**< _cplusplus */

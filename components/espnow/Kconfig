@@ -1,0 +1,9 @@
+menu "ESP-NOW Security Configuration"
+
+    config APP_SECURITY
+        bool "Application data security"
+        default y
+        help
+            Enable application data security.
+
+endmenu

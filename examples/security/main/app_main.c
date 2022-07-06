@@ -24,6 +24,7 @@
 #include "esp_storage.h"
 #include "espnow.h"
 #include "espnow_security.h"
+#include "espnow_security_handshake.h"
 
 #include "driver/uart.h"
 
@@ -77,16 +78,14 @@ static void uart_read_task(void *arg)
         .broadcast        = true,
     };
 
-    espnow_sec_t *sec = (espnow_sec_t *)arg;
-
     for (;;) {
         size = uart_read_bytes(CONFIG_UART_PORT_NUM, data, ESPNOW_SEC_PACKET_MAX_SIZE, pdMS_TO_TICKS(10));
         ESP_ERROR_CONTINUE(size <= 0, "");
 
-        ret = espnow_sec_send(sec, ESPNOW_ADDR_BROADCAST, data, size, &frame_head, portMAX_DELAY);
+        ret = espnow_send(ESPNOW_TYPE_DATA, ESPNOW_ADDR_BROADCAST, data, size, &frame_head, portMAX_DELAY);
         ESP_ERROR_CONTINUE(ret != ESP_OK, "<%s> espnow_send", esp_err_to_name(ret));
 
-        ESP_LOGI(TAG, "espnow_sec_send, count: %d, size: %d, data: %s", count++, size, data);
+        ESP_LOGI(TAG, "espnow_send, count: %d, size: %d, data: %s", count++, size, data);
         memset(data, 0, ESPNOW_DATA_LEN);
     }
 
@@ -106,7 +105,7 @@ static esp_err_t uart_write_handle(uint8_t *src_addr, void *data,
 
     static uint32_t count = 0;
 
-    ESP_LOGI(TAG, "sec_recv, <%d> [" MACSTR "][%d][%d][%d]: %.*s", 
+    ESP_LOGI(TAG, "espnow_recv, <%d> [" MACSTR "][%d][%d][%d]: %.*s", 
             count++, MAC2STR(src_addr), rx_ctrl->channel, rx_ctrl->rssi, size, size, (char *)data);
 
     return ESP_OK;
@@ -122,17 +121,22 @@ void app_main()
     wifi_init();
 
     espnow_config_t espnow_config = ESPNOW_INIT_CONFIG_DEFAULT();
+    espnow_config.sec_enable = 1;
     espnow_init(&espnow_config);
 
-    espnow_sec_t *sec = ESP_MALLOC(sizeof(espnow_sec_t));
-    espnow_sec_init(sec);
+    espnow_set_type(ESPNOW_TYPE_DATA, 1, uart_write_handle);
 
     /* uart initialization */
     uart_initialize();
-    xTaskCreate(uart_read_task, "uart_read_task", 4 * 1024, sec, tskIDLE_PRIORITY + 1, NULL);
-    espnow_sec_recv(sec, uart_write_handle);
+    xTaskCreate(uart_read_task, "uart_read_task", 4 * 1024, NULL, tskIDLE_PRIORITY + 1, NULL);
 
 #ifdef CONFIG_ESPNOW_SEC_INITATOR
+    uint8_t key_info[APP_KEY_LEN];
+    if (espnow_get_key(key_info) != ESP_OK) {
+        esp_fill_random(key_info, APP_KEY_LEN);
+    }
+    espnow_set_key(key_info);
+
     uint32_t start_time1 = xTaskGetTickCount();
     espnow_sec_result_t espnow_sec_result = {0};
     espnow_sec_responder_t *info_list = NULL;
@@ -154,7 +158,7 @@ void app_main()
     espnow_sec_initiator_scan_result_free();
 
     uint32_t start_time2 = xTaskGetTickCount();
-    esp_err_t ret = espnow_sec_initiator_start(sec, pop_data, dest_addr_list, num, &espnow_sec_result);
+    esp_err_t ret = espnow_sec_initiator_start(key_info, pop_data, dest_addr_list, num, &espnow_sec_result);
     ESP_ERROR_GOTO(ret != ESP_OK, EXIT, "<%s> espnow_sec_initator_start", esp_err_to_name(ret));
 
     ESP_LOGI(TAG, "App key is sent to the device to complete, Spend time: %dms, Scan time: %dms",
@@ -167,6 +171,13 @@ EXIT:
     ESP_FREE(dest_addr_list);
     espnow_sec_initator_result_free(&espnow_sec_result);
 #elif CONFIG_ESPNOW_SEC_RESPONDER
-    espnow_sec_responder_start(sec, pop_data);
+    uint8_t key_info[APP_KEY_LEN];
+    /* If espnow_set_key succeed, sending and receiving will be in security mode */
+    if (espnow_get_key(key_info) == ESP_OK) {
+        espnow_set_key(key_info);
+    }
+
+    /* If responder handshake with initiator succeed, espnow_set_key will be executed again. */
+    espnow_sec_responder_start(pop_data);
 #endif
 }
