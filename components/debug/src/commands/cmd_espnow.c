@@ -83,6 +83,7 @@ static int command_func(int argc, char **argv)
 
     if (command_args.channel_all->count) {
         frame_head.channel = ESPNOW_CHANNEL_ALL;
+        frame_head.filter_adjacent_channel = false;
     }
 
     if (addrs_num == 1 && ESPNOW_ADDR_IS_BROADCAST(addr_list[0])) {
@@ -95,8 +96,6 @@ static int command_func(int argc, char **argv)
                     strlen(command_args.command->sval[0]) + 1, &frame_head, portMAX_DELAY);
         ESP_ERROR_RETURN(ret != ESP_OK, ret, "espnow_send");
     } else if(addrs_num < 8) {
-        frame_head.filter_adjacent_channel = true;
-
         for(int i = 0; i < addrs_num; ++i) {
             espnow_add_peer(addr_list[i], NULL);
             ret = espnow_send(ESPNOW_TYPE_DEBUG_COMMAND, addr_list[i], command_args.command->sval[0], 
