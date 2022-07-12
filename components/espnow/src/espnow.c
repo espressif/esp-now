@@ -458,13 +458,20 @@ esp_err_t espnow_send(espnow_type_t type, const uint8_t *dest_addr, const void *
         return ESP_ERR_TIMEOUT;
     }
 
-    if (g_set_channel_flag && frame_head->channel == ESPNOW_CHANNEL_ALL) {
-        ret = esp_wifi_get_channel(&primary, &second);
-        ESP_ERROR_GOTO(ret != ESP_OK, EXIT, "esp_wifi_get_channel, err_name: %s", esp_err_to_name(ret));
-    } else if (frame_head->channel == 0) {
-        ret = esp_wifi_get_channel(&primary, &second);
-        ESP_ERROR_GOTO(ret != ESP_OK, EXIT, "esp_wifi_get_channel, err_name: %s", esp_err_to_name(ret));
+    ret = esp_wifi_get_channel(&primary, &second);
+    ESP_ERROR_GOTO(ret != ESP_OK, EXIT, "esp_wifi_get_channel, err_name: %s", esp_err_to_name(ret));
+
+    if (frame_head->channel == 0) {
         frame_head->channel = primary;
+    } else if (frame_head->channel > 0 && frame_head->channel < ESPNOW_CHANNEL_ALL && frame_head->channel != primary) {
+        if (g_set_channel_flag) {
+            ret = esp_wifi_set_channel(frame_head->channel, WIFI_SECOND_CHAN_NONE);
+            ESP_ERROR_GOTO(ret != ESP_OK, EXIT, "esp_wifi_set_channel, err_name: %s", esp_err_to_name(ret));
+        } else {
+            ESP_LOGE(TAG, "Can't set channel %d, current is %d", frame_head->channel, primary);
+            ret = ESP_FAIL;
+            goto EXIT;
+        }
     }
 
     const uint8_t *addr = (frame_head->broadcast) ? ESPNOW_ADDR_BROADCAST : dest_addr;
@@ -527,7 +534,7 @@ esp_err_t espnow_send(espnow_type_t type, const uint8_t *dest_addr, const void *
 
 EXIT:
 
-    if (g_set_channel_flag && frame_head->channel == ESPNOW_CHANNEL_ALL) {
+    if (g_set_channel_flag && frame_head->channel != primary) {
         esp_wifi_set_channel(primary, second);
     }
 
@@ -583,12 +590,19 @@ esp_err_t espnow_send_group(const uint8_t addrs_list[][ESPNOW_ADDR_LEN], size_t 
         frame_head->magic = esp_random();
     }
 
-    if (g_set_channel_flag && (frame_head->channel == ESPNOW_CHANNEL_ALL || frame_head->channel == 0)) {
-        ret = esp_wifi_get_channel(&primary, &second);
-        ESP_ERROR_GOTO(ret != ESP_OK, EXIT, "esp_wifi_get_channel, err_name: %s", esp_err_to_name(ret));
+    ret = esp_wifi_get_channel(&primary, &second);
+    ESP_ERROR_GOTO(ret != ESP_OK, EXIT, "esp_wifi_get_channel, err_name: %s", esp_err_to_name(ret));
 
-        if (frame_head->channel == 0) {
-            frame_head->channel = primary;
+    if (frame_head->channel == 0) {
+        frame_head->channel = primary;
+    } else if (frame_head->channel > 0 && frame_head->channel < ESPNOW_CHANNEL_ALL && frame_head->channel != primary) {
+        if (g_set_channel_flag) {
+            ret = esp_wifi_set_channel(frame_head->channel, WIFI_SECOND_CHAN_NONE);
+            ESP_ERROR_GOTO(ret != ESP_OK, EXIT, "esp_wifi_set_channel, err_name: %s", esp_err_to_name(ret));
+        } else {
+            ESP_LOGE(TAG, "Can't set channel %d, current is %d", frame_head->channel, primary);
+            ret = ESP_FAIL;
+            goto EXIT;
         }
     }
 
@@ -620,7 +634,7 @@ esp_err_t espnow_send_group(const uint8_t addrs_list[][ESPNOW_ADDR_LEN], size_t 
 
 EXIT:
 
-    if (frame_head->channel == ESPNOW_CHANNEL_ALL && g_set_channel_flag) {
+    if (frame_head->channel != primary && g_set_channel_flag) {
         esp_wifi_set_channel(primary, second);
     }
 
@@ -717,7 +731,7 @@ static esp_err_t espnow_send_forward(espnow_data_t *espnow_data)
         return ESP_ERR_TIMEOUT;
     }
 
-    if (frame_head->channel && g_set_channel_flag && g_espnow_config->forward_switch_channel) {
+    if (frame_head->channel == ESPNOW_CHANNEL_ALL && g_set_channel_flag && g_espnow_config->forward_switch_channel) {
         ESP_ERROR_CHECK(esp_wifi_get_channel(&primary, &second));
     }
 
@@ -728,7 +742,7 @@ static esp_err_t espnow_send_forward(espnow_data_t *espnow_data)
         for (int i = 0;  i == 0 || (frame_head->channel == ESPNOW_CHANNEL_ALL && i < g_self_country.nchan && g_set_channel_flag && g_espnow_config->forward_switch_channel); ++i) {
             uint8_t retry_count = g_espnow_config->send_retry_num;
 
-            if (frame_head->channel && g_set_channel_flag && g_espnow_config->forward_switch_channel) {
+            if (frame_head->channel == ESPNOW_CHANNEL_ALL && g_set_channel_flag && g_espnow_config->forward_switch_channel) {
                 esp_wifi_set_channel(g_self_country.schan + i, WIFI_SECOND_CHAN_NONE);
             }
 
@@ -747,7 +761,7 @@ static esp_err_t espnow_send_forward(espnow_data_t *espnow_data)
 
     ESP_LOGD(TAG, "[%s, %d], " MACSTR ", size: %d, %s", __func__, __LINE__, MAC2STR(espnow_data->src_addr), espnow_data->size, espnow_data->payload);
 
-    if (frame_head->channel && g_set_channel_flag && g_espnow_config->forward_switch_channel) {
+    if (frame_head->channel == ESPNOW_CHANNEL_ALL && g_set_channel_flag && g_espnow_config->forward_switch_channel) {
         esp_wifi_set_channel(primary, second);
     }
 
