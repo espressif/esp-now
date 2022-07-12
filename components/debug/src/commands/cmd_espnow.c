@@ -38,7 +38,7 @@
 static const char *TAG = "espnow_cmd";
 
 wifi_pkt_rx_ctrl_t g_rx_ctrl = {0};
-uint8_t g_src_addr[ESPNOW_ADDR_LEN] = {0};
+uint8_t g_src_addr[ESPNOW_ADDR_LEN] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0XFF};
 
 static struct {
     struct arg_str *addr;
@@ -83,6 +83,7 @@ static int command_func(int argc, char **argv)
 
     if (command_args.channel_all->count) {
         frame_head.channel = ESPNOW_CHANNEL_ALL;
+        frame_head.filter_adjacent_channel = false;
     }
 
     if (addrs_num == 1 && ESPNOW_ADDR_IS_BROADCAST(addr_list[0])) {
@@ -95,8 +96,6 @@ static int command_func(int argc, char **argv)
                     strlen(command_args.command->sval[0]) + 1, &frame_head, portMAX_DELAY);
         ESP_ERROR_RETURN(ret != ESP_OK, ret, "espnow_send");
     } else if(addrs_num < 8) {
-        frame_head.filter_adjacent_channel = true;
-
         for(int i = 0; i < addrs_num; ++i) {
             espnow_add_peer(addr_list[i], NULL);
             ret = espnow_send(ESPNOW_TYPE_DEBUG_COMMAND, addr_list[i], command_args.command->sval[0], 
@@ -728,6 +727,7 @@ static int beacon_func(int argc, char **argv)
     esp_err_t ret = ESP_OK;
     char *beacon_data = NULL;
     const esp_app_desc_t *app_desc = esp_ota_get_app_description();
+    size_t beacon_data_len = 0;
 
     espnow_add_peer(g_src_addr, NULL);
 
@@ -737,8 +737,14 @@ static int beacon_func(int argc, char **argv)
              app_desc->project_name, app_desc->version, app_desc->idf_ver,
              esp_get_free_heap_size(), heap_caps_get_total_size(MALLOC_CAP_DEFAULT), g_rx_ctrl.rssi,
              app_desc->date, app_desc->time);
-    ret = espnow_send(ESPNOW_TYPE_DEBUG_LOG, g_src_addr,
-                      beacon_data, strlen(beacon_data) + 1, NULL, portMAX_DELAY);
+
+    beacon_data_len = strlen(beacon_data) + 1;
+    char *data = beacon_data;
+    for (size_t size = MIN(beacon_data_len, ESPNOW_DATA_LEN);
+            size > 0; data += size, beacon_data_len -= size, size = MIN(beacon_data_len, ESPNOW_DATA_LEN)) {
+        ret = espnow_send(ESPNOW_TYPE_DEBUG_LOG, g_src_addr,
+                        data, size, NULL, portMAX_DELAY);
+    }
 
     espnow_del_peer(g_src_addr);
     free(beacon_data);
