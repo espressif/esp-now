@@ -23,6 +23,8 @@
 #include "freertos/semphr.h"
 
 #include "esp_wifi.h"
+#include "esp_mac.h"
+#include "esp_random.h"
 
 #include "esp_utils.h"
 #include "espnow_ota.h"
@@ -106,7 +108,7 @@ static esp_err_t espnow_ota_info(uint8_t *src_addr, void *data,
     return ESP_OK;
 }
 
-static xQueueHandle g_ota_queue = NULL;
+static QueueHandle_t g_ota_queue = NULL;
 typedef struct {
     uint8_t src_addr[6];
     void *data;

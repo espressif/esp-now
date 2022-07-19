@@ -90,7 +90,7 @@ void esp_mem_print_task(void);
         void *ptr = heap_caps_malloc(size, MALLOC_CAP_INDICATE); \
         if (ESP_MEM_DEBUG) { \
             if(!ptr) { \
-                ESP_LOGW(TAG, "[%s, %d] <ESP_ERR_NO_MEM> Malloc size: %d, ptr: %p, heap free: %d", __func__, __LINE__, (int)size, ptr, esp_get_free_heap_size()); \
+                ESP_LOGW(TAG, "[%s, %d] <ESP_ERR_NO_MEM> Malloc size: %d, ptr: %p, heap free: %ld", __func__, __LINE__, (int)size, ptr, esp_get_free_heap_size()); \
             } else { \
                 esp_mem_add_record(ptr, size, TAG, __LINE__); \
             } \
@@ -112,7 +112,7 @@ void esp_mem_print_task(void);
         void *ptr = heap_caps_calloc(n, size, MALLOC_CAP_INDICATE); \
         if (ESP_MEM_DEBUG) { \
             if(!ptr) { \
-                ESP_LOGW(TAG, "[%s, %d] <ESP_ERR_NO_MEM> Calloc size: %d, ptr: %p, heap free: %d", __func__, __LINE__, (int)(n) * (size), ptr, esp_get_free_heap_size()); \
+                ESP_LOGW(TAG, "[%s, %d] <ESP_ERR_NO_MEM> Calloc size: %d, ptr: %p, heap free: %ld", __func__, __LINE__, (int)(n) * (size), ptr, esp_get_free_heap_size()); \
             } else { \
                 esp_mem_add_record(ptr, (n) * (size), TAG, __LINE__); \
             } \

@@ -19,6 +19,8 @@
 
 #include "esp_wifi.h"
 #include "esp_utils.h"
+#include "esp_mac.h"
+#include "esp_timer.h"
 
 #include "espnow.h"
 
@@ -173,7 +175,7 @@ typedef struct {
 } espnow_iperf_data_t;
 
 #define IPERF_QUEUE_SIZE 10
-static xQueueHandle g_iperf_queue = NULL;
+static QueueHandle_t g_iperf_queue = NULL;
 typedef struct {
     uint8_t src_addr[6];
     void *data;

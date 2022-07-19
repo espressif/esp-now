@@ -23,7 +23,7 @@ build_idf_demo:
     - chmod 600 ~/.ssh/id_rsa
     - echo -e "Host gitlab.espressif.cn\n\tStrictHostKeyChecking no\n" >> ~/.ssh/config
     - git --version
-    - git clone --recursive -b v4.4.2 --depth 1 $GITLAB_SSH_SERVER/idf/esp-idf.git
+    - git clone --recursive -b v5.0 --depth 1 $GITLAB_SSH_SERVER/idf/esp-idf.git
     - export IDF_PATH=$CI_PROJECT_DIR/esp-idf
     - cd esp-idf/
     - ./install.sh

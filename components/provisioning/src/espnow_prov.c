@@ -19,6 +19,8 @@
 #include "freertos/timers.h"
 
 #include "esp_wifi.h"
+#include "esp_mac.h"
+#include "esp_random.h"
 
 #include "esp_utils.h"
 #include "espnow.h"
@@ -223,7 +225,7 @@ esp_err_t espnow_prov_initator_send(const espnow_addr_t responder_addr, const es
 static uint32_t g_beacon_stop_tick = 0;
 static espnow_prov_data_t *g_beacon_prov_data = NULL;
 
-static void responder_beacon_timercb(void *timer)
+static void responder_beacon_timercb(TimerHandle_t timer)
 {
     if (g_beacon_stop_tick < xTaskGetTickCount()) {
         xTimerStop(timer, 0);

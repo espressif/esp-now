@@ -24,7 +24,8 @@
 #include "esp_console.h"
 #include "esp_system.h"
 #include "esp_sleep.h"
-#include "esp_spi_flash.h"
+#include "spi_flash_mmap.h"
+#include "esp_chip_info.h"
 
 #include "driver/rtc_io.h"
 #include "driver/uart.h"

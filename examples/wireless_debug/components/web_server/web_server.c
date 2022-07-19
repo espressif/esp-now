@@ -12,6 +12,7 @@
 #include "esp_netif.h"
 #include "esp_system.h"
 #include "esp_log.h"
+#include "esp_mac.h"
 #include "esp_vfs.h"
 #include "cJSON.h"
 
@@ -326,7 +327,7 @@ static void ota_send_task(void *arg)
     ESP_ERROR_GOTO(ret!= ESP_OK, EXIT, "<%s> esp_partition_get_sha256", esp_err_to_name(ret));
 
     ESP_LOGI(TAG, "Firmware is sent to the device to complete, Spend time: %ds",
-                (xTaskGetTickCount() - start_time) * portTICK_RATE_MS / 1000);
+                (xTaskGetTickCount() - start_time) * portTICK_PERIOD_MS / 1000);
     ESP_LOGI(TAG, "Devices upgrade completed, successed_num: %d, unfinished_num: %d",
                 ota_result.successed_num, ota_result.unfinished_num);
 

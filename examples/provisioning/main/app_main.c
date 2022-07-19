@@ -20,6 +20,7 @@
 #include "esp_wifi.h"
 #include "esp_netif.h"
 #include "esp_wifi.h"
+#include "esp_mac.h"
 
 #include "esp_utils.h"
 #include "esp_storage.h"

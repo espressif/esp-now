@@ -17,6 +17,7 @@
 #include <string.h>
 #include <esp_err.h>
 #include <esp_log.h>
+#include "esp_mac.h"
 
 #include <protocomm.h>
 #include <protocomm_security1.h>
@@ -203,7 +204,7 @@ esp_err_t espnow_sec_responder_start(const char *pop_data)
     }
 
     esp_err_t ret;
-    protocomm_security_pop_t pop = {
+    protocomm_security1_params_t pop = {
         .data = (const uint8_t *)pop_data,
         .len  = strlen(pop_data)
     };

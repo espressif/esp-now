@@ -26,6 +26,8 @@
 #include "esp_log.h"
 #include "esp_wifi.h"
 #include "esp_netif.h"
+#include "esp_mac.h"
+#include "esp_random.h"
 
 #include "nvs_flash.h"
 #include "nvs.h"
@@ -241,8 +243,8 @@ void initiator_sec(void *arg)
     ESP_ERROR_GOTO(ret != ESP_OK, EXIT, "<%s> espnow_sec_initator_start", esp_err_to_name(ret));
 
     ESP_LOGI(TAG, "App key is sent to the device to complete, Spend time: %dms, Scan time: %dms",
-             (xTaskGetTickCount() - start_time1) * portTICK_RATE_MS, 
-             (start_time2 - start_time1) * portTICK_RATE_MS);
+             (xTaskGetTickCount() - start_time1) * portTICK_PERIOD_MS, 
+             (start_time2 - start_time1) * portTICK_PERIOD_MS);
     ESP_LOGI(TAG, "Devices security completed, successed_num: %d, unfinished_num: %d", 
              espnow_sec_result.successed_num, espnow_sec_result.unfinished_num);
 

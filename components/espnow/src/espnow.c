@@ -26,6 +26,8 @@
 #include "esp_log.h"
 #include "espnow.h"
 #include "esp_crc.h"
+#include "esp_mac.h"
+#include "esp_random.h"
 #include "espnow_security.h"
 
 #define SEND_CB_OK                      BIT0
@@ -111,8 +113,8 @@ static bool g_set_channel_flag          = true;
 static espnow_config_t *g_espnow_config = NULL;
 espnow_sec_t *g_espnow_sec = NULL;
 static EventGroupHandle_t g_event_group = NULL;
-static xQueueHandle g_espnow_queue = NULL;
-static xQueueHandle g_ack_queue = NULL;
+static QueueHandle_t g_espnow_queue = NULL;
+static QueueHandle_t g_ack_queue = NULL;
 static uint32_t g_buffered_num;
 
 static struct {
@@ -369,7 +371,7 @@ void espnow_send_cb(const uint8_t *addr, esp_now_send_status_t status)
     }
 }
 
-esp_err_t espnow_add_peer(const uint8_t *addr, const uint8_t *lmk)
+esp_err_t espnow_add_peer(const espnow_addr_t addr, const uint8_t *lmk)
 {
     ESP_PARAM_CHECK(addr);
 
@@ -397,7 +399,7 @@ esp_err_t espnow_add_peer(const uint8_t *addr, const uint8_t *lmk)
     return ESP_OK;
 }
 
-esp_err_t espnow_del_peer(const uint8_t *addr)
+esp_err_t espnow_del_peer(const espnow_addr_t addr)
 {
     ESP_PARAM_CHECK(addr);
 
@@ -464,7 +466,7 @@ static esp_err_t espnow_send_process(int count, espnow_data_t *espnow_data, uint
     return ESP_OK;
 }
 
-esp_err_t espnow_send(espnow_type_t type, const uint8_t *dest_addr, const void *data,
+esp_err_t espnow_send(espnow_type_t type, const espnow_addr_t dest_addr, const void *data,
                       size_t size, const espnow_frame_head_t *data_head, TickType_t wait_ticks)
 {
     ESP_PARAM_CHECK(dest_addr);

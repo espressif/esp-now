@@ -30,7 +30,7 @@
 #define CONFIG_DEBUG_LOG_MAX_SIZE          1024  /**< Set log length size */
 
 static const char *TAG                   = "espnow_log";
-static xQueueHandle g_log_queue          = NULL;
+static QueueHandle_t g_log_queue          = NULL;
 static bool g_log_init_flag              = false;
 static espnow_log_config_t *g_log_config = NULL;
 

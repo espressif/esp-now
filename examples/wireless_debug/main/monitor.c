@@ -27,8 +27,10 @@
 
 #include "esp_utils.h"
 #include "esp_storage.h"
-#include "espnow.h"
+#include "esp_mac.h"
+#include "esp_random.h"
 
+#include "espnow.h"
 #include "espnow_console.h"
 #include "espnow_log.h"
 
