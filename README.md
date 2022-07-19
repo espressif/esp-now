@@ -7,11 +7,11 @@ ESP-NOW is a kind of connectionless Wi-Fi communication protocol that is defined
 
 ## Introduction
 
-ESP-NOW occupies less CPU and flash resource. It can work with Wi-Fi and Blutooth LE, and supports the series of ESP8266、ESP32、ESP32-S and ESP32-C. The data transmission mode of ESP-NOW is flexible including unicast and broadcast, and supports one-to-many and many-to-many device connection and control. ESP-NOW can be also used as an independent auxiliary module to help network configuration, debugging and firmware upgrades.
+ESP-NOW occupies less CPU and flash resource. It can work with Wi-Fi and Bluetooth LE, and supports the series of ESP8266、ESP32、ESP32-S and ESP32-C. The data transmission mode of ESP-NOW is flexible including unicast and broadcast, and supports one-to-many and many-to-many device connection and control. ESP-NOW can be also used as an independent auxiliary module to help network configuration, debugging and firmware upgrades.
 
 <img src="docs/_static/en/function_list.png" width="800">
 
-There are two roles defined in ESP-NOW according to the data flow, initiator and responder. The same device can have two roles at the same time. Generally, switches, sensors, LCD screens, etc. play the role of initaitor in an IoT system, when lights, sockets and other smart applications play the role of responder.
+There are two roles defined in ESP-NOW according to the data flow, initiator and responder. The same device can have two roles at the same time. Generally, switches, sensors, LCD screens, etc. play the role of initiator in an IoT system, when lights, sockets and other smart applications play the role of responder.
 
 <img src="docs/_static/en/device_role.png" width="750">
 
@@ -51,7 +51,7 @@ There are some obvious advantages in ESP-NOW:
 
 1. **Quick Response**: After power-on, the devices can transmit data and control other paired devices directly without any wireless connection, and the response speed is in milliseconds.
 2. **Good Compatibility**: When the device connects to a router or works as a hotpot, it can also realize a fast and stable communication by ESP-NOW. And the device can keep stable connection through ESP-NOW even if the router is faulty or the network is unstable.
-3. **Long-distance Communication**: ESP-NOW supports long-distance communication. It can be applied to outdoor scenes and can keep stable connection even the devices are seperated by walls even floors.
+3. **Long-distance Communication**: ESP-NOW supports long-distance communication. It can be applied to outdoor scenes and can keep stable connection even the devices are separated by walls even floors.
 4. **Multi-hop Control**: The multi-hop control of devices can be realized by ESP-NOW. Hundreds of devices can be controlled through unicast, broadcast and group control.
 
 ### Provision
