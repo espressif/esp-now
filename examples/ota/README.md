@@ -16,7 +16,7 @@ Open the project configuration menu (`idf.py menuconfig`) to configure the ota m
 
 ### Step 1: Connect to the router
 
-Connect PC to the router that is connected to `ESP-NOW OTA Initator` network.
+Connect PC to the router that is connected to `ESP-NOW OTA Initiator` network.
 
 ### Step 2: Run HTTP server
 
@@ -81,7 +81,7 @@ When the example on the initiator device starts up, it will:
 
 When the example on the responder device starts up, it will:
 1. Connect to the AP with configured SSID and password.
-2. Creat OTA task to receive OTA frames.
+2. Create OTA task to receive OTA frames.
 3. Response with OTA information if receives OTA request frame.
 4. Write the image to flash if receives OTA image data. If receives all the image, configure the next boot from this image.
 5. If reboot the device, it will run to the new image.
@@ -132,7 +132,7 @@ I (428036) esp_image: segment 3: paddr=00200020 vaddr=42000020 size=1516ch ( 863
 I (428050) esp_image: segment 4: paddr=00215194 vaddr=4038861c size=014b0h (  5296) 
 I (428051) esp_image: segment 5: paddr=0021664c vaddr=50000000 size=00010h (    16) 
 ```
-When responder deivce reboots, it will output: 
+When responder device reboots, it will output: 
 ```
 Hello world!
 This is esp32c3 chip with 1 CPU core(s), WiFi/BLE, silicon revision 3, 4MB external flash
