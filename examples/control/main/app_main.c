@@ -20,6 +20,7 @@
 #include "esp_log.h"
 #include "esp_wifi.h"
 #include "esp_netif.h"
+#include "esp_mac.h"
 
 #include "esp_utils.h"
 #include "espnow.h"
@@ -27,11 +28,14 @@
 
 #include "driver/rmt.h"
 #include "led_strip.h"
-#include "button.h"
+#include "iot_button.h"
 
 #ifdef CONFIG_IDF_TARGET_ESP32C3
 #define BOOT_KEY_GPIIO        GPIO_NUM_9
 #define CONFIG_LED_STRIP_GPIO GPIO_NUM_8
+#elif CONFIG_IDF_TARGET_ESP32S3
+#define BOOT_KEY_GPIIO        GPIO_NUM_0
+#define CONFIG_LED_STRIP_GPIO GPIO_NUM_48
 #else
 #define BOOT_KEY_GPIIO        GPIO_NUM_0
 #define CONFIG_LED_STRIP_GPIO GPIO_NUM_18
@@ -61,9 +65,9 @@ static void wifi_init()
     ESP_ERROR_CHECK(esp_wifi_start());
 }
 
-static void initiator_send_press_cb(void *arg)
+static void initiator_send_press_cb(void *arg, void *usr_data)
 {
-    ESP_ERROR_CHECK(!(BUTTON_SINGLE_CLICK == button_get_event(arg)));
+    ESP_ERROR_CHECK(!(BUTTON_SINGLE_CLICK == iot_button_get_event(arg)));
     ESP_LOGI(TAG, "initiator send press");
     static bool status = 0;
     if (s_espnow_ctrl_status == ESPNOW_CTRL_BOUND) {
@@ -72,9 +76,9 @@ static void initiator_send_press_cb(void *arg)
     }
 }
 
-static void initiator_bind_press_cb(void *arg)
+static void initiator_bind_press_cb(void *arg, void *usr_data)
 {
-    ESP_ERROR_CHECK(!(BUTTON_DOUBLE_CLICK == button_get_event(arg)));
+    ESP_ERROR_CHECK(!(BUTTON_DOUBLE_CLICK == iot_button_get_event(arg)));
     ESP_LOGI(TAG, "initiator bind press");
     if (s_espnow_ctrl_status == ESPNOW_CTRL_INIT) {
         espnow_ctrl_initiator_bind(ESPNOW_ATTRIBUTE_KEY_1, true);
@@ -82,9 +86,9 @@ static void initiator_bind_press_cb(void *arg)
     }
 }
 
-static void initiator_unbind_press_cb(void *arg)
+static void initiator_unbind_press_cb(void *arg, void *usr_data)
 {
-    ESP_ERROR_CHECK(!(BUTTON_LONG_PRESS_START == button_get_event(arg)));
+    ESP_ERROR_CHECK(!(BUTTON_LONG_PRESS_START == iot_button_get_event(arg)));
     ESP_LOGI(TAG, "initiator unbind press");
     if (s_espnow_ctrl_status == ESPNOW_CTRL_BOUND) {
         espnow_ctrl_initiator_bind(ESPNOW_ATTRIBUTE_KEY_1, false);
@@ -103,10 +107,10 @@ static void app_driver_init(void)
         },
     };
 
-    button_handle_t button_handle = button_create(&button_config);
-    button_register_cb(button_handle, BUTTON_SINGLE_CLICK, initiator_send_press_cb);
-    button_register_cb(button_handle, BUTTON_DOUBLE_CLICK, initiator_bind_press_cb);
-    button_register_cb(button_handle, BUTTON_LONG_PRESS_START, initiator_unbind_press_cb);
+    button_handle_t button_handle = iot_button_create(&button_config);
+    iot_button_register_cb(button_handle, BUTTON_SINGLE_CLICK, initiator_send_press_cb, NULL);
+    iot_button_register_cb(button_handle, BUTTON_DOUBLE_CLICK, initiator_bind_press_cb, NULL);
+    iot_button_register_cb(button_handle, BUTTON_LONG_PRESS_START, initiator_unbind_press_cb, NULL);
 }
 
 static void espnow_ctrl_responder_data_cb(espnow_attribute_t initiator_attribute,
