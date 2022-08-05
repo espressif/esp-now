@@ -34,6 +34,7 @@
 #include <esp_ota_ops.h>
 #include <errno.h>
 #include <sys/param.h>
+#include "driver/gpio.h"
 
 static const char *TAG = "iperf_cmd";
 
@@ -146,6 +147,7 @@ struct espnow_iperf_cfg {
     espnow_type_t type;
     espnow_frame_head_t frame_head;
     uint8_t addr[6];
+    int gpio_num;
 } g_iperf_cfg = {
     .finish = true,
     .packet_len      = ESPNOW_DATA_LEN,
@@ -215,8 +217,8 @@ static void espnow_iperf_initiator_task(void *arg)
     iperf_data->seq   = 0;
 
 
-    uint32_t start_time = esp_timer_get_time();
-    uint32_t end_time = start_time + g_iperf_cfg.transmit_time * 1000 * 1000;
+    int64_t start_time = esp_timer_get_time();
+    int64_t end_time = start_time + g_iperf_cfg.transmit_time * 1000 * 1000;
     uint32_t total_count   = 0;
 
     if (!g_iperf_cfg.frame_head.broadcast) {
@@ -225,11 +227,11 @@ static void espnow_iperf_initiator_task(void *arg)
 
     ESP_LOGI(TAG, "[  Responder MAC  ]   Interval     Transfer     Frame_rate     Bandwidth");
 
-    for (uint32_t report_time = start_time + g_iperf_cfg.report_interval * 1000 * 1000, report_count = 0;
+    for (int64_t report_time = start_time + g_iperf_cfg.report_interval * 1000 * 1000, report_count = 0;
             esp_timer_get_time() < end_time && !g_iperf_cfg.finish;) {
         ret = espnow_send(g_iperf_cfg.type, g_iperf_cfg.addr, iperf_data,
                           g_iperf_cfg.packet_len, &g_iperf_cfg.frame_head, portMAX_DELAY);
-        ESP_ERROR_BREAK(ret != ESP_OK, "<%s> espnow_send", esp_err_to_name(ret));
+        ESP_ERROR_CONTINUE(ret != ESP_OK && ret != ESP_ERR_WIFI_TIMEOUT, "<%s> espnow_send", esp_err_to_name(ret));
         iperf_data->seq++;
         ++total_count;
 
@@ -237,9 +239,9 @@ static void espnow_iperf_initiator_task(void *arg)
             uint32_t report_time_s = (report_time - start_time) / (1000 * 1000);
             double report_size    = (iperf_data->seq - report_count) * g_iperf_cfg.packet_len / 1e6;
 
-            ESP_LOGI(TAG, "["MACSTR"]  %2d-%2d sec  %2.2f MBytes   %0.2f Hz  %0.2f Mbits/sec",
+            ESP_LOGI(TAG, "["MACSTR"]  %2d-%2d sec  %2.2f MBytes   %0.2f Hz  %0.2f Mbps",
                      MAC2STR(g_iperf_cfg.addr), report_time_s - g_iperf_cfg.report_interval, report_time_s,
-                     (iperf_data->seq - report_count) * 1.0 / g_iperf_cfg.report_interval, report_size, report_size * 8 / g_iperf_cfg.report_interval);
+                     report_size, (iperf_data->seq - report_count) * 1.0 / g_iperf_cfg.report_interval, report_size * 8 / g_iperf_cfg.report_interval);
 
             report_time = esp_timer_get_time() + g_iperf_cfg.report_interval * 1000 * 1000;
             report_count = iperf_data->seq;
@@ -272,14 +274,14 @@ static void espnow_iperf_initiator_task(void *arg)
     if (ret != ESP_OK) {
         ESP_LOGW(TAG, "<%s> Receive responder response failed", esp_err_to_name(ret));
     } else {
-        uint32_t write_count = iperf_data->seq > 0 ? iperf_data->seq + 1 : 0;
+        uint32_t write_count = iperf_data->seq > 0 ? iperf_data->seq - 1 : 0;
         uint32_t lost_count  = total_count - write_count;
         double total_len     = (total_count * g_iperf_cfg.packet_len) / 1e6;
 
         if (total_count && write_count && spend_time_ms) {
             ESP_LOGI(TAG, "initiator Report:");
             ESP_LOGI(TAG, "[ ID] Interval      Transfer       Bandwidth      Jitter   Lost/Total Datagrams  RSSI  Channel");
-            ESP_LOGI(TAG, "[000] %2d-%2d sec    %2.2f MBytes    %0.2f Mbits/sec    %0.2f ms    %d/%d (%0.2f%%)    %d    %d",
+            ESP_LOGI(TAG, "[000] %2d-%2d sec    %2.2f MBytes    %0.2f Mbps    %0.2f ms    %d/%d (%0.2f%%)    %d    %d",
                     0, spend_time_ms / 1000, total_len, total_len * 8 * 1000 / spend_time_ms, spend_time_ms * 1.0 / write_count,
                     lost_count, total_count, lost_count * 100.0 / total_count, rx_ctrl.rssi, rx_ctrl.channel);
         }
@@ -294,10 +296,10 @@ static void espnow_iperf_initiator_task(void *arg)
 
     espnow_set_type(ESPNOW_TYPE_RESERVED, 0, NULL);
     if (g_iperf_queue) {
-        iperf_recv_data_t *tmp_data = NULL;
+        iperf_recv_data_t tmp_data =  { 0 };
 
         while (xQueueReceive(g_iperf_queue, &tmp_data, 0)) {
-            ESP_FREE(tmp_data->data);
+            ESP_FREE(tmp_data.data);
         }
 
         vQueueDelete(g_iperf_queue);
@@ -317,9 +319,9 @@ static esp_err_t espnow_iperf_responder(uint8_t *src_addr, void *data,
 
     esp_err_t ret         = ESP_OK;
     espnow_iperf_data_t *iperf_data   = (espnow_iperf_data_t *)data;
-    static uint32_t start_time;
+    static int64_t start_time;
     static uint32_t recv_count;
-    static uint32_t report_time;
+    static int64_t report_time;
     static uint32_t report_count;
 
     memcpy(g_iperf_cfg.addr, src_addr, 6);
@@ -332,42 +334,49 @@ static esp_err_t espnow_iperf_responder(uint8_t *src_addr, void *data,
             start_time  = esp_timer_get_time();
             report_time = start_time + g_iperf_cfg.report_interval * 1000 * 1000;
             report_count = 0;
-        }
+        } 
 
         if (iperf_data->type == IPERF_BANDWIDTH && esp_timer_get_time() >= report_time) {
             uint32_t report_time_s = (report_time - start_time) / (1000 * 1000);
-            double report_size    = (iperf_data->seq - report_count) * g_iperf_cfg.packet_len / 1e6;
-            ESP_LOGI(TAG, "["MACSTR"]  %2d-%2d sec  %2.2f MBytes  %0.2f Mbits/sec  %d dbm",
+            double report_size    = (recv_count - report_count) * size / 1e6;
+            ESP_LOGI(TAG, "["MACSTR"]  %2d-%2d sec  %2.2f MBytes  %0.2f Mbps  %d dbm",
                      MAC2STR(g_iperf_cfg.addr), report_time_s - g_iperf_cfg.report_interval, report_time_s,
                      report_size, report_size * 8 / g_iperf_cfg.report_interval, rx_ctrl->rssi);
 
             report_time = esp_timer_get_time() + g_iperf_cfg.report_interval * 1000 * 1000;
-            report_count = iperf_data->seq;
+            report_count = recv_count;
         } else if (iperf_data->type == IPERF_PING) {
             ESP_LOGV(TAG, "Recv IPERF_PING, seq: %d, recv_count: %d", iperf_data->seq, recv_count);
-            iperf_data->seq = recv_count;
             iperf_data->type = IPERF_PING_ACK;
+
+            if (g_iperf_cfg.gpio_num >= 0) {
+                gpio_set_level(g_iperf_cfg.gpio_num, 0);
+            }
 
             if (!g_iperf_cfg.frame_head.broadcast) {
                 espnow_add_peer(g_iperf_cfg.addr, NULL);
             }
 
             ret = espnow_send(g_iperf_cfg.type, g_iperf_cfg.addr, iperf_data,
-                              sizeof(espnow_iperf_data_t), &g_iperf_cfg.frame_head, portMAX_DELAY);
+                              size, &g_iperf_cfg.frame_head, portMAX_DELAY);
 
             if (!g_iperf_cfg.frame_head.broadcast) {
                 espnow_del_peer(g_iperf_cfg.addr);
+            }
+
+            if (g_iperf_cfg.gpio_num >= 0) {
+                gpio_set_level(g_iperf_cfg.gpio_num, 1);
             }
 
             ESP_ERROR_RETURN(ret != ESP_OK, ret, "<%s> espnow_send", esp_err_to_name(ret));
         } else if (iperf_data->type == IPERF_BANDWIDTH_STOP) {
             uint32_t total_count = iperf_data->seq + 1;
             uint32_t lost_count  = total_count - recv_count;
-            double total_len     = (total_count * g_iperf_cfg.packet_len) / 1e6;
+            double total_len     = (total_count * size) / 1e6;
             uint32_t spend_time_ms  = (esp_timer_get_time() - start_time) / 1000;
 
             ESP_LOGI(TAG, "[ ID] Interval      Transfer       Bandwidth      Jitter   Lost/Total Datagrams");
-            ESP_LOGI(TAG, "[000] %2d-%2d sec    %2.2f MBytes    %0.2f Mbits/sec    %0.2f ms    %d/%d (%0.2f%%)",
+            ESP_LOGI(TAG, "[000] %2d-%2d sec    %2.2f MBytes    %0.2f Mbps    %0.2f ms    %d/%d (%0.2f%%)",
                      0, spend_time_ms / 1000, total_len, total_len * 8 * 1000 / spend_time_ms, spend_time_ms * 1.0 / recv_count,
                      lost_count, total_count, lost_count * 100.0 / total_count);
 
@@ -400,10 +409,11 @@ static void espnow_iperf_responder_start(void)
 static void espnow_iperf_ping_task(void *arg)
 {
     esp_err_t ret     = ESP_OK;
-    espnow_iperf_data_t *iperf_data = ESP_CALLOC(1, ESPNOW_DATA_LEN);
+    espnow_iperf_data_t *iperf_data = ESP_CALLOC(1, g_iperf_cfg.packet_len);
     size_t send_count = 0;
     size_t recv_count = 0;
     uint32_t spend_time_ms = 0;
+    int64_t s_time = esp_timer_get_time();
 
     size_t recv_size      = 0;
     uint32_t max_time_ms  = 0;
@@ -415,19 +425,22 @@ static void espnow_iperf_ping_task(void *arg)
         espnow_add_peer(g_iperf_cfg.addr, NULL);
     }
 
-    for (int seq = 0; seq < g_iperf_cfg.ping_count && !g_iperf_cfg.finish; ++seq) {
-        iperf_data->seq = recv_count;
+    for (; send_count < g_iperf_cfg.ping_count && !g_iperf_cfg.finish; send_count ++) {
+        iperf_data->seq = send_count;
         iperf_data->type = IPERF_PING;
-        send_count++;
 
-        uint32_t start_time = esp_timer_get_time();
+        if (g_iperf_cfg.gpio_num >= 0) {
+            gpio_set_level(g_iperf_cfg.gpio_num, 0);
+        }
+
+        int64_t start_time = esp_timer_get_time();
         ret = espnow_send(g_iperf_cfg.type, g_iperf_cfg.addr, iperf_data,
-                          sizeof(espnow_iperf_data_t), &g_iperf_cfg.frame_head, portMAX_DELAY);
+                          g_iperf_cfg.packet_len, &g_iperf_cfg.frame_head, portMAX_DELAY);
         ESP_ERROR_CONTINUE(ret != ESP_OK, "<%s> espnow_send", esp_err_to_name(ret));
 
         do {
             iperf_recv_data_t recv_data = { 0 };
-            if (g_iperf_queue && xQueueReceive(g_iperf_queue, &recv_data, pdMS_TO_TICKS(1000)) == pdPASS) {
+            if (g_iperf_queue && xQueueReceive(g_iperf_queue, &recv_data, pdMS_TO_TICKS(3000)) == pdPASS) {
                 ret = ESP_OK;
                 memcpy(iperf_data, recv_data.data, recv_data.size);
                 memcpy(g_iperf_cfg.addr, recv_data.src_addr, 6);
@@ -438,21 +451,25 @@ static void espnow_iperf_ping_task(void *arg)
                 ret = ESP_FAIL;
             }
 
-            if (ret == ESP_OK && (iperf_data->type != IPERF_PING_ACK || iperf_data->seq != seq)) {
-                ESP_LOGW(TAG, "data_size: %d", recv_size);
+            if (ret == ESP_OK && (iperf_data->type != IPERF_PING_ACK || iperf_data->seq != send_count)) {
+                ESP_LOGW(TAG, "data_size: %d, send_seq: %d, recv_seq: %d", recv_size, send_count, iperf_data->seq);
             }
-        } while (ret == ESP_OK && (iperf_data->type != IPERF_PING_ACK || iperf_data->seq != seq));
-
-        res_time_ms = (esp_timer_get_time() - start_time) / 1000;
-        spend_time_ms += res_time_ms;
-
-        max_time_ms = MAX(max_time_ms, res_time_ms);
-        min_time_ms = MIN(min_time_ms, res_time_ms);
+        } while (ret == ESP_OK && (iperf_data->type != IPERF_PING_ACK || iperf_data->seq != send_count));
 
         if (ret != ESP_OK) {
             ESP_LOGW(TAG, "seq=%d Destination Host Unreachable", iperf_data->seq);
             continue;
         }
+
+        if (g_iperf_cfg.gpio_num >= 0) {
+            gpio_set_level(g_iperf_cfg.gpio_num, 1);
+        }
+
+        res_time_ms = (uint32_t)((esp_timer_get_time() - start_time) / 1000);
+        spend_time_ms += res_time_ms;
+
+        max_time_ms = MAX(max_time_ms, res_time_ms);
+        min_time_ms = MIN(min_time_ms, res_time_ms);
 
         recv_count++;
         ESP_LOGI(TAG, "%d bytes from " MACSTR ": seq=%d rssi=%d time=%d ms",
@@ -465,7 +482,7 @@ static void espnow_iperf_ping_task(void *arg)
     ESP_LOGI(TAG, "ping statistics for " MACSTR, MAC2STR(g_iperf_cfg.addr));
     ESP_LOGI(TAG, "%d packets transmitted, %d received, %0.2f%% packet loss, time: total %d ms, max: %d, min: %d, average %0.2f ms",
              send_count, recv_count, (send_count - recv_count) * 100.0 / send_count,
-             spend_time_ms, max_time_ms, min_time_ms, spend_time_ms * 1.0 / send_count);
+             (int)((esp_timer_get_time() - s_time) / 1000), max_time_ms, min_time_ms, spend_time_ms * 1.0 / recv_count);
 
     g_iperf_cfg.finish = true;
 
@@ -475,10 +492,10 @@ static void espnow_iperf_ping_task(void *arg)
 
     espnow_set_type(ESPNOW_TYPE_RESERVED, 0, NULL);
     if (g_iperf_queue) {
-        iperf_recv_data_t *tmp_data = NULL;
+        iperf_recv_data_t tmp_data =  { 0 };
 
         while (xQueueReceive(g_iperf_queue, &tmp_data, 0)) {
-            ESP_FREE(tmp_data->data);
+            ESP_FREE(tmp_data.data);
         }
 
         vQueueDelete(g_iperf_queue);
@@ -493,11 +510,14 @@ static struct {
     struct arg_str *initiator;
     struct arg_lit *responder;
     struct arg_lit *ping;
+    struct arg_int *count;
     struct arg_int *interval;
     struct arg_int *len;
     struct arg_int *time;
     struct arg_int *broadcast;
     struct arg_lit *group;
+    struct arg_lit *ack;
+    struct arg_int *gpio;
     struct arg_lit *abort;
     struct arg_end *end;
 } espnow_iperf_args;
@@ -527,23 +547,55 @@ static esp_err_t espnow_iperf_func(int argc, char **argv)
 
     if (espnow_iperf_args.len->count) {
         g_iperf_cfg.packet_len = espnow_iperf_args.len->ival[0];
+    } else {
+        g_iperf_cfg.packet_len = ESPNOW_DATA_LEN;
     }
 
     if (espnow_iperf_args.interval->count) {
         g_iperf_cfg.report_interval = espnow_iperf_args.interval->ival[0];
+    } else {
+        g_iperf_cfg.report_interval = 3;
     }
 
     if (espnow_iperf_args.time->count) {
         g_iperf_cfg.transmit_time = espnow_iperf_args.time->ival[0];
+    } else {
+        g_iperf_cfg.transmit_time = 60;
     }
 
     if (espnow_iperf_args.group->count) {
         g_iperf_cfg.frame_head.group = true;
+    } else {
+        g_iperf_cfg.frame_head.group = false;
     }
 
     if (espnow_iperf_args.broadcast->count) {
         g_iperf_cfg.frame_head.broadcast        = true;
         g_iperf_cfg.frame_head.retransmit_count = espnow_iperf_args.broadcast->ival[0];
+    } else {
+        g_iperf_cfg.frame_head.broadcast        = false;
+        g_iperf_cfg.frame_head.retransmit_count = 0;
+    }
+
+    if (espnow_iperf_args.count->count) {
+        g_iperf_cfg.ping_count = espnow_iperf_args.count->ival[0];
+    } else {
+        g_iperf_cfg.ping_count = 64;
+    }
+
+    if (espnow_iperf_args.ack->count) {
+        g_iperf_cfg.frame_head.ack = true;
+    } else {
+        g_iperf_cfg.frame_head.ack = 0;
+    }
+
+    if (espnow_iperf_args.gpio->count) {
+        g_iperf_cfg.gpio_num = espnow_iperf_args.gpio->ival[0];
+        gpio_reset_pin(g_iperf_cfg.gpio_num);
+        gpio_set_direction(g_iperf_cfg.gpio_num, GPIO_MODE_OUTPUT);
+        gpio_set_level(g_iperf_cfg.gpio_num, 1);
+    } else {
+        g_iperf_cfg.gpio_num = -1;
     }
 
     uint8_t sta_mac[ESPNOW_ADDR_LEN] = {0};
@@ -597,11 +649,14 @@ void register_espnow_iperf()
     espnow_iperf_args.initiator = arg_str0("c", "initiator", "<responder (xx:xx:xx:xx:xx:xx)>", "run in initiator mode, ping to <responder>");
     espnow_iperf_args.responder = arg_lit0("s", "responder", "run in responder mode, receive from throughput or ping");
     espnow_iperf_args.ping      = arg_lit0("p", "ping", "run in ping mode, send to <responder>");
+    espnow_iperf_args.count     = arg_int0("C", "count", "<count>", "Stop ping after <count> replies (Defaults: 64)");
     espnow_iperf_args.interval  = arg_int0("i", "interval", "<interval (sec)>", "seconds between periodic bandwidth reports (default 3 secs)");
     espnow_iperf_args.time      = arg_int0("t", "time", "<time (sec)>", "time in seconds to transmit for (default 10 secs)");
     espnow_iperf_args.len       = arg_int0("l", "len", "<len (Bytes)>", "length of buffer in bytes to read or write (Defaults: 230 Bytes)");
     espnow_iperf_args.broadcast = arg_int0("b", "broadcast", "<count>", "Send package by broadcast");
     espnow_iperf_args.group     = arg_lit0("g", "group", "Send a package to a group");
+    espnow_iperf_args.ack       = arg_lit0("A", "ack", "Wait for the receiving device to return ack to ensure transmission reliability");
+    espnow_iperf_args.gpio      = arg_int0("G", "gpio", "<num>", "gpio number(default -1)");
     espnow_iperf_args.abort     = arg_lit0("a", "abort", "abort running espnow-iperf");
     espnow_iperf_args.end       = arg_end(6);
 
