@@ -1007,6 +1007,7 @@ esp_err_t espnow_deinit(void)
 
     if (g_espnow_config->sec_enable && g_espnow_sec) {
         espnow_sec_deinit(g_espnow_sec);
+        ESP_FREE(g_espnow_sec);
     }
 
     ESP_ERROR_CHECK(esp_event_handler_unregister(WIFI_EVENT, ESP_EVENT_ANY_ID, wifi_event_handler));
