@@ -17,6 +17,14 @@ menu "Example Configuration"
 
     endchoice
 
+    config ESPNOW_QUEUE_SIZE
+        int "Size of packet buffer queue"
+        default 32
+        help
+            Default is 32. If device works as initiator and responder device number is bigger than
+            32, please set to at lease device number to decrease esp now send queue fail error. For example,
+            set 100 when responder device number is 100.
+
     config ESPNOW_CONTROL
         bool "Enable ESPNOW control"
         default y
