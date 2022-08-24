@@ -88,6 +88,7 @@ typedef struct {
         bool data;
         bool sec_status;
         bool sec;
+        bool sec_data;
         bool reserved;
     } receive_enable;            /**< Receive status of packet type */
 } espnow_config_t;
@@ -112,6 +113,7 @@ typedef struct {
                 .data          = 0, \
                 .sec_status    = 0, \
                 .sec           = 0, \
+                .sec_data      = 0, \
                 .reserved      = 0, \
                 }, \
     }
