@@ -39,6 +39,9 @@
 #define ESPNOW_VERSION                  CONFIG_ESPNOW_VERSION
 #endif
 
+#define SEND_DELAY_UNIT_MSECS         2
+#define MAX_BUFFERED_NUM              (CONFIG_ESP32_WIFI_DYNAMIC_TX_BUFFER_NUM / 2)     /* Not more than CONFIG_ESP32_WIFI_DYNAMIC_TX_BUFFER_NUM */
+
 /* Event source task related definitions */
 ESP_EVENT_DEFINE_BASE(ESP_EVENT_ESPNOW);
 
@@ -110,6 +113,8 @@ espnow_sec_t *g_espnow_sec = NULL;
 static EventGroupHandle_t g_event_group = NULL;
 static xQueueHandle g_espnow_queue = NULL;
 static xQueueHandle g_ack_queue = NULL;
+static uint32_t g_buffered_num;
+
 static struct {
     uint8_t type;
     uint16_t magic;
@@ -205,6 +210,29 @@ void espnow_recv_cb(const uint8_t *addr, const uint8_t *data, int size)
         return;
     }
 
+    if (g_recv_handle[espnow_data->type].enable
+            && espnow_data->type != ESPNOW_TYPE_ACK && espnow_data->type != ESPNOW_TYPE_GROUP
+            && frame_head->ack && ESPNOW_ADDR_IS_SELF(espnow_data->dest_addr)) {
+        espnow_data_t *ack_data = ESP_CALLOC(1, sizeof(espnow_data_t));
+        if (!ack_data) {
+            return;
+        }
+        ack_data->version = ESPNOW_VERSION;
+        ack_data->type  = ESPNOW_TYPE_ACK;
+        ack_data->size  = 0;
+        memcpy(&ack_data->frame_head, frame_head, sizeof(espnow_frame_head_t));
+        memcpy(ack_data->src_addr, ESPNOW_ADDR_SELF, 6);
+        memcpy(ack_data->dest_addr, espnow_data->src_addr, 6);
+
+        ack_data->frame_head.retransmit_count = 1;
+        ack_data->frame_head.broadcast = 1;
+
+        if (!g_espnow_queue || queue_over_write(ESPNOW_EVENT_SEND_ACK, ack_data, sizeof(espnow_data_t), NULL, g_espnow_config->send_max_timeout) != pdPASS) {
+            ESP_LOGW(TAG, "[%s, %d] Send event queue failed", __func__, __LINE__);
+            ESP_FREE(ack_data);
+        }
+    }
+
     for (size_t i = 0, index = g_msg_magic_cache_next; i < ESPNOW_MSG_CACHE;
             i++, index = (g_msg_magic_cache_next + i) % ESPNOW_MSG_CACHE) {
         if (g_msg_magic_cache[index].type == espnow_data->type
@@ -295,7 +323,7 @@ void espnow_recv_cb(const uint8_t *addr, const uint8_t *data, int size)
 FORWARD_DATA:
 
     if (g_espnow_config->forward_enable && frame_head->forward_ttl > 0 && frame_head->broadcast
-            && frame_head->forward_rssi >= rx_ctrl->rssi && !ESPNOW_ADDR_IS_SELF(espnow_data->dest_addr)
+            && frame_head->forward_rssi <= rx_ctrl->rssi && !ESPNOW_ADDR_IS_SELF(espnow_data->dest_addr)
             && !ESPNOW_ADDR_IS_SELF(espnow_data->src_addr)) {
         espnow_data_t *q_data = ESP_MALLOC(size);
 
@@ -325,6 +353,10 @@ EXIT:
 /**< callback function of sending ESPNOW data */
 void espnow_send_cb(const uint8_t *addr, esp_now_send_status_t status)
 {
+    if (g_buffered_num) {
+        g_buffered_num --;
+    }
+
     if (!addr || !g_event_group) {
         ESP_LOGW(TAG, "Send cb args error, addr is NULL");
         return ;
@@ -375,6 +407,58 @@ esp_err_t espnow_del_peer(const uint8_t *addr)
     if (esp_now_is_peer_exist(addr) && !ESPNOW_ADDR_IS_BROADCAST(addr)) {
         ret = esp_now_del_peer(addr);
         ESP_ERROR_RETURN(ret != ESP_OK, ret, "esp_now_del_peer fail, ret: %d", ret);
+    }
+
+    return ESP_OK;
+}
+
+static esp_err_t espnow_send_process(int count, espnow_data_t *espnow_data, uint32_t wait_ticks, bool *ack)
+{
+    ESP_PARAM_CHECK(espnow_data);
+
+    espnow_frame_head_t *frame_head = &espnow_data->frame_head;
+
+    g_buffered_num ++;
+
+    /* Wait send cb when max buffered num or ack is enable or unicast*/
+    if (g_buffered_num >= MAX_BUFFERED_NUM || frame_head->ack || !frame_head->broadcast) {
+        /**< For unicast packet, Waiting send complete ack from mac layer */
+        /**< For broadcast packet, Waiting send ok from mac layer */
+        EventBits_t uxBits = xEventGroupWaitBits(g_event_group, SEND_CB_OK | SEND_CB_FAIL,
+                                pdTRUE, pdFALSE, MIN(wait_ticks, g_espnow_config->send_max_timeout));
+        if ((uxBits & SEND_CB_OK) == SEND_CB_OK) {
+            if (!frame_head->broadcast && !frame_head->ack && ack) {
+                *ack = true;
+                return ESP_OK;
+            }
+        } else {
+            return ESP_FAIL;
+        }
+    }
+
+    if (frame_head->ack && !ESPNOW_ADDR_IS_BROADCAST(espnow_data->dest_addr) && ack) {
+        uint32_t *ack_magic = NULL;
+
+        /* retry backoff time (2,4,8,16,32,64,100,100,...)ms */
+        uint32_t delay_ms = (count < 6 ? 1 << count : 50) * SEND_DELAY_UNIT_MSECS;
+
+        do {
+            vTaskDelay(pdMS_TO_TICKS(SEND_DELAY_UNIT_MSECS));
+            while (g_ack_queue && xQueueReceive(g_ack_queue, &ack_magic, 0) == pdPASS) {
+                if (*ack_magic == frame_head->magic) {
+                    espnow_data->frame_head.ack = false;
+                    ESP_FREE(ack_magic);
+                    *ack = true;
+                    return ESP_OK;
+                }
+
+                ESP_FREE(ack_magic);
+            }
+
+            delay_ms -= SEND_DELAY_UNIT_MSECS;
+        } while (delay_ms > 0);
+
+        return ESP_ERR_WIFI_TIMEOUT;
     }
 
     return ESP_OK;
@@ -494,41 +578,21 @@ esp_err_t espnow_send(espnow_type_t type, const uint8_t *dest_addr, const void *
             do {
                 ret = esp_now_send(addr, (uint8_t *)espnow_data, espnow_data->size + sizeof(espnow_data_t));
 
-                if (frame_head->ack && !ESPNOW_ADDR_IS_BROADCAST(dest_addr)) {
-                    uint32_t *ack_magic = NULL;
-
-                    while (g_ack_queue && xQueueReceive(g_ack_queue, &ack_magic,  0) == pdPASS) {
-                        if (*ack_magic == frame_head->magic) {
-                            espnow_data->frame_head.ack = false;
-                            ret = ESP_OK;
-                            ESP_FREE(ack_magic);
-                            goto EXIT;
-                        }
-
-                        ESP_FREE(ack_magic);
+                if (ret == ESP_OK) {
+                    bool ack = 0;
+                    write_ticks = (wait_ticks == portMAX_DELAY) ? portMAX_DELAY :
+                                xTaskGetTickCount() - start_ticks < wait_ticks ?
+                                wait_ticks - (xTaskGetTickCount() - start_ticks) : 0;
+                    ret = espnow_send_process(count, espnow_data, write_ticks, &ack);
+                    if (ret == ESP_OK && ack) {
+                        goto EXIT;
                     }
                 }
 
-                if (ret == ESP_ERR_ESPNOW_NO_MEM) {
-                    vTaskDelay(pdMS_TO_TICKS(10));
-                }
-            } while ((frame_head->ack && ++count < frame_head->retransmit_count) || (ret == ESP_ERR_ESPNOW_NO_MEM && --retry_count));
+            } while (frame_head->ack && ++count < frame_head->retransmit_count);
 
             ESP_ERROR_CONTINUE(ret != ESP_OK, "[%s, %d] <%s> esp_now_send, channel: %d",
                                __func__, __LINE__, esp_err_to_name(ret), g_self_country.schan + i);
-
-            if (!frame_head->broadcast) {
-                write_ticks = (wait_ticks == portMAX_DELAY) ? portMAX_DELAY :
-                              xTaskGetTickCount() - start_ticks < wait_ticks ?
-                              wait_ticks - (xTaskGetTickCount() - start_ticks) : 0;
-                /**< Waiting send complete ack from mac layer */
-                EventBits_t uxBits = xEventGroupWaitBits(g_event_group, SEND_CB_OK | SEND_CB_FAIL,
-                                     pdTRUE, pdFALSE, MIN(write_ticks, g_espnow_config->send_max_timeout));
-
-                ret = ESP_OK;
-                ESP_ERROR_GOTO((uxBits & SEND_CB_OK) == SEND_CB_OK, EXIT, "");
-                ret = ESP_FAIL;
-            }
         }
     }
 
@@ -570,6 +634,7 @@ esp_err_t espnow_send_group(const uint8_t addrs_list[][ESPNOW_ADDR_LEN], size_t 
                             bool type, TickType_t wait_ticks)
 {
     esp_err_t ret = ESP_OK;
+    uint32_t start_ticks      = xTaskGetTickCount();
 
     espnow_data_t *espnow_data = ESP_MALLOC(addrs_num > 35 ? ESPNOW_PAYLOAD_LEN : sizeof(espnow_data_t) + sizeof(espnow_group_info_t) + addrs_num * ESPNOW_ADDR_LEN);
     espnow_frame_head_t *frame_head = &espnow_data->frame_head;
@@ -626,6 +691,14 @@ esp_err_t espnow_send_group(const uint8_t addrs_list[][ESPNOW_ADDR_LEN], size_t 
                 }
 
                 ret = esp_now_send(ESPNOW_ADDR_BROADCAST, (uint8_t *)espnow_data, espnow_data->size + sizeof(espnow_data_t));
+
+                if (ret == ESP_OK) {
+                    TickType_t write_ticks = (wait_ticks == portMAX_DELAY) ? portMAX_DELAY :
+                                xTaskGetTickCount() - start_ticks < wait_ticks ?
+                                wait_ticks - (xTaskGetTickCount() - start_ticks) : 0;
+                    ret = espnow_send_process(count, espnow_data, write_ticks, NULL);
+                }
+
                 ESP_ERROR_CONTINUE(ret != ESP_OK, "[%s, %d] <%s> esp_now_send, channel: %d",
                                    __func__, __LINE__, esp_err_to_name(ret), g_self_country.schan + i);
             }
@@ -657,23 +730,6 @@ static esp_err_t espnow_recv_process(espnow_pkt_t *q_data)
 
     ESP_LOGD(TAG, "[%s, %d], " MACSTR ", magic: 0x%04x, type: %d, size: %d, %s", __func__, __LINE__, MAC2STR(espnow_data->src_addr),
              frame_head->magic, espnow_data->type, espnow_data->size, espnow_data->payload);
-
-    /* Do not send ack if dest addr is broadcast. */
-    if (frame_head->ack && !ESPNOW_ADDR_IS_BROADCAST(espnow_data->dest_addr)) {
-        espnow_data_t *ack_data = ESP_CALLOC(1, sizeof(espnow_data_t));
-        ack_data->version = ESPNOW_VERSION;
-        ack_data->type  = ESPNOW_TYPE_ACK;
-        ack_data->size  = 0;
-        memcpy(&ack_data->frame_head, frame_head, sizeof(espnow_frame_head_t));
-        memcpy(ack_data->src_addr, ESPNOW_ADDR_SELF, 6);
-        memcpy(ack_data->dest_addr, espnow_data->src_addr, 6);
-
-        if (!g_espnow_queue || queue_over_write(ESPNOW_EVENT_SEND_ACK, ack_data, sizeof(espnow_data_t), NULL, g_espnow_config->send_max_timeout) != pdPASS) {
-            ESP_LOGW(TAG, "[%s, %d] Send event queue failed", __func__, __LINE__);
-            ESP_FREE(ack_data);
-            ret = ESP_FAIL;
-        }
-    }
 
     if (ret == ESP_OK) {
         /* Check security */
@@ -746,13 +802,12 @@ static esp_err_t espnow_send_forward(espnow_data_t *espnow_data)
                 esp_wifi_set_channel(g_self_country.schan + i, WIFI_SECOND_CHAN_NONE);
             }
 
-            do {
-                ret = esp_now_send(dest_addr, (uint8_t *)espnow_data, sizeof(espnow_data_t) + espnow_data->size);
+            ret = esp_now_send(dest_addr, (uint8_t *)espnow_data, sizeof(espnow_data_t) + espnow_data->size);
 
-                if (ret == ESP_ERR_ESPNOW_NO_MEM) {
-                    vTaskDelay(pdMS_TO_TICKS(10));
-                }
-            } while (ret == ESP_ERR_ESPNOW_NO_MEM && --retry_count);
+            if (ret == ESP_OK) {
+                ret = espnow_send_process(count, espnow_data, portMAX_DELAY, NULL);
+            }
+
 
             ESP_ERROR_CONTINUE(ret != ESP_OK, "[%s, %d] <%s> esp_now_send, channel: %d",
                             __func__, __LINE__, esp_err_to_name(ret), g_self_country.schan + i);
