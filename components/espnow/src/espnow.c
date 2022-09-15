@@ -563,7 +563,6 @@ esp_err_t espnow_send(espnow_type_t type, const uint8_t *dest_addr, const void *
     for (int count = 0; count < frame_head->retransmit_count; ++count) {
         for (int i = 0; i == 0
                 || (g_set_channel_flag && frame_head->channel == ESPNOW_CHANNEL_ALL && i < g_self_country.nchan); ++i) {
-            int retry_count = g_espnow_config->send_retry_num;
 
             if (g_set_channel_flag && frame_head->channel == ESPNOW_CHANNEL_ALL) {
                 esp_wifi_set_channel(g_self_country.schan + i, WIFI_SECOND_CHAN_NONE);
@@ -652,6 +651,9 @@ esp_err_t espnow_send_group(const uint8_t addrs_list[][ESPNOW_ADDR_LEN], size_t 
         memcpy(frame_head, data_head, sizeof(espnow_frame_head_t));
     } else {
         memcpy(frame_head, &g_espnow_frame_head_default, sizeof(espnow_frame_head_t));
+    }
+
+    if (!frame_head->magic) {
         frame_head->magic = esp_random();
     }
 
@@ -796,7 +798,6 @@ static esp_err_t espnow_send_forward(espnow_data_t *espnow_data)
 
     for (int count = 0; !count || count < frame_head->retransmit_count; ++count) {
         for (int i = 0;  i == 0 || (frame_head->channel == ESPNOW_CHANNEL_ALL && i < g_self_country.nchan && g_set_channel_flag && g_espnow_config->forward_switch_channel); ++i) {
-            uint8_t retry_count = g_espnow_config->send_retry_num;
 
             if (frame_head->channel == ESPNOW_CHANNEL_ALL && g_set_channel_flag && g_espnow_config->forward_switch_channel) {
                 esp_wifi_set_channel(g_self_country.schan + i, WIFI_SECOND_CHAN_NONE);
