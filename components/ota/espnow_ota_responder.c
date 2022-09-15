@@ -235,21 +235,9 @@ static esp_err_t espnow_ota_write(const espnow_addr_t src_addr, const espnow_ota
 
     esp_err_t ret = ESP_OK;
 
-    if (!g_ota_config) {
-        g_ota_config  = ESP_CALLOC(1, sizeof(espnow_ota_status_t) + 10 * ESPNOW_OTA_PROGRESS_MAX_SIZE);
-        ESP_ERROR_RETURN(!g_ota_config, ESP_ERR_NO_MEM, "<ESP_ERR_NO_MEM> g_ota_config");
-
-        /**< Get upgrade infomation to flash. */
-        ret = esp_storage_get(ESPNOW_OTA_STORE_CONFIG_KEY, g_ota_config, 0);
-
-        g_ota_config->start_time = xTaskGetTickCount();
-        g_ota_config->partition = esp_ota_get_next_update_partition(NULL);
-
-        if (ret != ESP_OK) {
-            ESP_FREE(g_ota_config);
-            ESP_LOGW(TAG, "Upgrade configuration is not initialized");
-            return ESP_ERR_ESPNOW_OTA_NOT_INIT;
-        }
+    /* Return if not recv status or firmware has been upgraded */
+    if (!g_ota_config || g_ota_config->status.error_code == ESP_ERR_ESPNOW_OTA_FINISH) {
+        return ESP_OK;
     }
 
     if (g_ota_config->status.error_code == ESP_ERR_ESPNOW_OTA_STOP) {
