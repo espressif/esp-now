@@ -1,0 +1,144 @@
+menu "Example Configuration"
+    choice ESPNOW_DEVICE_MODE
+        bool "ESP-NOW Mode"
+        default ESPNOW_INITIATOR
+        help
+            Select the ESP-NOW Mode.
+
+        config ESPNOW_INITIATOR
+            bool "ESP-NOW initiator Mode"
+            help
+                Select the ESP-NOW initiator Mode.
+
+        config ESPNOW_RESPONDER
+            bool "ESP-NOW responder Mode"
+            help
+                Select the ESP-NOW responder Mode.
+
+    endchoice
+
+    config ESPNOW_CONTROL
+        bool "Enable ESPNOW control"
+        default y
+        help
+            Enable ESP-NOW control.
+
+     config ESPNOW_DEBUG
+        bool "Enable ESPNOW Debug"
+        default y
+        help
+            Enable ESP-NOW debug.
+
+   config ESPNOW_OTA
+        bool "Enable ESPNOW OTA"
+        default y
+        help
+            Enable ESP-NOW OTA.
+
+    config ESPNOW_PROVISION
+        bool "Enable ESPNOW provision"
+        default y
+        help
+            Enable ESP-NOW provision.
+
+    config ESPNOW_SECURITY
+        bool "Enable ESPNOW security"
+        default y
+        help
+            Enable ESP-NOW security.
+
+    config ESPNOW_SESSION_POP
+        string "Proof of Possession"
+        default "espnow_pop"
+        depends on ESPNOW_SECURITY
+        help
+            Proof of Possession (PoP) string used to authorize session and derive shared key.
+
+    config POST_LOG_TO_HTTP_SERVER
+        bool "Post flash log to http server"
+        default n
+        depends on ESPNOW_DEBUG && ESPNOW_RESPONDER
+        help
+            Post flash log to http server.
+
+    config FLASH_LOG_POST_URL
+        string "Flash log url endpoint"
+        default "http://192.168.0.3:8070/flash_log"
+        depends on POST_LOG_TO_HTTP_SERVER
+        help
+            Flash log url endpoint.
+
+    config WIFI_PROV
+        bool "Enable wifi provision"
+        default y
+        depends on ESPNOW_INITIATOR
+        help
+            Enable wifi provisioning.
+
+    menu "WIFI Provision Configuration"
+
+        choice EXAMPLE_PROV_TRANSPORT
+            bool "Provisioning Transport"
+            default EXAMPLE_PROV_TRANSPORT_SOFTAP if IDF_TARGET_ESP32S2
+            default EXAMPLE_PROV_TRANSPORT_BLE
+            depends on WIFI_PROV
+            help
+                Wi-Fi provisioning component offers both, SoftAP and BLE transports. Choose any one.
+
+            config EXAMPLE_PROV_TRANSPORT_BLE
+                bool "BLE"
+                select BT_ENABLED
+                depends on !IDF_TARGET_ESP32S2
+            config EXAMPLE_PROV_TRANSPORT_SOFTAP
+                bool "Soft AP"
+        endchoice
+
+        config EXAMPLE_PROV_TRANSPORT
+            int
+            default 1 if EXAMPLE_PROV_TRANSPORT_BLE
+            default 2 if EXAMPLE_PROV_TRANSPORT_SOFTAP
+
+        config EXAMPLE_RESET_PROVISIONED
+            bool
+            default n
+            depends on WIFI_PROV
+            prompt "Reset provisioned status of the device"
+            help
+                This erases the NVS to reset provisioned status of the device on every reboot.
+                Provisioned status is determined by the Wi-Fi STA configuration, saved on the NVS.
+
+        config EXAMPLE_RESET_PROV_MGR_ON_FAILURE
+            bool
+            default y
+            depends on WIFI_PROV
+            prompt "Reset provisioned credentials and state machine after session failure"
+            help
+                Enable reseting provisioned credentials and state machine after session failure.
+                This will restart the provisioning service after retries are exhausted.
+
+        config EXAMPLE_PROV_MGR_MAX_RETRY_CNT
+            int
+            default 5
+            prompt "Max retries before reseting provisioning state machine"
+            depends on EXAMPLE_RESET_PROV_MGR_ON_FAILURE
+            help
+                Set the Maximum retry to avoid reconnecting to an inexistent AP or if credentials
+                are misconfigured. Provisioned credentials are erased and internal state machine
+                is reset after this threshold is reached.
+
+        config EXAMPLE_PROV_SHOW_QR
+            bool "Show provisioning QR code"
+            default y
+            depends on WIFI_PROV
+            help
+                Show the QR code for provisioning.
+
+        config EXAMPLE_PROV_USING_BLUEDROID
+            bool
+            depends on (BT_BLUEDROID_ENABLED && (IDF_TARGET_ESP32C3 || IDF_TARGET_ESP32S3)) && WIFI_PROV
+            select BT_BLE_42_FEATURES_SUPPORTED
+            default y
+            help
+                This enables BLE 4.2 features for Bluedroid.
+    endmenu
+endmenu
