@@ -106,7 +106,6 @@ static esp_err_t espnow_ota_info(uint8_t *src_addr, void *data,
     return ESP_OK;
 }
 
-#define OTA_STATUS_QSIZE 32
 static xQueueHandle g_ota_queue = NULL;
 typedef struct {
     uint8_t src_addr[6];
@@ -185,8 +184,7 @@ esp_err_t espnow_ota_initator_scan(espnow_ota_responder_t **info_list, size_t *n
         .forward_rssi     = CONFIG_ESPNOW_OTA_SEND_FORWARD_RSSI,
     };
 
-    g_scan_num       = 0;
-    ESP_FREE(g_info_list);
+    espnow_ota_initator_scan_result_free();
 
     g_info_en = true;
     espnow_set_type(ESPNOW_TYPE_OTA_STATUS, 1, espnow_ota_initiator_status_process);
@@ -245,8 +243,10 @@ static esp_err_t espnow_ota_request_status(uint8_t (*progress_array)[ESPNOW_OTA_
             result->successed_addr = ESP_REALLOC_RETRY(result->successed_addr,
                                      result->successed_num * ESPNOW_ADDR_LEN);
             memcpy(result->successed_addr + (result->successed_num - 1), src_addr, ESPNOW_ADDR_LEN);
+            espnow_send_group((uint8_t (*)[6])src_addr, 1, ESPNOW_ADDR_GROUP_OTA, NULL, false, portMAX_DELAY);
         } else if (response_data->error_code == ESP_ERR_ESPNOW_OTA_STOP) {
             addrs_remove(result->unfinished_addr, &result->unfinished_num, src_addr);
+            espnow_send_group((uint8_t (*)[6])src_addr, 1, ESPNOW_ADDR_GROUP_OTA, NULL, false, portMAX_DELAY);
         }
 
         if (result->unfinished_num == 0) {
@@ -298,6 +298,7 @@ static esp_err_t espnow_ota_request_status(uint8_t (*progress_array)[ESPNOW_OTA_
                 ESP_LOGW(TAG, "<ESP_ERR_ESPNOW_OTA_FIRMWARE_PARTITION> response_data->error_code: ");
                 addrs_remove(result->unfinished_addr, &result->unfinished_num, src_addr);
                 addrs_remove(response_addrs, &response_num, src_addr);
+                espnow_send_group((uint8_t (*)[6])src_addr, 1, ESPNOW_ADDR_GROUP_OTA, NULL, false, portMAX_DELAY);
                 continue;
             }
 
@@ -411,7 +412,7 @@ esp_err_t espnow_ota_initator_send(const uint8_t addrs_list[][6], size_t addrs_n
             memcpy(result->unfinished_addr[i], info_list[i].mac, ESPNOW_ADDR_LEN);
         }
 
-        ESP_FREE(info_list);
+        espnow_ota_initator_scan_result_free();
     } else {
         result->unfinished_num  = addrs_num;
         result->unfinished_addr = ESP_CALLOC(result->unfinished_num, ESPNOW_ADDR_LEN);
@@ -419,7 +420,8 @@ esp_err_t espnow_ota_initator_send(const uint8_t addrs_list[][6], size_t addrs_n
     }
 
     espnow_send_group(addrs_list, addrs_num, ESPNOW_ADDR_GROUP_OTA, NULL, true, portMAX_DELAY);
-    g_ota_queue = xQueueCreate(OTA_STATUS_QSIZE, sizeof(espnow_ota_data_t));
+    /* Set queue size to unfinished num to avoid send queue failed */
+    g_ota_queue = xQueueCreate(result->unfinished_num, sizeof(espnow_ota_data_t));
     ESP_ERROR_GOTO(!g_ota_queue, EXIT, "Create espnow ota queue fail");
     espnow_set_type(ESPNOW_TYPE_OTA_STATUS, 1, espnow_ota_initiator_status_process);
 
