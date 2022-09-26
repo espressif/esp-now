@@ -130,13 +130,15 @@ For debug monitored mode, post monitored device log to HTTP server (Refer to Kco
 
     |||Note|
     |-|-|-|
-    |Command definition|`provisioning -a -f <wait_ticks> <addrs_list (xx:xx:xx:xx:xx:xx | xx:xx:xx:xx:xx:xx)> <ap_ssid> <app_password>`||
-    |Command|provisioning -f|Find devices and get MAC address|
-    ||provisioning -a addrs_list ap_ssid ap_password|Configure network for devices|
-    |Parameter|`-a` or `--add`|Add device to the network|
-    |         |`-f` or `--find`|Find devices waiting to configure the network|
-    |         |`addrs_list` `ap_ssid` `ap_password`|Configure network for devices|
-    |Example|provisioning -f 3000 -a 30:ae:a4:80:16:3c myssid mypassword|Find devices for 3s and send WiFi configuration to 30:ae:a4:80:16:3c|
+    |Command definition|`provisioning -er -i <beacon_time(s)> <ap_ssid> <app_password>`||
+    |Command|provisioning -e -r -i |Provisioning|
+    |Parameter|`-e` or `--erase`|Reset WiFi provisioning information and restart|
+    |         |`-r` or `--responder`|Responder devices start provisioning|
+    |         |`-i` or `--initiator`|Set provisioning beacon time|
+    |         |`ap_ssid` `ap_password`|Configure network for devices|
+    |Example|provisioning -e|Reset WiFi provisioning information and restart|
+    | |provisioning -r |Responder devices start provisioning|
+    | |provisioning -i 30000 myssid mypassword|Send provisioning beacon for 30 s and send WiFi configuration to responder devices|
 
 3. Control
     |||Note|
