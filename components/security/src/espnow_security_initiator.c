@@ -191,7 +191,6 @@ static int addrs_search(espnow_addr_t *addrs_list, size_t addrs_num, espnow_addr
     return ESP_FAIL;
 }
 
-#define SEC_QUEUE_SIZE 32
 static xQueueHandle g_sec_queue = NULL;
 typedef struct {
     uint8_t src_addr[6];
@@ -421,7 +420,7 @@ esp_err_t espnow_sec_initiator_start(uint8_t key_info[APP_KEY_LEN], const char *
 
     memcpy(app_key, key_info, APP_KEY_LEN);
 
-    g_sec_queue = xQueueCreate(SEC_QUEUE_SIZE, sizeof(espnow_sec_data_t));
+    g_sec_queue = xQueueCreate(addrs_num, sizeof(espnow_sec_data_t));
     ESP_ERROR_RETURN(!g_sec_queue, ESP_FAIL, "Create espnow security queue fail");
     espnow_set_type(ESPNOW_TYPE_SECURITY, 1, espnow_initiator_sec_process);
 
