@@ -208,9 +208,16 @@ esp_err_t espnow_prov_initator_send(const espnow_addr_t responder_addr, const es
     }
 
     espnow_set_type(ESPNOW_TYPE_PROV, 0, NULL);
+
+    if (g_prov_init->config == false) {
+        ret = ESP_FAIL;
+    } else {
+        ret = ESP_OK;
+    }
+
     ESP_FREE(g_prov_init);
 
-    return ESP_OK;
+    return ret;
 }
 
 static uint32_t g_beacon_stop_tick = 0;
