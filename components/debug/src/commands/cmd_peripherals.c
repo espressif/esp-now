@@ -61,7 +61,7 @@ static int gpio_func(int argc, char **argv)
     }
 
     if (gpio_args.get->count) {
-        uint32_t gpio_num = gpio_args.set->ival[0];
+        uint32_t gpio_num = gpio_args.get->ival[0];
 
         gpio_set_direction(gpio_num, GPIO_MODE_INPUT);
         ESP_LOGI(TAG, "Get gpio num: %d, level: %d", gpio_num, gpio_get_level(gpio_num));

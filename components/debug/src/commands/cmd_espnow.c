@@ -28,6 +28,8 @@
 #include "espnow_ota.h"
 #include "espnow_prov.h"
 #include "espnow_ctrl.h"
+#include "espnow_security.h"
+#include "espnow_security_handshake.h"
 
 #include <esp_https_ota.h>
 #include <esp_log.h>
@@ -105,6 +107,7 @@ static int command_func(int argc, char **argv)
         }
     } else {
         espnow_addr_t temp_group    = {0x0};
+        frame_head.group            = 1;
         frame_head.broadcast        = true;
         frame_head.retransmit_count = ESPNOW_RETRANSMIT_MAX_COUNT;
         frame_head.forward_rssi     = -25;
@@ -231,13 +234,14 @@ void register_scan()
 }
 
 static struct {
-    struct arg_int *beacon;
-    struct arg_lit *add;
+    struct arg_lit *erase;
+    struct arg_lit *responder;
+    struct arg_int *initiator;
     struct arg_str *param;
     struct arg_end *end;
 } prov_args;
 
-
+static int s_device_num;
 static esp_err_t responder_recv_callback(uint8_t *src_addr, void *data,
                       size_t size, wifi_pkt_rx_ctrl_t *rx_ctrl)
 {
@@ -250,12 +254,62 @@ static esp_err_t responder_recv_callback(uint8_t *src_addr, void *data,
     /**
      * @brief Authenticate the device through the information of the initiator
      */
-    ESP_LOGI(TAG, "MAC: "MACSTR", Channel: %d, RSSI: %d, Product_id: %s, Device Name: %s, Auth Mode: %d, device_secret: %s",
-                MAC2STR(src_addr), rx_ctrl->channel, rx_ctrl->rssi,
+    s_device_num ++;
+    ESP_LOGI(TAG, "NUM: %d, MAC: "MACSTR", Channel: %d, RSSI: %d, Product_id: %s, Device Name: %s, Auth Mode: %d, device_secret: %s",
+                s_device_num, MAC2STR(src_addr), rx_ctrl->channel, rx_ctrl->rssi,
                 initator_info->product_id, initator_info->device_name,
                 initator_info->auth_mode, initator_info->device_secret);
 
     return ESP_OK;
+}
+
+static TaskHandle_t s_prov_task;
+
+static esp_err_t initator_recv_callback(uint8_t *src_addr, void *data,
+                      size_t size, wifi_pkt_rx_ctrl_t *rx_ctrl)
+{
+    ESP_PARAM_CHECK(src_addr);
+    ESP_PARAM_CHECK(data);
+    ESP_PARAM_CHECK(size);
+    ESP_PARAM_CHECK(rx_ctrl);
+
+    espnow_prov_wifi_t *wifi_config = (espnow_prov_wifi_t *)data;
+    ESP_LOGI(TAG, "MAC: "MACSTR", Channel: %d, RSSI: %d, wifi_mode: %d, ssid: %s, password: %s, token: %s",
+                MAC2STR(src_addr), rx_ctrl->channel, rx_ctrl->rssi,
+                wifi_config->mode, wifi_config->sta.ssid, wifi_config->sta.password, wifi_config->token);
+
+    ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_STA, (wifi_config_t *)&wifi_config->sta));
+    ESP_ERROR_CHECK(esp_wifi_connect());
+    return ESP_OK;
+}
+
+static void provisioning_initator(void *arg)
+{
+    esp_err_t ret = ESP_OK;
+    wifi_pkt_rx_ctrl_t rx_ctrl = {0};
+    espnow_prov_initator_t initator_info = {
+        .product_id = "debug_board",
+    };
+    espnow_addr_t responder_addr = {0};
+    espnow_prov_responder_t responder_info = {0};
+
+    for (;;) {
+        ret = espnow_prov_initator_scan(responder_addr, &responder_info, &rx_ctrl, pdMS_TO_TICKS(3 * 1000));
+        ESP_ERROR_CONTINUE(ret != ESP_OK, "");
+
+        ESP_LOGI(TAG, "MAC: "MACSTR", Channel: %d, RSSI: %d, Product_id: %s, Device Name: %s",
+                 MAC2STR(responder_addr), rx_ctrl.channel, rx_ctrl.rssi,
+                 responder_info.product_id, responder_info.device_name);
+
+        ret = espnow_prov_initator_send(responder_addr, &initator_info, initator_recv_callback, pdMS_TO_TICKS(3 * 1000));
+        ESP_ERROR_CONTINUE(ret != ESP_OK, "<%s> espnow_prov_responder_add", esp_err_to_name(ret));
+
+        break;
+    }
+
+    ESP_LOGI(TAG, "provisioning initator exit");
+    vTaskDelete(NULL);
+    s_prov_task = NULL;
 }
 
 /**
@@ -270,11 +324,22 @@ static int provisioning_func(int argc, char **argv)
 
     esp_err_t ret = ESP_OK;
 
-    if (prov_args.add->count) {
-        if (!prov_args.beacon->count) {
-            ESP_LOGW(TAG, "Please set beacon time");
-            return ESP_OK;
+    if (prov_args.erase->count) {
+        esp_wifi_restore();
+        esp_wifi_disconnect();
+        esp_restart();
+    }
+
+    if (prov_args.responder->count) {
+        if (!s_prov_task) {
+            xTaskCreate(provisioning_initator, "PROV_init", 3072, NULL, tskIDLE_PRIORITY + 1, &s_prov_task);
+            ESP_LOGI(TAG, "Start provisioning");
+        } else {
+            ESP_LOGI(TAG, "Already start provisioning");
         }
+    }
+
+    if (prov_args.initiator->count) {
 
         if (!prov_args.param->count) {
             ESP_LOGW(TAG, "Please set wifi ssid and password");
@@ -292,7 +357,11 @@ static int provisioning_func(int argc, char **argv)
             strcpy((char *)wifi_config.sta.password, prov_args.param->sval[1]);
         }
 
-        ret = espnow_prov_responder_start(&responder_info, pdMS_TO_TICKS(prov_args.beacon->ival[0]), &wifi_config, responder_recv_callback);
+        /* For a lot of devices will connect to different aps with same ssid and password */
+        wifi_config.sta.scan_method = WIFI_ALL_CHANNEL_SCAN;
+
+        s_device_num = 0;
+        ret = espnow_prov_responder_start(&responder_info, pdMS_TO_TICKS(prov_args.initiator->ival[0]), &wifi_config, responder_recv_callback);
         ESP_ERROR_RETURN(ret != ESP_OK, ret, "espnow_prov_responder_start");
 
         ESP_LOGI(TAG, "Add device to the network: %s", prov_args.param->sval[0]);
@@ -303,8 +372,9 @@ static int provisioning_func(int argc, char **argv)
 
 void register_provisioning()
 {
-    prov_args.beacon = arg_int0("f", "find", "<wait_ticks>", "Find devices waiting to configure the network");
-    prov_args.add   = arg_lit0("a", "add", "Find devices and configure network");
+    prov_args.erase = arg_lit0("e", "erase", "Reset WiFi provisioning information and restart");
+    prov_args.responder = arg_lit0("r", "responder", "Responder devices start provisioning");
+    prov_args.initiator = arg_int0("i", "initiator", "<beacon_time(s)>", "Set provisioning beacon time");
     prov_args.param = arg_strn(NULL, NULL, "<ap_ssid> <app_password>",
                                0, 2, "Configure network for devices");
     prov_args.end   = arg_end(3);
@@ -676,7 +746,7 @@ static int ota_func(int argc, char **argv)
             }
         }
 
-        ESP_FREE(info_list);
+        espnow_ota_initator_scan_result_free();
     }
 
     if (ota_args.send->count) {
@@ -882,6 +952,231 @@ static void register_log()
     ESP_ERROR_CHECK(esp_console_cmd_register(&cmd));
 }
 
+static struct {
+    struct arg_int *count;
+    struct arg_int *len;
+    struct arg_end *end;
+} sec_test_args;
+
+static int sec_test_func(int argc, char **argv)
+{
+    uint32_t data_len = 0;
+    uint32_t count = 0;
+
+    if (arg_parse(argc, argv, (void **) &sec_test_args) != ESP_OK) {
+        arg_print_errors(stderr, sec_test_args.end, argv[0]);
+        return ESP_FAIL;
+    }
+
+    if (sec_test_args.len->count) {
+        data_len = sec_test_args.len->ival[0];
+    } else {
+        data_len = ESPNOW_DATA_LEN;
+    }
+
+    if (sec_test_args.count->count) {
+        count = sec_test_args.count->ival[0];
+    } else {
+        count = 100;
+    }
+
+    ESP_ERROR_RETURN(!data_len || !count, ESP_FAIL, "DATA length or Count is not valid");
+
+    espnow_sec_t *espnow_sec = ESP_MALLOC(sizeof(espnow_sec_t));
+    uint8_t key_info[APP_KEY_LEN];
+    uint8_t *plain_txt = ESP_MALLOC(data_len);
+    uint8_t *dec_txt = ESP_MALLOC(data_len);
+    uint8_t *enc_txt = NULL;
+    uint32_t length = 0;
+    int64_t start_time = 0;
+    int64_t end_time = 0;
+    int64_t enc_time = 0;
+    int64_t dec_time = 0;
+
+    espnow_sec_init(espnow_sec);
+    enc_txt = ESP_MALLOC(data_len + espnow_sec->tag_len);
+    esp_fill_random(key_info, APP_KEY_LEN);
+    int ret = espnow_sec_setkey(espnow_sec, key_info);
+    ESP_ERROR_GOTO(ret != ESP_OK, EXIT, "espnow_sec_setkey %x", ret);
+
+    for (int i = 0; i < count; i++) {
+        esp_fill_random(plain_txt, data_len);
+        start_time = esp_timer_get_time();
+        espnow_sec_auth_encrypt(espnow_sec, plain_txt, data_len, enc_txt, data_len + espnow_sec->tag_len,
+                                &length, espnow_sec->tag_len);
+        end_time = esp_timer_get_time();
+        espnow_sec_auth_decrypt(espnow_sec, enc_txt, data_len + espnow_sec->tag_len, dec_txt, data_len,
+                                &length, espnow_sec->tag_len);
+
+        dec_time += esp_timer_get_time() - end_time;
+        enc_time += end_time - start_time;
+
+        if (memcmp(plain_txt, dec_txt, data_len)) {
+            ESP_LOGE(TAG, "Decrypt error");
+        }
+    }
+
+    ESP_LOGI(TAG, "Encrypting data of %d bytes takes an average of %lld us", data_len, enc_time/count);
+    ESP_LOGI(TAG, "Decrypting data of %d bytes takes an average of %lld us", data_len, dec_time/count);
+
+EXIT:
+    espnow_sec_deinit(espnow_sec);
+    ESP_FREE(plain_txt);
+    ESP_FREE(enc_txt);
+    ESP_FREE(dec_txt);
+    ESP_FREE(espnow_sec);
+
+    return ESP_OK;
+}
+
+/**
+ * @brief  Register security test command.
+ */
+static void register_security_test()
+{
+    sec_test_args.count = arg_int0("c", "count", "<count>", "The number of times to encrypt and decrypt (Defaults: 100)");
+    sec_test_args.len   = arg_int0("l", "len", "<len (Bytes)>", "The length of the data to be encrypted (Defaults: 230 Bytes)");
+    sec_test_args.end   = arg_end(8);
+
+    const esp_console_cmd_t cmd = {
+        .command = "sec_test",
+        .help = "Test encryption and decryption time",
+        .hint = NULL,
+        .func = &sec_test_func,
+        .argtable = &sec_test_args,
+    };
+
+    ESP_ERROR_CHECK(esp_console_cmd_register(&cmd));
+}
+
+static struct {
+    struct arg_lit *erase;
+    struct arg_int *find;
+    struct arg_str *send;
+    struct arg_end *end;
+} sec_args;
+
+static void sec_send_task(void *arg)
+{
+    size_t addrs_num = 0;
+    espnow_sec_result_t sec_result = {0};
+    uint32_t start_time = xTaskGetTickCount();
+    uint8_t (* addrs_list)[ESPNOW_ADDR_LEN] = ESP_MALLOC(ESPNOW_ADDR_LEN);
+
+    for (const char *tmp = (char *)arg;; tmp++) {
+        if (*tmp == ',' || *tmp == ' ' || *tmp == '|' || *tmp == '.' || *tmp == '\0') {
+            mac_str2hex(tmp - 17, addrs_list[addrs_num]);
+            addrs_num++;
+
+            if (*tmp == '\0' || *(tmp + 1) == '\0') {
+                break;
+            }
+
+            addrs_list = ESP_REALLOC(addrs_list, ESPNOW_ADDR_LEN * (addrs_num + 1));
+        }
+    }
+
+    uint8_t key_info[APP_KEY_LEN];
+    espnow_get_key(key_info);
+    espnow_sec_initiator_start(key_info, "espnow_pop", addrs_list, addrs_num, &sec_result);
+
+    ESP_LOGI(TAG, "App key is sent to the device to complete, Spend time: %dms",
+             (xTaskGetTickCount() - start_time) * portTICK_RATE_MS);
+    ESP_LOGI(TAG, "Devices security completed, successed_num: %d, unfinished_num: %d", 
+             sec_result.successed_num, sec_result.unfinished_num);
+
+    ESP_FREE(addrs_list);
+    espnow_sec_initator_result_free(&sec_result);
+    ESP_FREE(arg);
+
+    vTaskDelete(NULL);
+}
+
+static int sec_func(int argc, char **argv)
+{
+    if (arg_parse(argc, argv, (void **) &sec_args) != ESP_OK) {
+        arg_print_errors(stderr, sec_args.end, argv[0]);
+        return ESP_FAIL;
+    }
+
+    esp_err_t ret = ESP_OK;
+
+    if (sec_args.erase->count) {
+        ESP_LOGI(TAG, "Erase key info and restart");
+        ret = espnow_erase_key();
+        ESP_ERROR_RETURN(ret != ESP_OK, ret, "<%s> erase_key", esp_err_to_name(ret));
+        esp_restart();
+    }
+
+    if (sec_args.find->count) {
+        ESP_LOGI(TAG, "Find devices waiting to get key");
+
+        size_t num = 0;
+        espnow_sec_responder_t *info_list = NULL;
+        ret = espnow_sec_initiator_scan(&info_list, &num, pdMS_TO_TICKS(sec_args.find->ival[0]));
+        ESP_ERROR_RETURN(ret != ESP_OK, ret, "<%s> espnow_sec_initiator_scan", esp_err_to_name(ret));
+
+        if (num > 0) {
+            char (*addrs_list)[18] = ESP_MALLOC(num * 18 + 1);
+
+            for (int i = 0; i < num; ++i) {
+                sprintf(addrs_list[i], MACSTR "|", MAC2STR(info_list[i].mac));
+            }
+
+            ESP_LOGI(TAG, "info, num: %d, list: %s", num, (char *)addrs_list);
+            ESP_FREE(addrs_list);
+
+            ESP_LOGI(TAG, "|         mac       | Channel | Rssi | Security version |");
+
+            for (int i = 0; i < num; ++i) {
+                ESP_LOGI(TAG, "| "MACSTR" |   %d   |  %d  | %d |",
+                         MAC2STR(info_list[i].mac), info_list[i].channel, info_list[i].rssi,
+                         info_list[i].sec_ver);
+            }
+        }
+
+        espnow_sec_initiator_scan_result_free();
+    }
+
+    if (sec_args.send->count) {
+        ESP_LOGI(TAG, "Security initiator start: %s", sec_args.send->sval[0]);
+
+        uint8_t key_info[APP_KEY_LEN];
+        if(espnow_get_key(key_info) != ESP_OK) {
+            ESP_LOGE(TAG, "Secure key is not set");
+            return ESP_FAIL;
+        };
+
+        char *addrs_list = ESP_CALLOC(1, strlen(sec_args.send->sval[0]) + 1);
+        strcpy(addrs_list, sec_args.send->sval[0]);
+
+        xTaskCreate(sec_send_task, "sec_send", 8 * 1024, addrs_list, tskIDLE_PRIORITY + 1, NULL);
+    }
+
+    return ESP_OK;
+}
+
+/**
+ * @brief  Register security command.
+ */
+static void register_security()
+{
+    sec_args.erase   = arg_lit0("e", "erase", "Erase the key in flash and restart");
+    sec_args.find = arg_int0("f", "find", "<wait_s>", "Find devices waiting to get key");
+    sec_args.send   = arg_str0("s", "send", "<<xx:xx:xx:xx:xx:xx>,<xx:xx:xx:xx:xx:xx>>", "Security handshake with responder devices and send security key");
+    sec_args.end   = arg_end(8);
+
+    const esp_console_cmd_t cmd = {
+        .command = "security",
+        .help = "Security",
+        .hint = NULL,
+        .func = &sec_func,
+        .argtable = &sec_args,
+    };
+
+    ESP_ERROR_CHECK(esp_console_cmd_register(&cmd));
+}
+
 void register_espnow()
 {
     register_command();
@@ -891,4 +1186,6 @@ void register_espnow()
     register_ota();
     register_espnow_beacon();
     register_log();
+    register_security_test();
+    register_security();
 }

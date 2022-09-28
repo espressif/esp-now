@@ -425,9 +425,77 @@ void register_wifi_ping(void)
     ESP_ERROR_CHECK(esp_console_cmd_register(&ping_cmd));
 }
 
+static struct {
+    struct arg_str *ssid;
+    struct arg_str *password;
+    struct arg_end *end;
+} ap_args;
+
+static bool wifi_cmd_ap_set(const char *ssid, const char *pass)
+{
+    wifi_config_t wifi_config = {
+        .ap = {
+            .ssid = "",
+            .ssid_len = 0,
+            .max_connection = 4,
+            .password = "",
+            .authmode = WIFI_AUTH_WPA_WPA2_PSK
+        },
+    };
+
+    strlcpy((char *) wifi_config.ap.ssid, ssid, sizeof(wifi_config.ap.ssid));
+    if (pass) {
+        if (strlen(pass) != 0 && strlen(pass) < 8) {
+            ESP_LOGE(TAG, "password less than 8");
+            return false;
+        }
+        strlcpy((char *) wifi_config.ap.password, pass, sizeof(wifi_config.ap.password));
+    }
+
+    if (strlen(pass) == 0) {
+        wifi_config.ap.authmode = WIFI_AUTH_OPEN;
+    }
+
+    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_AP));
+    ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_AP, &wifi_config));
+    return true;
+}
+
+static int wifi_cmd_ap(int argc, char **argv)
+{
+    int nerrors = arg_parse(argc, argv, (void **) &ap_args);
+
+    if (nerrors != 0) {
+        arg_print_errors(stderr, ap_args.end, argv[0]);
+        return 1;
+    }
+
+    wifi_cmd_ap_set(ap_args.ssid->sval[0], ap_args.password->sval[0]);
+    ESP_LOGI(TAG, "AP mode, %s %s", ap_args.ssid->sval[0], ap_args.password->sval[0]);
+    return 0;
+}
+
+void register_wifi_ap(void)
+{
+    ap_args.ssid = arg_str1(NULL, NULL, "<ssid>", "SSID of AP");
+    ap_args.password = arg_str0(NULL, NULL, "<pass>", "password of AP");
+    ap_args.end = arg_end(2);
+
+    const esp_console_cmd_t ap_cmd = {
+        .command = "ap",
+        .help = "AP mode, configure ssid and password",
+        .hint = NULL,
+        .func = &wifi_cmd_ap,
+        .argtable = &ap_args
+    };
+
+    ESP_ERROR_CHECK( esp_console_cmd_register(&ap_cmd) );
+}
+
 void register_wifi(void)
 {
     register_wifi_scan();
     register_wifi_config();
     register_wifi_ping();
+    register_wifi_ap();
 }
