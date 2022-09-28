@@ -145,8 +145,8 @@ __attribute((constructor)) static esp_err_t esp_reboot_unbroken_record()
     /**
      * @brief Wait for high-priority tasks to run first
      */
-    xTaskCreate(reboot_unbroken_record_task, "reboot_unbroken_record", 3 * 1024,
-                NULL, CONFIG_UNBROKEN_RECORD_TASK_DEFAULT_PRIOTY, NULL);
+    xTaskCreatePinnedToCore(reboot_unbroken_record_task, "reboot_unbroken_record", 3 * 1024,
+                NULL, CONFIG_UNBROKEN_RECORD_TASK_DEFAULT_PRIOTY, NULL, 0);
 
     return ESP_OK;
 }
