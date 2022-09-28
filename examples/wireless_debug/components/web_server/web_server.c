@@ -181,6 +181,11 @@ esp_err_t web_server_send(const uint8_t *addr, const char *data,
 /* Send HTTP response with the contents of the requested file */
 static esp_err_t debug_recv_handler(httpd_req_t *req)
 {
+    if (req->method == HTTP_GET) {
+        ESP_LOGI(TAG, "Handshake done, the new connection was opened");
+        return ESP_OK;
+    }
+
     esp_err_t ret = ESP_OK;
     uint8_t buf[64] = { 0 };
 
