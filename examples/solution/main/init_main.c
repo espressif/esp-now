@@ -33,6 +33,9 @@ static void wifi_init()
     ESP_ERROR_CHECK(esp_event_loop_create_default());
     esp_netif_create_default_wifi_sta();
 
+    /* Add ap netif if start WiFi softap */
+    // esp_netif_create_default_wifi_ap();
+
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
     ESP_ERROR_CHECK(esp_wifi_init(&cfg));
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
@@ -57,6 +60,7 @@ void init()
      * @brief ESPNOW init
      */
     espnow_config_t espnow_config = ESPNOW_INIT_CONFIG_DEFAULT();
+    espnow_config.qsize = CONFIG_ESPNOW_QUEUE_SIZE;
 #ifdef CONFIG_ESPNOW_SECURITY
     espnow_config.sec_enable = 1;
 #endif
