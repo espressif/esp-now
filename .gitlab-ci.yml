@@ -1,46 +1,60 @@
 stages:
-  - build
+  - build_idf
   - deploy
 
 variables:
   BATCH_BUILD: "1"
   V: "0"
   MAKEFLAGS: "-j5 --no-keep-going"
-  ESPNOW_PATH: "$CI_PROJECT_DIR"
+  IDF_PATH: "$CI_PROJECT_DIR/esp-idf"
   IDF_CI_BUILD: "1"
 
-before_script:
-  - cd $IDF_PATH
-  - git fetch origin tag v4.4.1
-  - git checkout v4.4.1
-  - git submodule update --init --recursive
-  - ./install.sh
-  - . ./export.sh
-  - cd -
-
-build_template_cmake: &build_template
-  stage: build
-  image: espressif/idf:release-v4.4
+build_idf_demo:
+  stage: build_idf
+  image: $CI_DOCKER_REGISTRY/esp-env:v4.4-1
   tags:
     - build
-  variables:
-    ARTIFACTS_NAME: "default"
-    DEFAULT_CONFIG: ""
-    BATCH_BUILD: "1"
-    V: "0"
   script:
-    - cd examples/wireless_debug
+  # add gitlab ssh key
+    - mkdir -p ~/.ssh
+    - chmod 700 ~/.ssh
+    - echo -n $GITLAB_KEY > ~/.ssh/id_rsa_base64
+    - base64 --decode --ignore-garbage ~/.ssh/id_rsa_base64 > ~/.ssh/id_rsa
+    - chmod 600 ~/.ssh/id_rsa
+    - echo -e "Host gitlab.espressif.cn\n\tStrictHostKeyChecking no\n" >> ~/.ssh/config
+    - git --version
+    - git clone --recursive -b v4.4.2 --depth 1 $GITLAB_SSH_SERVER/idf/esp-idf.git
+    - export IDF_PATH=$CI_PROJECT_DIR/esp-idf
+    - cd esp-idf/
+    - ./install.sh
+    - . ./export.sh
     - cd -
-    - ./tools/ci/build_examples_cmake.sh examples/wireless_debug esp32
-    - ./tools/ci/build_examples_cmake.sh examples/wireless_debug esp32s2
-    - ./tools/ci/build_examples_cmake.sh examples/wireless_debug esp32c3
-
-    - ./tools/ci/build_examples_cmake.sh examples/get-started esp32
-    - ./tools/ci/build_examples_cmake.sh examples/control esp32
-    - ./tools/ci/build_examples_cmake.sh examples/ota esp32
-    - ./tools/ci/build_examples_cmake.sh examples/provisioning esp32
-    - ./tools/ci/build_examples_cmake.sh examples/security esp32
-    - ./tools/ci/build_examples_cmake.sh examples/solution esp32
+    - cd examples/wireless_debug
+    - idf.py build
+    - rm -rf build/ sdkconfig
+    - idf.py set-target esp32s2
+    - idf.py build
+    - rm -rf build/ sdkconfig
+    - idf.py set-target esp32c3
+    - idf.py build
+    - cd -
+    - cd examples/get-started
+    - idf.py build
+    - cd -
+    - cd examples/control
+    - idf.py build
+    - cd -
+    - cd examples/ota
+    - idf.py build
+    - cd -
+    - cd examples/provisioning
+    - idf.py build
+    - cd -
+    - cd examples/security
+    - idf.py build
+    - cd -
+    - cd examples/solution
+    - idf.py build
 
 push_master_to_github:
   stage: deploy
