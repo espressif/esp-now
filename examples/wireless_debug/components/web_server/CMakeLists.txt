@@ -10,3 +10,5 @@ if(EXISTS ${WEB_SRC_DIR})
 else()
     message(FATAL_ERROR "${WEB_SRC_DIR}/dist doesn't exit. Please run 'npm run build' in ${WEB_SRC_DIR}")
 endif()
+
+target_compile_options(${COMPONENT_LIB} PRIVATE -Wno-pointer-sign -Wno-format)

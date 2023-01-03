@@ -17,6 +17,8 @@
 #include <string.h>
 #include <esp_err.h>
 #include <esp_log.h>
+#include "esp_mac.h"
+#include "esp_random.h"
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
@@ -191,7 +193,7 @@ static int addrs_search(espnow_addr_t *addrs_list, size_t addrs_num, espnow_addr
     return ESP_FAIL;
 }
 
-static xQueueHandle g_sec_queue = NULL;
+static QueueHandle_t g_sec_queue = NULL;
 typedef struct {
     uint8_t src_addr[6];
     void *data;
@@ -225,7 +227,7 @@ static esp_err_t espnow_initiator_sec_process(uint8_t *src_addr, void *data,
     return ESP_OK;
 }
 
-static esp_err_t protocomm_espnow_initiator_start(const protocomm_security_t *proto_sec, const protocomm_security_pop_t *pop,
+static esp_err_t protocomm_espnow_initiator_start(const protocomm_security_t *proto_sec, const void *pop,
                                                 const uint8_t addrs_list[][6], size_t addrs_num, espnow_sec_result_t *res)
 {
     ESP_PARAM_CHECK(proto_sec);
@@ -341,14 +343,18 @@ static esp_err_t protocomm_espnow_initiator_start(const protocomm_security_t *pr
                         /* Send APP key */
                         response_data->type = ESPNOW_SEC_TYPE_KEY;
                         if (proto_sec->encrypt) {
-                            outlen = APP_KEY_LEN;
+                            uint8_t *enc_resp = NULL;
+                            outlen = 0;
                             ret = proto_sec->encrypt(current_session_list[session_id], session_id, app_key, APP_KEY_LEN,
-                                                response_data->data, &outlen);
+                                                &enc_resp, &outlen);
 
                             if (ret != ESP_OK) {
                                 ESP_LOGE(TAG, "Encryption of data failed for session id %d", session_id);
+                                ESP_FREE(enc_resp);
                                 continue;
                             }
+                            memcpy(response_data->data, enc_resp, outlen);
+                            ESP_FREE(enc_resp);
                             response_data->size = outlen;
                             response_size = sizeof(espnow_sec_packet_t) + outlen;
                         } else {/* will not goto here */
@@ -411,7 +417,7 @@ esp_err_t espnow_sec_initiator_start(uint8_t key_info[APP_KEY_LEN], const char *
     ESP_PARAM_CHECK(addrs_list);
     ESP_PARAM_CHECK(addrs_num);
 
-    protocomm_security_pop_t pop = {
+    protocomm_security1_params_t pop = {
         .data = (const uint8_t *)pop_data,
         .len  = strlen(pop_data)
     };
@@ -424,7 +430,7 @@ esp_err_t espnow_sec_initiator_start(uint8_t key_info[APP_KEY_LEN], const char *
     ESP_ERROR_RETURN(!g_sec_queue, ESP_FAIL, "Create espnow security queue fail");
     espnow_set_type(ESPNOW_TYPE_SECURITY, 1, espnow_initiator_sec_process);
 
-    ret = protocomm_espnow_initiator_start(espnow_sec, &pop, addrs_list, addrs_num, res);
+    ret = protocomm_espnow_initiator_start(espnow_sec, (const void *)(&pop), addrs_list, addrs_num, res);
 
     espnow_set_type(ESPNOW_TYPE_SECURITY, 0, NULL);
     if (g_sec_queue) {

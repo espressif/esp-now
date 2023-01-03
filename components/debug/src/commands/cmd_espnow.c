@@ -24,6 +24,9 @@
 
 #include "espnow_console.h"
 #include "espnow_log.h"
+#include "esp_mac.h"
+#include "esp_random.h"
+#include "esp_timer.h"
 
 #include "espnow_ota.h"
 #include "espnow_prov.h"
@@ -649,7 +652,7 @@ static esp_err_t firmware_download(const char *url)
     }
 
     ESP_LOGI(TAG, "The service download firmware is complete, total_size: %d Spend time: %ds",
-             total_size, (xTaskGetTickCount() - start_time) * portTICK_RATE_MS / 1000);
+             total_size, (xTaskGetTickCount() - start_time) * portTICK_PERIOD_MS / 1000);
     
     g_ota_size = total_size;
     esp_storage_set("binary_len", &total_size, sizeof(size_t));
@@ -689,7 +692,7 @@ static void ota_send_task(void *arg)
                                     ota_initator_data_cb, &ota_result);
 
     ESP_LOGI(TAG, "Firmware is sent to the device to complete, Spend time: %ds",
-                (xTaskGetTickCount() - start_time) * portTICK_RATE_MS / 1000);
+                (xTaskGetTickCount() - start_time) * portTICK_PERIOD_MS / 1000);
     ESP_LOGI(TAG, "Devices upgrade completed, successed_num: %d, unfinished_num: %d",
                 ota_result.successed_num, ota_result.unfinished_num);
 
@@ -796,7 +799,7 @@ static int beacon_func(int argc, char **argv)
 {
     esp_err_t ret = ESP_OK;
     char *beacon_data = NULL;
-    const esp_app_desc_t *app_desc = esp_ota_get_app_description();
+    const esp_app_desc_t *app_desc = esp_app_get_description();
     size_t beacon_data_len = 0;
 
     espnow_add_peer(g_src_addr, NULL);
@@ -987,7 +990,7 @@ static int sec_test_func(int argc, char **argv)
     uint8_t *plain_txt = ESP_MALLOC(data_len);
     uint8_t *dec_txt = ESP_MALLOC(data_len);
     uint8_t *enc_txt = NULL;
-    uint32_t length = 0;
+    size_t length = 0;
     int64_t start_time = 0;
     int64_t end_time = 0;
     int64_t enc_time = 0;
@@ -1081,7 +1084,7 @@ static void sec_send_task(void *arg)
     espnow_sec_initiator_start(key_info, "espnow_pop", addrs_list, addrs_num, &sec_result);
 
     ESP_LOGI(TAG, "App key is sent to the device to complete, Spend time: %dms",
-             (xTaskGetTickCount() - start_time) * portTICK_RATE_MS);
+             (xTaskGetTickCount() - start_time) * portTICK_PERIOD_MS);
     ESP_LOGI(TAG, "Devices security completed, successed_num: %d, unfinished_num: %d", 
              sec_result.successed_num, sec_result.unfinished_num);
 

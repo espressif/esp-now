@@ -16,6 +16,7 @@
 #include <stdio.h>
 
 #include "esp_wifi.h"
+#include "esp_mac.h"
 
 #include "esp_utils.h"
 #include "espnow_ota.h"
@@ -84,7 +85,7 @@ static esp_err_t espnow_ota_info(const uint8_t *src_addr)
     espnow_ota_info_t *info = ESP_MALLOC(sizeof(espnow_ota_info_t));
 
     info->type = ESPNOW_OTA_TYPE_INFO;
-    memcpy(&info->app_desc, esp_ota_get_app_description(), sizeof(esp_app_desc_t));
+    memcpy(&info->app_desc, esp_app_get_description(), sizeof(esp_app_desc_t));
 
     ret = espnow_send(ESPNOW_TYPE_OTA_STATUS, src_addr, info, size, &g_frame_config, portMAX_DELAY);
 
@@ -306,7 +307,7 @@ static esp_err_t espnow_ota_write(const espnow_addr_t src_addr, const espnow_ota
                                   ESPNOW_OTA_PROGRESS_MAX_SIZE, ESP_LOG_VERBOSE);
         ESP_LOGI(TAG, "Write total_size: %d, written_size: %d, spend time: %ds",
                  g_ota_config->status.total_size, g_ota_config->status.written_size,
-                 (xTaskGetTickCount() - g_ota_config->start_time) * portTICK_RATE_MS / 1000);
+                 (xTaskGetTickCount() - g_ota_config->start_time) * portTICK_PERIOD_MS / 1000);
 
         /**< If ESP32 was reset duration OTA, and after restart, the update_handle will be invalid,
              but it still can switch boot partition and reboot successful */

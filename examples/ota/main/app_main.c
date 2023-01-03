@@ -99,7 +99,7 @@ static size_t firmware_download(const char *url)
         if (size > 0) {
             /**< Write OTA update data to partition */
             ret = esp_ota_write(ota_handle, data, OTA_DATA_PAYLOAD_LEN);
-            ESP_ERROR_GOTO(ret != ESP_OK, EXIT, "<%s> Write firmware to flash, size: %d, data: %.*s",
+            ESP_ERROR_GOTO(ret != ESP_OK, EXIT, "<%s> Write firmware to flash, size: %u, data: %.*s",
                 esp_err_to_name(ret), size, size, data);
         } else {
             ESP_LOGW(TAG, "<%s> esp_http_client_read", esp_err_to_name(ret));
@@ -107,8 +107,8 @@ static size_t firmware_download(const char *url)
         }
     }
 
-    ESP_LOGI(TAG, "The service download firmware is complete, Spend time: %ds",
-             (xTaskGetTickCount() - start_time) * portTICK_RATE_MS / 1000);
+    ESP_LOGI(TAG, "The service download firmware is complete, Spend time: %lus",
+             (xTaskGetTickCount() - start_time) * portTICK_PERIOD_MS / 1000);
 
     ret = esp_ota_end(ota_handle);
     ESP_ERROR_GOTO(ret != ESP_OK, EXIT, "<%s> esp_ota_end", esp_err_to_name(ret));
@@ -142,7 +142,7 @@ static void firmware_send(size_t firmware_size, uint8_t sha[ESPNOW_OTA_HASH_LEN]
     size_t num = 0;
 
     espnow_ota_initator_scan(&info_list, &num, pdMS_TO_TICKS(3000));
-    ESP_LOGW(TAG, "espnow wait ota num: %d", num);
+    ESP_LOGW(TAG, "espnow wait ota num: %u", num);
 
     if (!num) {
         goto EXIT;
@@ -160,13 +160,13 @@ static void firmware_send(size_t firmware_size, uint8_t sha[ESPNOW_OTA_HASH_LEN]
     ESP_ERROR_GOTO(ret != ESP_OK, EXIT, "<%s> espnow_ota_initator_send", esp_err_to_name(ret));
 
     if (espnow_ota_result.successed_num == 0) {
-        ESP_LOGW(TAG, "Devices upgrade failed, unfinished_num: %d", espnow_ota_result.unfinished_num);
+        ESP_LOGW(TAG, "Devices upgrade failed, unfinished_num: %u", espnow_ota_result.unfinished_num);
         goto EXIT;
     }
 
-    ESP_LOGI(TAG, "Firmware is sent to the device to complete, Spend time: %ds",
-             (xTaskGetTickCount() - start_time) * portTICK_RATE_MS / 1000);
-    ESP_LOGI(TAG, "Devices upgrade completed, successed_num: %d, unfinished_num: %d", 
+    ESP_LOGI(TAG, "Firmware is sent to the device to complete, Spend time: %lus",
+             (xTaskGetTickCount() - start_time) * portTICK_PERIOD_MS / 1000);
+    ESP_LOGI(TAG, "Devices upgrade completed, successed_num: %u, unfinished_num: %u", 
              espnow_ota_result.successed_num, espnow_ota_result.unfinished_num);
 
 EXIT:

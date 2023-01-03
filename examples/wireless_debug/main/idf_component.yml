@@ -1,8 +1,6 @@
 ## IDF Component Manager Manifest File
 dependencies:
-  espressif/button: "==2.5.0"
-  espressif/led_strip: "==2.0.0"
-  qrcode: "^0.1.0"
+  espressif/mdns: "^1.0.7"
   ## Required IDF version
   idf:
     version: ">=5.0"
