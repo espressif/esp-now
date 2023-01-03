@@ -26,7 +26,6 @@
 #include "espnow.h"
 #include "espnow_ctrl.h"
 
-#include "driver/rmt.h"
 #include "led_strip.h"
 #include "iot_button.h"
 
@@ -49,7 +48,7 @@ typedef enum {
     ESPNOW_CTRL_MAX
 } espnow_ctrl_status_t;
 
-static led_strip_t *g_strip_handle = NULL;
+static led_strip_handle_t g_strip_handle = NULL;
 static espnow_ctrl_status_t s_espnow_ctrl_status = ESPNOW_CTRL_INIT;
 
 static void wifi_init()
@@ -98,7 +97,18 @@ static void initiator_unbind_press_cb(void *arg, void *usr_data)
 
 static void app_driver_init(void)
 {
-    g_strip_handle = led_strip_init(RMT_CHANNEL_0, CONFIG_LED_STRIP_GPIO, 1);
+    /* LED strip initialization with the GPIO and pixels number*/
+    led_strip_config_t strip_config = {
+        .strip_gpio_num = CONFIG_LED_STRIP_GPIO,
+        .max_leds = 1, // at least one LED on board
+    };
+    led_strip_rmt_config_t rmt_config = {
+        .resolution_hz = 10 * 1000 * 1000, // 10MHz
+    };
+    ESP_ERROR_CHECK(led_strip_new_rmt_device(&strip_config, &rmt_config, &g_strip_handle));
+    /* Set all LED off to clear all pixels */
+    led_strip_clear(g_strip_handle);
+
     button_config_t button_config = {
         .type = BUTTON_TYPE_GPIO,
         .gpio_button_config = {
@@ -117,14 +127,14 @@ static void espnow_ctrl_responder_data_cb(espnow_attribute_t initiator_attribute
                                      espnow_attribute_t responder_attribute,
                                      uint32_t status)
 {
-    ESP_LOGI(TAG, "espnow_ctrl_responder_recv, initiator_attribute: %d, responder_attribute: %d, value: %d",
+    ESP_LOGI(TAG, "espnow_ctrl_responder_recv, initiator_attribute: %d, responder_attribute: %d, value: %ld",
                 initiator_attribute, responder_attribute, status);
 
     if (status) {
-        g_strip_handle->set_pixel(g_strip_handle, 0, 255, 255, 255);
-        g_strip_handle->refresh(g_strip_handle, 100);
+        led_strip_set_pixel(g_strip_handle, 0, 255, 255, 255);
+        led_strip_refresh(g_strip_handle);
     } else {
-        g_strip_handle->clear(g_strip_handle, 100);
+        led_strip_clear(g_strip_handle);
     }
 }
 
@@ -147,8 +157,8 @@ static void espnow_event_handler(void* handler_args, esp_event_base_t base, int3
             espnow_ctrl_bind_info_t *info = (espnow_ctrl_bind_info_t *)event_data;
             ESP_LOGI(TAG, "bind, uuid: " MACSTR ", initiator_type: %d", MAC2STR(info->mac), info->initiator_attribute);
             
-            g_strip_handle->set_pixel(g_strip_handle, 0, 0x0, 255, 0x0);
-            ESP_ERROR_CHECK(g_strip_handle->refresh(g_strip_handle, 100));
+            led_strip_set_pixel(g_strip_handle, 0, 0x0, 255, 0x0);
+            ESP_ERROR_CHECK(led_strip_refresh(g_strip_handle));
             break;
         }
 
@@ -156,8 +166,8 @@ static void espnow_event_handler(void* handler_args, esp_event_base_t base, int3
             espnow_ctrl_bind_info_t *info = (espnow_ctrl_bind_info_t *)event_data;
             ESP_LOGI(TAG, "unbind, uuid: " MACSTR ", initiator_type: %d", MAC2STR(info->mac), info->initiator_attribute);
             
-            g_strip_handle->set_pixel(g_strip_handle, 0, 255, 0x0, 0x00);
-            ESP_ERROR_CHECK(g_strip_handle->refresh(g_strip_handle, 100));
+            led_strip_set_pixel(g_strip_handle, 0, 255, 0x0, 0x00);
+            ESP_ERROR_CHECK(led_strip_refresh(g_strip_handle));
             break;
         }
 

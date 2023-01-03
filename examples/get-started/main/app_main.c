@@ -78,7 +78,7 @@ static void uart_read_task(void *arg)
         ret = espnow_send(ESPNOW_TYPE_DATA, ESPNOW_ADDR_BROADCAST, data, size, &frame_head, portMAX_DELAY);
         ESP_ERROR_CONTINUE(ret != ESP_OK, "<%s> espnow_send", esp_err_to_name(ret));
 
-        ESP_LOGI(TAG, "espnow_send, count: %d, size: %d, data: %s", count++, size, data);
+        ESP_LOGI(TAG, "espnow_send, count: %ld, size: %u, data: %s", count++, size, data);
         memset(data, 0, ESPNOW_DATA_LEN);
     }
 
@@ -98,7 +98,7 @@ static esp_err_t uart_write_handle(uint8_t *src_addr, void *data,
 
     static uint32_t count = 0;
 
-    ESP_LOGI(TAG, "espnow_recv, <%d> [" MACSTR "][%d][%d][%d]: %.*s", 
+    ESP_LOGI(TAG, "espnow_recv, <%ld> [" MACSTR "][%d][%d][%u]: %.*s", 
             count++, MAC2STR(src_addr), rx_ctrl->channel, rx_ctrl->rssi, size, size, (char *)data);
     // uart_write_bytes(CONFIG_UART_PORT_NUM, data, size);
 

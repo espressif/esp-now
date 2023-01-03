@@ -188,7 +188,7 @@ static int console_system_info(int argc, char **argv)
         esp_wifi_get_mac(ESP_IF_WIFI_STA, sta_mac);
         esp_wifi_get_channel(&primary, &second);
 
-        ESP_LOGI(TAG, "System information, mac: " MACSTR ", channel: %d, free heap: %u",
+        ESP_LOGI(TAG, "System information, mac: " MACSTR ", channel: %d, free heap: %lu",
                  MAC2STR(sta_mac), primary, esp_get_free_heap_size());
     }
 
