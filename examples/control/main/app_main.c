@@ -20,23 +20,29 @@
 #include "esp_log.h"
 #include "esp_wifi.h"
 #include "esp_netif.h"
+
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(4, 4, 0)
 #include "esp_mac.h"
+#endif
 
 #include "esp_utils.h"
 #include "espnow.h"
 #include "espnow_ctrl.h"
 
+#if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 0, 0)
+#include "driver/rmt.h"
+#endif
 #include "led_strip.h"
 #include "iot_button.h"
 
 #ifdef CONFIG_IDF_TARGET_ESP32C3
-#define BOOT_KEY_GPIIO        GPIO_NUM_9
+#define BOOT_KEY_GPIO         GPIO_NUM_9
 #define CONFIG_LED_STRIP_GPIO GPIO_NUM_8
 #elif CONFIG_IDF_TARGET_ESP32S3
-#define BOOT_KEY_GPIIO        GPIO_NUM_0
+#define BOOT_KEY_GPIO         GPIO_NUM_0
 #define CONFIG_LED_STRIP_GPIO GPIO_NUM_48
 #else
-#define BOOT_KEY_GPIIO        GPIO_NUM_0
+#define BOOT_KEY_GPIO         GPIO_NUM_0
 #define CONFIG_LED_STRIP_GPIO GPIO_NUM_18
 #endif
 
@@ -48,7 +54,14 @@ typedef enum {
     ESPNOW_CTRL_MAX
 } espnow_ctrl_status_t;
 
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
+#if !CONFIG_IDF_TARGET_ESP32C2
 static led_strip_handle_t g_strip_handle = NULL;
+#endif
+#else
+static led_strip_t *g_strip_handle = NULL;
+#endif
+
 static espnow_ctrl_status_t s_espnow_ctrl_status = ESPNOW_CTRL_INIT;
 
 static void wifi_init()
@@ -97,6 +110,10 @@ static void initiator_unbind_press_cb(void *arg, void *usr_data)
 
 static void app_driver_init(void)
 {
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
+#if CONFIG_IDF_TARGET_ESP32C2
+    ESP_LOGW(TAG, "Light init is not implemented for C2 yet.");
+#else
     /* LED strip initialization with the GPIO and pixels number*/
     led_strip_config_t strip_config = {
         .strip_gpio_num = CONFIG_LED_STRIP_GPIO,
@@ -108,11 +125,15 @@ static void app_driver_init(void)
     ESP_ERROR_CHECK(led_strip_new_rmt_device(&strip_config, &rmt_config, &g_strip_handle));
     /* Set all LED off to clear all pixels */
     led_strip_clear(g_strip_handle);
+#endif
+#else
+    g_strip_handle = led_strip_init(RMT_CHANNEL_0, CONFIG_LED_STRIP_GPIO, 1);
+#endif
 
     button_config_t button_config = {
         .type = BUTTON_TYPE_GPIO,
         .gpio_button_config = {
-            .gpio_num = BOOT_KEY_GPIIO,
+            .gpio_num = BOOT_KEY_GPIO,
             .active_level = 0,
         },
     };
@@ -127,15 +148,32 @@ static void espnow_ctrl_responder_data_cb(espnow_attribute_t initiator_attribute
                                      espnow_attribute_t responder_attribute,
                                      uint32_t status)
 {
-    ESP_LOGI(TAG, "espnow_ctrl_responder_recv, initiator_attribute: %d, responder_attribute: %d, value: %ld",
+    ESP_LOGI(TAG, "espnow_ctrl_responder_recv, initiator_attribute: %d, responder_attribute: %d, value: %" PRIu32 "",
                 initiator_attribute, responder_attribute, status);
 
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
+#if CONFIG_IDF_TARGET_ESP32C2
+    if (status) {
+        ESP_LOGW(TAG, "LED status: 255, 255, 255");
+    } else {
+        ESP_LOGW(TAG, "LED status: 0, 0, 0");
+    }
+#else
     if (status) {
         led_strip_set_pixel(g_strip_handle, 0, 255, 255, 255);
         led_strip_refresh(g_strip_handle);
     } else {
         led_strip_clear(g_strip_handle);
     }
+#endif
+#else
+    if (status) {
+        g_strip_handle->set_pixel(g_strip_handle, 0, 255, 255, 255);
+        g_strip_handle->refresh(g_strip_handle, 100);
+    } else {
+        g_strip_handle->clear(g_strip_handle, 100);
+    }
+#endif
 }
 
 static void responder_light(void)
@@ -156,18 +194,36 @@ static void espnow_event_handler(void* handler_args, esp_event_base_t base, int3
         case ESP_EVENT_ESPNOW_CTRL_BIND: {
             espnow_ctrl_bind_info_t *info = (espnow_ctrl_bind_info_t *)event_data;
             ESP_LOGI(TAG, "bind, uuid: " MACSTR ", initiator_type: %d", MAC2STR(info->mac), info->initiator_attribute);
-            
-            led_strip_set_pixel(g_strip_handle, 0, 0x0, 255, 0x0);
+
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
+#if CONFIG_IDF_TARGET_ESP32C2
+            ESP_LOGW(TAG, "LED status: 0, 255, 0");
+#else
+            led_strip_set_pixel(g_strip_handle, 0, 0, 255, 0);
             ESP_ERROR_CHECK(led_strip_refresh(g_strip_handle));
+#endif
+#else
+            g_strip_handle->set_pixel(g_strip_handle, 0, 0, 255, 0);
+            ESP_ERROR_CHECK(g_strip_handle->refresh(g_strip_handle, 100));
+#endif
             break;
         }
 
         case ESP_EVENT_ESPNOW_CTRL_UNBIND: {
             espnow_ctrl_bind_info_t *info = (espnow_ctrl_bind_info_t *)event_data;
             ESP_LOGI(TAG, "unbind, uuid: " MACSTR ", initiator_type: %d", MAC2STR(info->mac), info->initiator_attribute);
-            
-            led_strip_set_pixel(g_strip_handle, 0, 255, 0x0, 0x00);
+
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
+#if CONFIG_IDF_TARGET_ESP32C2
+            ESP_LOGW(TAG, "LED status: 255, 0, 0");
+#else
+            led_strip_set_pixel(g_strip_handle, 0, 255, 0, 0);
             ESP_ERROR_CHECK(led_strip_refresh(g_strip_handle));
+#endif
+#else
+            g_strip_handle->set_pixel(g_strip_handle, 0, 255, 0, 0);
+            ESP_ERROR_CHECK(g_strip_handle->refresh(g_strip_handle, 100));
+#endif
             break;
         }
 

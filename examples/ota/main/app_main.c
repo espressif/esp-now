@@ -107,7 +107,7 @@ static size_t firmware_download(const char *url)
         }
     }
 
-    ESP_LOGI(TAG, "The service download firmware is complete, Spend time: %lus",
+    ESP_LOGI(TAG, "The service download firmware is complete, Spend time: %" PRIu32 "s",
              (xTaskGetTickCount() - start_time) * portTICK_PERIOD_MS / 1000);
 
     ret = esp_ota_end(ota_handle);
@@ -164,7 +164,7 @@ static void firmware_send(size_t firmware_size, uint8_t sha[ESPNOW_OTA_HASH_LEN]
         goto EXIT;
     }
 
-    ESP_LOGI(TAG, "Firmware is sent to the device to complete, Spend time: %lus",
+    ESP_LOGI(TAG, "Firmware is sent to the device to complete, Spend time: %" PRIu32 "s",
              (xTaskGetTickCount() - start_time) * portTICK_PERIOD_MS / 1000);
     ESP_LOGI(TAG, "Devices upgrade completed, successed_num: %u, unfinished_num: %u", 
              espnow_ota_result.successed_num, espnow_ota_result.unfinished_num);

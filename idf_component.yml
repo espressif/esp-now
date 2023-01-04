@@ -1,0 +1,5 @@
+version: "2.0.0"
+description: This package provides enhanced ESP-NOW functions which will be easy to integrated into product.
+url: https://github.com/espressif/esp-now
+dependencies:
+  idf: ">=4.3"

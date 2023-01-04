@@ -1,7 +1,7 @@
 
 idf_component_register(SRC_DIRS "."
                     INCLUDE_DIRS "include"
-                    REQUIRES  "utils" "spi_flash" "console" "nvs_flash" "fatfs" "espnow" "spiffs" "mdns" "esp_http_server" "json" "ota")
+                    REQUIRES "spi_flash" "console" "nvs_flash" "fatfs" "esp-now" "spiffs" "mdns" "esp_http_server" "json")
 
 set(WEB_SRC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/front")
 

@@ -3,17 +3,11 @@
 cmake_minimum_required(VERSION 3.5)
 add_compile_options(-fdiagnostics-color=always)
 
-if(NOT DEFINED ESPNOW_PATH)
-    set(ESPNOW_PATH ${CMAKE_CURRENT_LIST_DIR}/../..)
-endif()
 if(NOT DEFINED IDF_TARGET)
     set(IDF_TARGET "esp32")
 endif()
 
-set(EXTRA_COMPONENT_DIRS ${ESPNOW_PATH}/components
-                        # (Not part of the boilerplate)
-                        # This example uses an extra component for common functions such as Wi-Fi and Ethernet connection.
-                         $ENV{IDF_PATH}/examples/common_components/protocol_examples_common)
+set(EXTRA_COMPONENT_DIRS $ENV{IDF_PATH}/examples/common_components/protocol_examples_common)
 
 # include(${ESPNOW_PATH}/component.cmake)
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
