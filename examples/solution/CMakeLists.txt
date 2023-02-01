@@ -3,15 +3,11 @@
 cmake_minimum_required(VERSION 3.5)
 add_compile_options(-fdiagnostics-color=always)
 
-if(NOT DEFINED ESPNOW_PATH)
-    set(ESPNOW_PATH ${CMAKE_CURRENT_LIST_DIR}/../..)
-endif()
 if(NOT DEFINED IDF_TARGET)
     set(IDF_TARGET "esp32")
 endif()
 
-set(EXTRA_COMPONENT_DIRS ${ESPNOW_PATH}/components
-                         ${ESPNOW_PATH}/examples/solution/common_components)
+set(EXTRA_COMPONENT_DIRS common_components)
 
 # include(${ESPNOW_PATH}/component.cmake)
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)

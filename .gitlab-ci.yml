@@ -1,60 +1,72 @@
 stages:
-  - build_idf
+  - build
   - deploy
 
 variables:
   BATCH_BUILD: "1"
   V: "0"
-  MAKEFLAGS: "-j5 --no-keep-going"
-  IDF_PATH: "$CI_PROJECT_DIR/esp-idf"
+  MAKEFLAGS: "-j8 --no-keep-going"
   IDF_CI_BUILD: "1"
 
-build_idf_demo:
-  stage: build_idf
-  image: $CI_DOCKER_REGISTRY/esp-env-v5.0:2
+before_script:
+  # add gitlab ssh key
+  - mkdir -p ~/.ssh
+  - chmod 700 ~/.ssh
+  - echo -n $GITLAB_KEY > ~/.ssh/id_rsa_base64
+  - base64 --decode --ignore-garbage ~/.ssh/id_rsa_base64 > ~/.ssh/id_rsa
+  - chmod 600 ~/.ssh/id_rsa
+  - echo -e "Host gitlab.espressif.cn\n\tStrictHostKeyChecking no\n" >> ~/.ssh/config
+
+.build_all_examples_script: &build_all_examples_script
+  - for EXAMPLE in $EXAMPLES; do
+  - cd $CI_PROJECT_DIR/examples/$EXAMPLE
+  - echo Building $EXAMPLE
+  - if [[ "$EXAMPLE" == "solution" ]]; then
+  - for TARGET in $TARGETS; do
+  - cd $CI_PROJECT_DIR/examples/$EXAMPLE
+  - idf.py fullclean
+  - idf.py set-target $TARGET
+  - idf.py build
+  - done
+  - else
+  - idf.py fullclean
+  - idf.py build
+  - fi
+  - echo Build Complete for $EXAMPLE
+  - done
+
+.build_template:
+  stage: build
   tags:
     - build
+  variables:
+    EXAMPLES: "control get-started ota provisioning security solution wireless_debug"
   script:
-  # add gitlab ssh key
-    - mkdir -p ~/.ssh
-    - chmod 700 ~/.ssh
-    - echo -n $GITLAB_KEY > ~/.ssh/id_rsa_base64
-    - base64 --decode --ignore-garbage ~/.ssh/id_rsa_base64 > ~/.ssh/id_rsa
-    - chmod 600 ~/.ssh/id_rsa
-    - echo -e "Host gitlab.espressif.cn\n\tStrictHostKeyChecking no\n" >> ~/.ssh/config
-    - git --version
-    - git clone --recursive -b v5.0 --depth 1 $GITLAB_SSH_SERVER/idf/esp-idf.git
-    - export IDF_PATH=$CI_PROJECT_DIR/esp-idf
-    - cd esp-idf/
-    - ./install.sh
-    - . ./export.sh
-    - cd -
-    - cd examples/wireless_debug
-    - idf.py build
-    - rm -rf build/ sdkconfig
-    - idf.py set-target esp32s2
-    - idf.py build
-    - rm -rf build/ sdkconfig
-    - idf.py set-target esp32c3
-    - idf.py build
-    - cd -
-    - cd examples/get-started
-    - idf.py build
-    - cd -
-    - cd examples/control
-    - idf.py build
-    - cd -
-    - cd examples/ota
-    - idf.py build
-    - cd -
-    - cd examples/provisioning
-    - idf.py build
-    - cd -
-    - cd examples/security
-    - idf.py build
-    - cd -
-    - cd examples/solution
-    - idf.py build
+    - *build_all_examples_script
+
+build_idf_v4.3:
+  extends: .build_template
+  image: espressif/idf:release-v4.3
+  variables:
+    TARGETS: "esp32 esp32s2 esp32c3"
+
+build_idf_v4.4:
+  extends: .build_template
+  image: espressif/idf:release-v4.4
+  variables:
+    TARGETS: "esp32 esp32s2 esp32s3 esp32c3"
+
+build_idf_v5.0:
+  extends: .build_template
+  image: espressif/idf:release-v5.0
+  variables:
+    TARGETS: "esp32 esp32s2 esp32s3 esp32c2 esp32c3"
+
+build_idf_master:
+  extends: .build_template
+  image: espressif/idf:latest
+  variables:
+    TARGETS: "esp32 esp32s2 esp32s3 esp32c2 esp32c3"
 
 push_master_to_github:
   stage: deploy

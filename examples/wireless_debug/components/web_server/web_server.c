@@ -12,7 +12,11 @@
 #include "esp_netif.h"
 #include "esp_system.h"
 #include "esp_log.h"
+
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(4, 4, 0)
 #include "esp_mac.h"
+#endif
+
 #include "esp_vfs.h"
 #include "cJSON.h"
 

@@ -2,10 +2,10 @@
 nvs,        data, nvs,      0x9000,   16K,
 otadata,    data, ota,      0xd000,   8K,
 phy_init,   data, phy,      0xf000,   4K,
-ota_0,      app,  ota_0,    0x10000,  1096k
-ota_1,      app,  ota_1,    ,         1096k
+ota_0,      app,  ota_0,    0x10000,  1112k
+ota_1,      app,  ota_1,    ,         1112k
 coredump,   data, coredump, ,         64K,
-log_info,   data, 0xfe,     ,         48K,
+log_info,   data, 0xfe,     ,         32K,
 log_status, data, nvs,      ,         16K,
-console,    data, spiffs,   ,         48K
+console,    data, spiffs,   ,         32K
 www,        data, spiffs,   ,         1400K,

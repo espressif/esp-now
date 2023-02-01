@@ -19,8 +19,11 @@
 #include "esp_log.h"
 #include "esp_wifi.h"
 #include "esp_netif.h"
+
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(4, 4, 0)
 #include "esp_mac.h"
 #include "esp_random.h"
+#endif
 
 #include "esp_utils.h"
 #include "esp_storage.h"
@@ -87,7 +90,7 @@ static void uart_read_task(void *arg)
         ret = espnow_send(ESPNOW_TYPE_DATA, ESPNOW_ADDR_BROADCAST, data, size, &frame_head, portMAX_DELAY);
         ESP_ERROR_CONTINUE(ret != ESP_OK, "<%s> espnow_send", esp_err_to_name(ret));
 
-        ESP_LOGI(TAG, "espnow_send, count: %ld, size: %u, data: %s", count++, size, data);
+        ESP_LOGI(TAG, "espnow_send, count: %" PRIu32 ", size: %u, data: %s", count++, size, data);
         memset(data, 0, ESPNOW_DATA_LEN);
     }
 
@@ -107,7 +110,7 @@ static esp_err_t uart_write_handle(uint8_t *src_addr, void *data,
 
     static uint32_t count = 0;
 
-    ESP_LOGI(TAG, "espnow_recv, <%ld> [" MACSTR "][%d][%d][%u]: %.*s", 
+    ESP_LOGI(TAG, "espnow_recv, <%" PRIu32 "> [" MACSTR "][%d][%d][%u]: %.*s", 
             count++, MAC2STR(src_addr), rx_ctrl->channel, rx_ctrl->rssi, size, size, (char *)data);
 
     return ESP_OK;
@@ -163,7 +166,7 @@ void app_main()
     esp_err_t ret = espnow_sec_initiator_start(key_info, pop_data, dest_addr_list, num, &espnow_sec_result);
     ESP_ERROR_GOTO(ret != ESP_OK, EXIT, "<%s> espnow_sec_initator_start", esp_err_to_name(ret));
 
-    ESP_LOGI(TAG, "App key is sent to the device to complete, Spend time: %ldms, Scan time: %ldms",
+    ESP_LOGI(TAG, "App key is sent to the device to complete, Spend time: %" PRId32 "ms, Scan time: %" PRId32 "ms",
              (xTaskGetTickCount() - start_time1) * portTICK_PERIOD_MS, 
              (start_time2 - start_time1) * portTICK_PERIOD_MS);
     ESP_LOGI(TAG, "Devices security completed, successed_num: %u, unfinished_num: %u", 

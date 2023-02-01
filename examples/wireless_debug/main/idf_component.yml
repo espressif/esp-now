@@ -1,9 +1,15 @@
 ## IDF Component Manager Manifest File
 dependencies:
-  espressif/mdns: "^1.0.7"
+  espressif/mdns:
+    version: "^1.0.7"
+    rules:
+      - if: "idf_version >=5.0"
   ## Required IDF version
   idf:
-    version: ">=5.0"
+    version: ">=4.3"
+  esp-now:
+    version: "2.*"
+    override_path: "../../.."
   # # Put list of dependencies here
   # # For components maintained by Espressif:
   # component: "~1.0.0"

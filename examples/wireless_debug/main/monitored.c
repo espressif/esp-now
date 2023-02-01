@@ -27,7 +27,10 @@
 #include "esp_log.h"
 #include "esp_wifi.h"
 #include "esp_netif.h"
+
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(4, 4, 0)
 #include "esp_mac.h"
+#endif
 
 #include "nvs_flash.h"
 #include "nvs.h"
@@ -188,7 +191,7 @@ static int console_system_info(int argc, char **argv)
         esp_wifi_get_mac(ESP_IF_WIFI_STA, sta_mac);
         esp_wifi_get_channel(&primary, &second);
 
-        ESP_LOGI(TAG, "System information, mac: " MACSTR ", channel: %d, free heap: %lu",
+        ESP_LOGI(TAG, "System information, mac: " MACSTR ", channel: %" PRIu8 ", free heap: %" PRIu32 "",
                  MAC2STR(sta_mac), primary, esp_get_free_heap_size());
     }
 
