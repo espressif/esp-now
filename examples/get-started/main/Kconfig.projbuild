@@ -1,21 +1,4 @@
 menu "Example Configuration"
-
-    config UART_PORT_NUM
-        int "UART port number"
-        range 0 2 if IDF_TARGET_ESP32   || IDF_TARGET_ESP32S3
-        range 0 1 if IDF_TARGET_ESP32S2 || IDF_TARGET_ESP32C3
-        default 0
-        help
-            UART communication port number for the example.
-            See UART documentation for available port numbers.
-
-    config UART_BAUD_RATE
-        int "UART communication speed"
-        range 1200 115200
-        default 115200
-        help
-            UART communication speed for example.
-
     config RETRY_NUM
         int "Packet retransmission count"
         default 5
