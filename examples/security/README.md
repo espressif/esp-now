@@ -1,23 +1,25 @@
 # Security Example
 
-This example demonstrates how to configurate `ESP-NOW` encryption key to devices.
+This example demonstrates how to use ESP-NOW security feature to configure encryption key to devices, so the transmitted ESP-NOW data will be encrypted automatically.
+
+The basic functionality is same as get_start, but just have this extra security enhancement.
 
 ## Functionality
-The process flow is as follows:
+
+The workflow is as follows:
 
 <img src="../../docs/_static/en/espnow_security_en.png" width="450">
 
-- Process uses [Protocomm](https://docs.espressif.com/projects/esp-idf/zh_CN/latest/esp32/api-reference/provisioning/protocomm.html?highlight=protocomm#protocol-communication) to provide simple callbacks to the application for setting the configuration.
-
-- ECDH and confirm details refer to [security-schemes](https://docs.espressif.com/projects/esp-idf/zh_CN/latest/esp32/api-reference/provisioning/provisioning.html#security-schemes)
+- [Protocomm](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/provisioning/protocomm.html) is used to provide simple callbacks to the application for setting the configuration.
+- ECDH and confirm details refer to [security-schemes](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/provisioning/provisioning.html#security-schemes)
 
 ## Hardware Required
 
-This example can be executed on any platform board and at least two development boards are required.
+This example can run on any ESP32 series boards and at least two development boards are required, 1 works as initiator, and the others work as responders.
 
 ## Configuration
 
-Open the project configuration menu (`idf.py menuconfig`) to configure the Proof of Possession (PoP) string. It is used to authorize session and derive shared key. Set the same in initiator and responder:
+Open the project configuration menu (`idf.py menuconfig`) to configure the Proof of Possession (PoP) string. It is used to authorize session and derive shared key. Set the same in initiator and responder devices:
 
 ```
 idf.py menuconfig
@@ -29,40 +31,47 @@ idf.py menuconfig
 ## How to Use the Example
 
 ### Step 1: Build & Flash & Run the Responders
+
 - Select the ESP-NOW security responder Mode:
+
 ```
 idf.py menuconfig
     Example Configuration  --->
         ESP-NOW Mode  --->
-            () ESP-NOW SEC initator Mode
-            (X) ESP-NOW SEC responder Mode
+            () Initator Mode
+            (X) Responder Mode
 ```
-- When the responder starts up, it will wait to receive security info.
+
+- When the responder devices start up, it will wait to receive security info.
 
 ### Step 2: Build & Flash & Run the Initiator
+
 - Select the ESP-NOW security initator Mode:
+
 ```
 idf.py menuconfig
     Example Configuration  --->
         ESP-NOW Mode  --->
-            (X) ESP-NOW SEC initator Mode
-            () ESP-NOW SEC responder Mode
+            (X) Initator Mode
+            () Responder Mode
 ```
+
 - When the initiator starts up, it will
-    * Scan the responders and get responder address list
-    * Secure handshake (ECDH) with responders and confirm share key
-    * Send app key encrypted by share key to responders
+  * Scan the responders and get responder address list
+  * Secure handshake (ECDH) with responders and confirm share key
+  * Send app key encrypted by share key to responders
 
 ### Step 3: Send and Receive in secure mode
 
-- When security state is over, encryption key derived from app key will be set. 
+- When security state is over, encryption key derived from app key will be set.
 - Then data is encrypted and decrypted in AES128-CCM.
 - In the example, message will be received from the serial port and broadcast to others in encrypted mode.
 - Other node receives the espnow message and decrypt the data.
 
 ## Example Output
 
-Output sample from the responder:
+Output sample from the responder device:
+
 ```
 I (550) wifi:Set ps type: 0
 
@@ -75,7 +84,8 @@ I (716965) app_main: espnow_send, count: 43, size: 23, data: Message from respon
 I (751668) app_main: espnow_recv, <83> [24:0a:c4:d6:d3:00][1][-16][23]: Message from initiator.
 ```
 
-Output sample from the initiator:
+Output sample from the initiator device:
+
 ```
 I (564) wifi:Set ps type: 0
 
