@@ -1,14 +1,14 @@
 # OTA Example
 
-This example demonstrates how to use `ESP-NOW` to upgrade devices.
+This example demonstrates how to use ESP-NOW OTA feature to help upgrading other devices.
 
 ## Hardware Required
 
-This example can be executed on any platform board and at least two development boards are required.
+This example can run on any ESP32 series boards and at least two development boards are required, 1 works as initiator, and the others work as responders.
 
 ## Configuration
 
-Open the project configuration menu (`idf.py menuconfig`) to configure the ota mode and firmware upgrade url (Refer to Kconfig file).
+Open the project configuration menu (`idf.py menuconfig`) to configure the OTA mode and firmware upgrade URL (Refer to Kconfig file).
 
 ## How to Use the Example
 
@@ -16,7 +16,7 @@ Open the project configuration menu (`idf.py menuconfig`) to configure the ota m
 
 ### Step 1: Connect to the router
 
-Connect PC to the router that is connected to `ESP-NOW OTA Initiator` network.
+Connect PC to the router, the `ESP-NOW OTA Initiator Device` will connect to this router later.
 
 ### Step 2: Run HTTP server
 
@@ -26,34 +26,50 @@ Open a new terminal to run the HTTP server, and then run the below command to ge
 cd $IDF_PATH/examples/get-started/hello_world/
 idf.py build
 cd build
-python -m SimpleHTTPServer 8070
-```
->  When generate the firmware to be upgraded with ESP32, please set `Flash SPI speed` to `80 MHz` to keep the same with ota example, or the firmware may crash when boot after upgrade.
-```shell
-idf.py menuconfig
-	Component config --> 
-		Serial flasher config --> 
-			Flash SPI speed(80 MHz)
+python -m http.server 8070
 ```
 
-While running the server, you may go to `http：// localhost：8070/` to browse the build directory.
+While the server is running, you may open this `http://localhost:8070/` in browse to check the build directory.
 
 > Note:
-> 
-	1. The above command may vary from systems. For some systems, the last command line may be `python2 -m SimpleHTTPServer 8070`.
-	2. If there are firewall softwares that prevent any access to the port 8070, please grant the access while the example is running.
+	1. If there are firewall softwares that prevent any access to the port 8070, please grant the access while the example is running.
 
-### Step 3: Build an OTA example
+### Step 3: Build & Flash & Run the responders
 
-Navigate to the OTA example directory, and type `idf.py menuconfig` to configure the OTA example. 
+Navigate to the OTA example directory, and type `idf.py menuconfig` to configure the OTA example.
 
-Set following parameters under `Example Connection Configuration` Options:
+Set following configurations under `Example Connection Configuration` Options:
 * Set `WiFi SSID` of the Router (Access-Point).
 * Set `WiFi Password` of the Router (Access-Point).
 
-Set following parameter under `Example Configuration` Options:
-* Set ESP-NOW OTA mode
-* Set firmware upgrade URL。
+Set following configurations under `Example Configuration` Options:
+* Set `ESP-NOW mode` to `Responder Mode`
+
+When downloading the flash, it's recommend to use `erase_flash` to erase the entire flash memory (all the remaining data in ota_data partition will be deleted as well) for the first time, and then write the followings via a serial port:
+
+```shell
+idf.py erase_flash flash
+```
+
+When the example on the responder device starts up, it will:
+
+1. Connect to the AP with configured SSID and password.
+2. Create OTA task to receive OTA frames.
+3. Response with OTA information if receives OTA request frame.
+4. Write the image to flash if receives OTA image data. If receives all the image, configure the next boot from this image.
+5. If reboot the device, it will run to the new image.
+
+### Step 4: Build & Flash & Run the initiator
+
+Navigate to the OTA example directory, and type `idf.py menuconfig` to configure the OTA example.
+
+Set following configurations under `Example Connection Configuration` Options:
+* Set `WiFi SSID` of the Router (Access-Point).
+* Set `WiFi Password` of the Router (Access-Point).
+
+Set following configurations under `Example Configuration` Options:
+* Set `ESP-NOW mode` to `Initiator Mode`
+* Set firmware upgrade URL
   
 ```
 http://<host-ip-address>:<host-port>/<firmware-image-filename>
@@ -62,29 +78,18 @@ for e.g,
 http://192.168.0.3:8070/hello-world.bin
 ```
 
-### Step 4: Flash the OTA example
-
-When downloading the flash, please firstly use `erase_flash` to erase the entire flash memory (all the remaining data in ota_data partition will be deleted as well), and then write the followings via a serial port:
+When downloading the flash, it's recommend to use `erase_flash` to erase the entire flash memory (all the remaining data in ota_data partition will be deleted as well) for the first time, and then write the followings via a serial port:
 
 ```shell
 idf.py erase_flash flash
 ```
 
-### Step 5: Run the OTA example
-
 When the example on the initiator device starts up, it will:
 
 1. Connect to the AP with configured SSID and password.
 2. Connect to the HTTP server and download the new image.
-3. Scan ota responders and get responder list.
-4. Send the new image in ESP-NOW data to responders until all responders have finished upgrading or sending times reach CONFIG_ESPNOW_OTA_RETRY_COUNT. 
-
-When the example on the responder device starts up, it will:
-1. Connect to the AP with configured SSID and password.
-2. Create OTA task to receive OTA frames.
-3. Response with OTA information if receives OTA request frame.
-4. Write the image to flash if receives OTA image data. If receives all the image, configure the next boot from this image.
-5. If reboot the device, it will run to the new image.
+3. Scan OTA responders and get responder list.
+4. Send the new image in ESP-NOW data to responders until all responders have finished upgrading or sending times reach CONFIG_ESPNOW_OTA_RETRY_COUNT.
 
 ## Example Output
 Note that the output, in particular the order of the output, may vary depending on the environment.
