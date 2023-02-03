@@ -7,8 +7,6 @@ if(NOT DEFINED IDF_TARGET)
     set(IDF_TARGET "esp32")
 endif()
 
-set(EXTRA_COMPONENT_DIRS common_components)
-
 # include(${ESPNOW_PATH}/component.cmake)
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 

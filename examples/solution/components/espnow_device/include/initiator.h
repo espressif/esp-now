@@ -13,11 +13,15 @@
 extern "C" {
 #endif
 
-void espnow_responder_reg();
-void espnow_responder();
+void app_espnow_initiator_register();
+void app_espnow_initiator();
 
-#ifdef CONFIG_ESPNOW_PROVISION
-esp_err_t provision_responder_start(void);
+#ifdef CONFIG_APP_ESPNOW_PROVISION
+esp_err_t app_espnow_prov_beacon_start(int32_t sec);
+#endif
+
+#ifdef CONFIG_APP_ESPNOW_SECURITY
+void app_espnow_initiator_sec_start();
 #endif
 
 #ifdef __cplusplus

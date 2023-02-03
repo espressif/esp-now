@@ -7,94 +7,72 @@
    CONDITIONS OF ANY KIND, either express or implied.
 */
 
-#include "sdkconfig.h"
-
-#ifdef CONFIG_ESPNOW_INITIATOR
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <esp_log.h>
-#include <esp_ota_ops.h>
-#include <errno.h>
-
 #include "freertos/FreeRTOS.h"
-#include "freertos/queue.h"
-#include "freertos/task.h"
 #include "freertos/event_groups.h"
+#include "freertos/task.h"
 
-#include "esp_system.h"
 #include "esp_log.h"
+#include "esp_system.h"
 #include "esp_wifi.h"
-#include "esp_netif.h"
 
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(4, 4, 0)
 #include "esp_mac.h"
 #include "esp_random.h"
 #endif
 
-#include "nvs_flash.h"
-#include "nvs.h"
-
 #include "esp_utils.h"
 #include "esp_storage.h"
+
 #include "espnow.h"
 
-#ifdef CONFIG_ESPNOW_DEBUG
-#include "espnow_log.h"
+#ifdef CONFIG_APP_ESPNOW_DEBUG
 #include "espnow_console.h"
+#include "espnow_log.h"
 #include "sdcard.h"
 #include "esp_spiffs.h"
 #endif
-#ifdef CONFIG_ESPNOW_OTA
+
+#ifdef CONFIG_APP_ESPNOW_OTA
 #include "espnow_ota.h"
 #endif
-#ifdef CONFIG_ESPNOW_PROVISION
+
+#ifdef CONFIG_APP_ESPNOW_PROVISION
 #include "espnow_prov.h"
 #endif
-#ifdef CONFIG_ESPNOW_SECURITY
+
+#ifdef CONFIG_APP_ESPNOW_SECURITY
 #include "espnow_security.h"
 #include "espnow_security_handshake.h"
 #endif
 
 static const char *TAG = "init";
 
-static void espnow_event_handler(void* handler_args, esp_event_base_t base, int32_t id, void* event_data)
-{
-    if (base != ESP_EVENT_ESPNOW) {
-        return;
-    }
-
-    switch (id) {
-        default:
-        break;
-    }
-}
-
-/* 
+/*
  * May connecting network by debug command or espnow provisioning
  */
-#if defined(CONFIG_ESPNOW_DEBUG) || defined(CONFIG_ESPNOW_PROVISION)
+#if defined(CONFIG_APP_ESPNOW_DEBUG) || defined(CONFIG_APP_ESPNOW_PROVISION)
 static EventGroupHandle_t s_wifi_event_group;
 
 #define WIFI_CONNECTED_BIT BIT0
 #define WIFI_FAIL_BIT      BIT1
 
-static void event_handler(void* arg, esp_event_base_t event_base,
-                                int32_t event_id, void* event_data)
+static void app_wifi_event_handler(void *arg, esp_event_base_t event_base,
+                                   int32_t event_id, void *event_data)
 {
     if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED) {
         xEventGroupSetBits(s_wifi_event_group, WIFI_FAIL_BIT);
     } else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
-        ip_event_got_ip_t* event = (ip_event_got_ip_t*) event_data;
+        ip_event_got_ip_t *event = (ip_event_got_ip_t *) event_data;
+
         ESP_LOGI(TAG, "got ip:" IPSTR, IP2STR(&event->ip_info.ip));
         xEventGroupSetBits(s_wifi_event_group, WIFI_CONNECTED_BIT);
     }
 }
 #endif
 
-#ifdef CONFIG_ESPNOW_DEBUG
-static esp_err_t espnow_debug_recv_process(uint8_t *src_addr, void *data,
-                      size_t size, wifi_pkt_rx_ctrl_t *rx_ctrl)
+#ifdef CONFIG_APP_ESPNOW_DEBUG
+static esp_err_t app_espnow_debug_recv_process(uint8_t *src_addr, void *data,
+        size_t size, wifi_pkt_rx_ctrl_t *rx_ctrl)
 {
     ESP_PARAM_CHECK(src_addr);
     ESP_PARAM_CHECK(data);
@@ -102,8 +80,6 @@ static esp_err_t espnow_debug_recv_process(uint8_t *src_addr, void *data,
     ESP_PARAM_CHECK(rx_ctrl);
 
     char *recv_data = (char *)data;
-    // TODO
-    // web_server_send(src_addr, recv_data, size, rx_ctrl);
 
     printf("[" MACSTR "][%d][%d]: %.*s", MAC2STR(src_addr), rx_ctrl->channel, rx_ctrl->rssi, size, recv_data);
     fflush(stdout);
@@ -115,14 +91,13 @@ static esp_err_t espnow_debug_recv_process(uint8_t *src_addr, void *data,
         sdcard_write_file(file_name, UINT32_MAX, recv_data, size);
     }
 
-
     return ESP_OK;
 }
 #endif
 
-#ifdef CONFIG_ESPNOW_PROVISION
-static esp_err_t responder_recv_callback(uint8_t *src_addr, void *data,
-                      size_t size, wifi_pkt_rx_ctrl_t *rx_ctrl)
+#ifdef CONFIG_APP_ESPNOW_PROVISION
+static esp_err_t app_espnow_prov_responder_recv_cb(uint8_t *src_addr, void *data,
+        size_t size, wifi_pkt_rx_ctrl_t *rx_ctrl)
 {
     ESP_PARAM_CHECK(src_addr);
     ESP_PARAM_CHECK(data);
@@ -134,14 +109,14 @@ static esp_err_t responder_recv_callback(uint8_t *src_addr, void *data,
      * @brief Authenticate the device through the information of the initiator
      */
     ESP_LOGI(TAG, "MAC: "MACSTR", Channel: %d, RSSI: %d, Product_id: %s, Device Name: %s, Auth Mode: %d, device_secret: %s",
-                MAC2STR(src_addr), rx_ctrl->channel, rx_ctrl->rssi,
-                initator_info->product_id, initator_info->device_name,
-                initator_info->auth_mode, initator_info->device_secret);
+             MAC2STR(src_addr), rx_ctrl->channel, rx_ctrl->rssi,
+             initator_info->product_id, initator_info->device_name,
+             initator_info->auth_mode, initator_info->device_secret);
 
     return ESP_OK;
 }
 
-esp_err_t provision_beacon_start(int32_t sec)
+esp_err_t app_espnow_prov_beacon_start(int32_t sec)
 {
     wifi_config_t wifi_config = { 0 };
     espnow_prov_wifi_t prov_wifi_config = { 0 };
@@ -162,7 +137,7 @@ esp_err_t provision_beacon_start(int32_t sec)
 
     memcpy(&prov_wifi_config.sta, &wifi_config.sta, sizeof(wifi_sta_config_t));
 
-    ret = espnow_prov_responder_start(&responder_info, pdMS_TO_TICKS(sec * 1000), &prov_wifi_config, responder_recv_callback);
+    ret = espnow_prov_responder_start(&responder_info, pdMS_TO_TICKS(sec * 1000), &prov_wifi_config, app_espnow_prov_responder_recv_cb);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "espnow_prov_responder_start failed, %d", ret);
     }
@@ -170,18 +145,18 @@ esp_err_t provision_beacon_start(int32_t sec)
     return ret;
 }
 
-static void provisioning_responder(void *arg)
-{    
+static void app_espnow_prov_responder_task(void *arg)
+{
     for (;;) {
         vTaskDelay(pdMS_TO_TICKS(1000));
 
         /* Waiting until either the connection is established (WIFI_CONNECTED_BIT) or connection failed for the maximum
         * number of re-tries (WIFI_FAIL_BIT). The bits are set by event_handler() (see above) */
         EventBits_t bits = xEventGroupWaitBits(s_wifi_event_group,
-                WIFI_CONNECTED_BIT | WIFI_FAIL_BIT,
-                pdFALSE,
-                pdFALSE,
-                portMAX_DELAY);
+                                               WIFI_CONNECTED_BIT | WIFI_FAIL_BIT,
+                                               pdFALSE,
+                                               pdFALSE,
+                                               portMAX_DELAY);
 
         /* xEventGroupWaitBits() returns the bits before the call returned, hence we can test which event actually
         * happened. */
@@ -195,7 +170,7 @@ static void provisioning_responder(void *arg)
             continue;
         }
 
-        if (provision_beacon_start(30) != ESP_OK) {
+        if (app_espnow_prov_beacon_start(30) != ESP_OK) {
             break;
         }
 
@@ -208,11 +183,11 @@ static void provisioning_responder(void *arg)
 }
 #endif
 
-#ifdef CONFIG_ESPNOW_SECURITY
-const char *pop_data = CONFIG_ESPNOW_SESSION_POP;
+#ifdef CONFIG_APP_ESPNOW_SECURITY
+const char *pop_data = CONFIG_APP_ESPNOW_SESSION_POP;
 static TaskHandle_t s_sec_task;
 
-void initiator_sec(void *arg)
+static void app_espnow_initiator_sec_task(void *arg)
 {
     espnow_sec_result_t espnow_sec_result = {0};
     espnow_sec_responder_t *info_list = NULL;
@@ -246,9 +221,9 @@ void initiator_sec(void *arg)
     ESP_ERROR_GOTO(ret != ESP_OK, EXIT, "<%s> espnow_sec_initator_start", esp_err_to_name(ret));
 
     ESP_LOGI(TAG, "App key is sent to the device to complete, Spend time: %" PRId32" ms, Scan time: %" PRId32 "ms",
-             (xTaskGetTickCount() - start_time1) * portTICK_PERIOD_MS, 
+             (xTaskGetTickCount() - start_time1) * portTICK_PERIOD_MS,
              (start_time2 - start_time1) * portTICK_PERIOD_MS);
-    ESP_LOGI(TAG, "Devices security completed, successed_num: %u, unfinished_num: %u", 
+    ESP_LOGI(TAG, "Devices security completed, successed_num: %u, unfinished_num: %u",
              espnow_sec_result.successed_num, espnow_sec_result.unfinished_num);
 
 EXIT:
@@ -258,33 +233,27 @@ EXIT:
     vTaskDelete(NULL);
     s_sec_task = NULL;
 }
-
-void initiator_sec_start(void)
-{
-    if (!s_sec_task) {
-        xTaskCreate(initiator_sec, "sec", 3072, NULL, tskIDLE_PRIORITY + 1, &s_sec_task);
-    }
-}
 #endif
 
-void espnow_initiator_reg()
+void app_espnow_initiator_register()
 {
-    esp_event_handler_register(ESP_EVENT_ESPNOW, ESP_EVENT_ANY_ID, espnow_event_handler, NULL);
-
-#if defined(CONFIG_ESPNOW_DEBUG) || defined(CONFIG_ESPNOW_PROVISION)
+#if defined(CONFIG_APP_ESPNOW_DEBUG) || defined(CONFIG_APP_ESPNOW_PROVISION)
     s_wifi_event_group = xEventGroupCreate();
-    esp_event_handler_register(WIFI_EVENT, ESP_EVENT_ANY_ID, event_handler, NULL);
-    esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, event_handler, NULL);
+
+    esp_event_handler_register(WIFI_EVENT, ESP_EVENT_ANY_ID, app_wifi_event_handler, NULL);
+    esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, app_wifi_event_handler, NULL);
 #endif
 }
 
-void espnow_initiator()
+void app_espnow_initiator()
 {
-#ifdef CONFIG_ESPNOW_SECURITY
-    initiator_sec_start();
+#ifdef CONFIG_APP_ESPNOW_SECURITY
+    if (!s_sec_task) {
+        xTaskCreate(app_espnow_initiator_sec_task, "sec", 3072, NULL, tskIDLE_PRIORITY + 1, &s_sec_task);
+    }
 #endif
 
-#ifdef CONFIG_ESPNOW_DEBUG
+#ifdef CONFIG_APP_ESPNOW_DEBUG
     espnow_console_config_t console_config = {
         .monitor_command.uart   = true,
         .store_history = {
@@ -296,19 +265,15 @@ void espnow_initiator()
     espnow_console_init(&console_config);
     espnow_console_commands_register();
 
-#ifdef CONFIG_EXAMPLE_WEB_SERVER
-    web_command();
-#endif
     /** Receive esp-now data from other device */
-    espnow_set_type(ESPNOW_TYPE_DEBUG_LOG, 1, espnow_debug_recv_process);
+    espnow_set_type(ESPNOW_TYPE_DEBUG_LOG, 1, app_espnow_debug_recv_process);
 #endif
 
-#ifdef CONFIG_ESPNOW_OTA
+#ifdef CONFIG_APP_ESPNOW_OTA
     // OTA with command
 #endif
 
-#ifdef CONFIG_ESPNOW_PROVISION
-    xTaskCreate(provisioning_responder, "PROV_resp", 3072, NULL, tskIDLE_PRIORITY + 1, NULL);
+#ifdef CONFIG_APP_ESPNOW_PROVISION
+    xTaskCreate(app_espnow_prov_responder_task, "PROV_resp", 3072, NULL, tskIDLE_PRIORITY + 1, NULL);
 #endif
 }
-#endif
