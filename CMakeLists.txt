@@ -43,11 +43,11 @@ list(APPEND srcs         "src/security/src/espnow_security.c"
 list(APPEND include_dirs "src/security/include" "src/security/include/protocomm/security")
 list(APPEND requires "mbedtls" "protobuf-c" "protocomm")
 
-list(APPEND srcs         "src/utils/src/esp_mem.c"
-                         "src/utils/src/esp_reboot.c"
-                         "src/utils/src/esp_storage.c"
-                         "src/utils/src/esp_timesync.c"
-                         "src/utils/src/esp_utils.c")
+list(APPEND srcs         "src/utils/src/espnow_mem.c"
+                         "src/utils/src/espnow_reboot.c"
+                         "src/utils/src/espnow_storage.c"
+                         "src/utils/src/espnow_timesync.c"
+                         "src/utils/src/espnow_utils.c")
 list(APPEND include_dirs "src/utils/include")
 
 list(APPEND requires "spi_flash" "nvs_flash" "esp_timer" "esp_wifi" "driver")

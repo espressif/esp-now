@@ -155,11 +155,11 @@ esp_err_t espnow_sec_initiator_scan(espnow_sec_responder_t **info_list, size_t *
     g_scan_num       = 0;
     ESP_FREE(g_info_list);
 
-    espnow_set_type(ESPNOW_TYPE_SECURITY_STATUS, 1, espnow_sec_initiator_status_process);
+    espnow_set_config_for_data_type(ESPNOW_DATA_TYPE_SECURITY_STATUS, 1, espnow_sec_initiator_status_process);
 
     for (int i = 0, start_ticks = xTaskGetTickCount(), recv_ticks = 500; i < 5 && wait_ticks - (xTaskGetTickCount() - start_ticks) > 0;
             ++i, recv_ticks = pdMS_TO_TICKS(500)) {
-        ret = espnow_send(ESPNOW_TYPE_SECURITY, ESPNOW_ADDR_BROADCAST, &request_sec_info, 1, &frame_head, portMAX_DELAY);
+        ret = espnow_send(ESPNOW_DATA_TYPE_SECURITY, ESPNOW_ADDR_BROADCAST, &request_sec_info, 1, &frame_head, portMAX_DELAY);
         ESP_ERROR_RETURN(ret != ESP_OK, ret, "espnow_send");
 
         vTaskDelay(recv_ticks);
@@ -168,7 +168,7 @@ esp_err_t espnow_sec_initiator_scan(espnow_sec_responder_t **info_list, size_t *
     *info_list = g_info_list;
     *num = g_scan_num;
 
-    espnow_set_type(ESPNOW_TYPE_SECURITY_STATUS, 0, NULL);
+    espnow_set_config_for_data_type(ESPNOW_DATA_TYPE_SECURITY_STATUS, 0, NULL);
 
     return ESP_OK;
 }
@@ -286,7 +286,7 @@ static esp_err_t protocomm_espnow_initiator_start(const protocomm_security_t *pr
         /**
          * @brief Send Command 0
          */
-        espnow_send_group(current_addrs_list, current_addrs_num, ESPNOW_ADDR_GROUP_SEC, NULL, true, portMAX_DELAY);
+        espnow_set_group(current_addrs_list, current_addrs_num, ESPNOW_ADDR_GROUP_SEC, NULL, true, portMAX_DELAY);
 
         ret = write_security1_command0(&outbuf, &outlen);
         if (ret != ESP_OK || !outbuf || !outlen) {
@@ -300,14 +300,14 @@ static esp_err_t protocomm_espnow_initiator_start(const protocomm_security_t *pr
         response_data->size = outlen;
         memcpy(response_data->data, outbuf, outlen);
         response_size = sizeof(espnow_sec_packet_t) + outlen;
-        ret = espnow_send(ESPNOW_TYPE_SECURITY, ESPNOW_ADDR_GROUP_SEC, response_data, response_size, &frame_head, portMAX_DELAY);
+        ret = espnow_send(ESPNOW_DATA_TYPE_SECURITY, ESPNOW_ADDR_GROUP_SEC, response_data, response_size, &frame_head, portMAX_DELAY);
         if (ret != ESP_OK) {
             ESP_LOGW(TAG, "espnow-session cm0 send failed");
             ESP_FREE(outbuf);
             goto exit_init;
         }
         ESP_FREE(outbuf);
-        espnow_send_group(current_addrs_list, current_addrs_num, ESPNOW_ADDR_GROUP_SEC, NULL, false, portMAX_DELAY);
+        espnow_set_group(current_addrs_list, current_addrs_num, ESPNOW_ADDR_GROUP_SEC, NULL, false, portMAX_DELAY);
 
         /**
          * @brief Receive Response 0, send Command 1, receive Response 1
@@ -381,7 +381,7 @@ static esp_err_t protocomm_espnow_initiator_start(const protocomm_security_t *pr
 
                     espnow_add_peer(src_addr, NULL);
 
-                    ret = espnow_send(ESPNOW_TYPE_SECURITY, src_addr, response_data, response_size, &frame_head, portMAX_DELAY);
+                    ret = espnow_send(ESPNOW_DATA_TYPE_SECURITY, src_addr, response_data, response_size, &frame_head, portMAX_DELAY);
                     if (ret != ESP_OK) {
                         ESP_LOGW(TAG, "espnow-session send failed");
                     }
@@ -447,11 +447,11 @@ esp_err_t espnow_sec_initiator_start(uint8_t key_info[APP_KEY_LEN], const char *
 
     g_sec_queue = xQueueCreate(addrs_num, sizeof(espnow_sec_data_t));
     ESP_ERROR_RETURN(!g_sec_queue, ESP_FAIL, "Create espnow security queue fail");
-    espnow_set_type(ESPNOW_TYPE_SECURITY, 1, espnow_initiator_sec_process);
+    espnow_set_config_for_data_type(ESPNOW_DATA_TYPE_SECURITY, 1, espnow_initiator_sec_process);
 
     ret = protocomm_espnow_initiator_start(espnow_sec, (const void *)(&pop), addrs_list, addrs_num, res);
 
-    espnow_set_type(ESPNOW_TYPE_SECURITY, 0, NULL);
+    espnow_set_config_for_data_type(ESPNOW_DATA_TYPE_SECURITY, 0, NULL);
     if (g_sec_queue) {
         espnow_sec_data_t *tmp_data = NULL;
 

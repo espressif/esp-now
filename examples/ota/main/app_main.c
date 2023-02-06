@@ -17,11 +17,10 @@
 #include "esp_system.h"
 #include "esp_wifi.h"
 
-#include "esp_utils.h"
-#include "esp_storage.h"
-
 #include "espnow.h"
 #include "espnow_ota.h"
+#include "espnow_storage.h"
+#include "espnow_utils.h"
 
 #include "protocol_examples_common.h"
 
@@ -178,7 +177,7 @@ static void app_wifi_init()
 
 void app_main()
 {
-    esp_storage_init();
+    espnow_storage_init();
 
     app_wifi_init();
 

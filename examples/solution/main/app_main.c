@@ -16,9 +16,8 @@
 #include "esp_mac.h"
 #endif
 
-#include "esp_utils.h"
-
 #include "espnow.h"
+#include "espnow_utils.h"
 
 #ifdef CONFIG_APP_ESPNOW_CONTROL
 #include "espnow_ctrl.h"
@@ -72,7 +71,7 @@ static led_strip_handle_t g_strip_handle = NULL;
 static led_strip_t *g_strip_handle = NULL;
 #endif
 
-#ifdef CONFIG_APP_ESPNOW_CONTROL
+#if defined(CONFIG_APP_ESPNOW_CONTROL) && defined(CONFIG_APP_ESPNOW_INITIATOR)
 #if CONFIG_IDF_TARGET_ESP32C2 || CONFIG_IDF_TARGET_ESP32C3
 #define CONTROL_KEY_GPIO        GPIO_NUM_9
 #else
@@ -168,6 +167,7 @@ static void app_wifi_event_handler(void *arg, esp_event_base_t event_base,
 }
 
 #ifdef CONFIG_APP_ESPNOW_CONTROL
+#if CONFIG_APP_ESPNOW_INITIATOR
 static void app_initiator_send_press_cb(void *arg, void *usr_data)
 {
     static bool status = 0;
@@ -226,6 +226,8 @@ static void app_control_button_init(void)
     iot_button_register_cb(button_handle, BUTTON_LONG_PRESS_START, app_initiator_unbind_press_cb, NULL);
 }
 
+#elif CONFIG_APP_ESPNOW_RESPONDER
+
 static void app_espnow_event_handler(void *handler_args, esp_event_base_t base, int32_t id, void *event_data)
 {
     if (base != ESP_EVENT_ESPNOW) {
@@ -268,7 +270,7 @@ static void app_responder_ctrl_data_cb(espnow_attribute_t initiator_attribute,
     }
 }
 
-static void app_responder_init(void)
+static void app_control_responder_init(void)
 {
     esp_event_handler_register(ESP_EVENT_ESPNOW, ESP_EVENT_ESPNOW_CTRL_BIND, app_espnow_event_handler, NULL);
     esp_event_handler_register(ESP_EVENT_ESPNOW, ESP_EVENT_ESPNOW_CTRL_UNBIND, app_espnow_event_handler, NULL);
@@ -276,6 +278,7 @@ static void app_responder_init(void)
     ESP_ERROR_CHECK(espnow_ctrl_responder_bind(30 * 1000, -55, NULL));
     espnow_ctrl_responder_data(app_responder_ctrl_data_cb);
 }
+#endif
 #endif
 
 #if defined(CONFIG_APP_WIFI_PROVISION) || defined(CONFIG_APP_ESPNOW_PROVISION)
@@ -287,7 +290,7 @@ static void app_wifi_prov_over_espnow_start_press_cb(void *arg, void *usr_data)
     if (s_wifi_prov_status == APP_WIFI_PROV_SUCCESS) {
         bool enabled;
 
-        espnow_get_type(ESPNOW_TYPE_PROV, &enabled);
+        espnow_get_config_for_data_type(ESPNOW_DATA_TYPE_PROV, &enabled);
 
         if (enabled) {
             ESP_LOGI(TAG, "WiFi provisioning over ESP-NOW is started");
@@ -388,7 +391,7 @@ static void app_wifi_init()
 
 void app_main()
 {
-    esp_storage_init();
+    espnow_storage_init();
 
     app_wifi_init();
 

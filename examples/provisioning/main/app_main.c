@@ -16,11 +16,10 @@
 #include "esp_mac.h"
 #endif
 
-#include "esp_utils.h"
-#include "esp_storage.h"
-
 #include "espnow.h"
 #include "espnow_prov.h"
+#include "espnow_storage.h"
+#include "espnow_utils.h"
 
 static const char *TAG = "app_main";
 
@@ -133,7 +132,7 @@ static esp_err_t app_initiator_init()
 
 void app_main()
 {
-    esp_storage_init();
+    espnow_storage_init();
 
     app_wifi_init();
 

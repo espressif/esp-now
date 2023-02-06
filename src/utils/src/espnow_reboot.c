@@ -25,8 +25,8 @@
 #include "esp_partition.h"
 #include "esp_ota_ops.h"
 
-#include "esp_utils.h"
-#include "esp_storage.h"
+#include "espnow_storage.h"
+#include "espnow_utils.h"
 
 #if CONFIG_IDF_TARGET_ESP32
 #include "esp32/rom/rtc.h"
@@ -52,12 +52,12 @@ typedef struct  {
 static const char *TAG = "esp_reboot";
 static esp_reboot_record_t g_reboot_record = {0};
 
-static void esp_reboot_cb(void *priv)
+static void espnow_reboot_cb(void *priv)
 {
     esp_restart();
 }
 
-esp_err_t esp_reboot(uint32_t wait_ms)
+esp_err_t espnow_reboot(uint32_t wait_ms)
 {
     static esp_timer_handle_t s_reboot_timer_handle = NULL;
 
@@ -67,7 +67,7 @@ esp_err_t esp_reboot(uint32_t wait_ms)
 
     esp_timer_create_args_t timer_cfg = {
         .name = "esp_reboot_tm",
-        .callback = esp_reboot_cb,
+        .callback = espnow_reboot_cb,
         .dispatch_method = ESP_TIMER_TASK,
     };
 
@@ -78,23 +78,23 @@ esp_err_t esp_reboot(uint32_t wait_ms)
     return ESP_FAIL;
 }
 
-static void esp_reboot_count_erase_timercb(void *priv)
+static void espnow_reboot_count_erase_timercb(void *priv)
 {
     g_reboot_record.unbroken_count = 0;
-    esp_storage_set(REBOOT_RECORD_KEY, &g_reboot_record, sizeof(esp_reboot_record_t));
+    espnow_storage_set(REBOOT_RECORD_KEY, &g_reboot_record, sizeof(esp_reboot_record_t));
 
     ESP_LOGI("restart_func", "num: %d, reason: %d, crash: %d",
-             esp_reboot_total_count(), g_reboot_record.reason, esp_reboot_is_exception(false));
+             espnow_reboot_total_count(), g_reboot_record.reason, espnow_reboot_is_exception(false));
 
 }
 
-static esp_err_t esp_reboot_unbroken_init()
+static esp_err_t espnow_reboot_unbroken_init()
 {
     esp_err_t err          = ESP_OK;
     g_reboot_record.reason = rtc_get_reset_reason(0);
 
-    esp_storage_init();
-    esp_storage_get(REBOOT_RECORD_KEY, &g_reboot_record, sizeof(esp_reboot_record_t));
+    espnow_storage_init();
+    espnow_storage_get(REBOOT_RECORD_KEY, &g_reboot_record, sizeof(esp_reboot_record_t));
 
     g_reboot_record.total_count++;
 
@@ -109,31 +109,31 @@ static esp_err_t esp_reboot_unbroken_init()
         ESP_LOGW(TAG, "reboot reason: %d", g_reboot_record.reason);
     }
 
-    err = esp_storage_set(REBOOT_RECORD_KEY, &g_reboot_record, sizeof(esp_reboot_record_t));
+    err = espnow_storage_set(REBOOT_RECORD_KEY, &g_reboot_record, sizeof(esp_reboot_record_t));
     ESP_ERROR_RETURN(err != ESP_OK, err, "Save the number of reboots within the set time");
 
     esp_timer_handle_t time_handle   = NULL;
     esp_timer_create_args_t timer_cfg = {
         .name = "reboot_count_erase",
-        .callback = esp_reboot_count_erase_timercb,
+        .callback = espnow_reboot_count_erase_timercb,
         .dispatch_method = ESP_TIMER_TASK,
     };
 
     err = esp_timer_create(&timer_cfg, &time_handle);
     ESP_ERROR_RETURN(err != ESP_OK, err, "esp_timer_create");
 
-    err = esp_timer_start_once(time_handle, pdMS_TO_TICKS(CONFIG_REBOOT_UNBROKEN_INTERVAL_TIMEOUT) * 1000U);
+    err = esp_timer_start_once(time_handle, pdMS_TO_TICKS(CONFIG_ESPNOW_REBOOT_UNBROKEN_INTERVAL_TIMEOUT) * 1000U);
     ESP_ERROR_RETURN(err != ESP_OK, err, "esp_timer_start_once");
 
     return ESP_OK;
 }
 
-static void reboot_unbroken_record_task(void *arg)
+static void espnow_reboot_unbroken_record_task(void *arg)
 {
-    esp_reboot_unbroken_init();
+    espnow_reboot_unbroken_init();
 
-    if (CONFIG_REBOOT_UNBROKEN_FALLBACK_COUNT &&
-            esp_reboot_unbroken_count() >= CONFIG_REBOOT_UNBROKEN_FALLBACK_COUNT) {
+    if (CONFIG_ESPNOW_REBOOT_UNBROKEN_FALLBACK_COUNT &&
+            espnow_reboot_unbroken_count() >= CONFIG_ESPNOW_REBOOT_UNBROKEN_FALLBACK_COUNT) {
         esp_ota_mark_app_invalid_rollback_and_reboot();
     }
 
@@ -147,23 +147,23 @@ __attribute((constructor)) static esp_err_t esp_reboot_unbroken_record()
     /**
      * @brief Wait for high-priority tasks to run first
      */
-    xTaskCreatePinnedToCore(reboot_unbroken_record_task, "reboot_unbroken_record", 3 * 1024,
+    xTaskCreatePinnedToCore(espnow_reboot_unbroken_record_task, "reboot_unbroken_record", 3 * 1024,
                 NULL, CONFIG_UNBROKEN_RECORD_TASK_DEFAULT_PRIOTY, NULL, 0);
 
     return ESP_OK;
 }
 
-int esp_reboot_unbroken_count()
+int espnow_reboot_unbroken_count()
 {
     return g_reboot_record.unbroken_count;
 }
 
-int esp_reboot_total_count()
+int espnow_reboot_total_count()
 {
     return g_reboot_record.total_count;
 }
 
-bool esp_reboot_is_exception(bool erase_coredump)
+bool espnow_reboot_is_exception(bool erase_coredump)
 {
     esp_err_t ret        = ESP_OK;
     ssize_t coredump_len = 0;

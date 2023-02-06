@@ -18,12 +18,12 @@
 #include "argtable3/argtable3.h"
 
 #include "esp_wifi.h"
-#include "esp_utils.h"
+
 
 #include "espnow.h"
-
 #include "espnow_console.h"
 #include "espnow_log.h"
+#include "espnow_utils.h"
 
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(4, 4, 0)
 #include "esp_mac.h"
@@ -78,7 +78,7 @@ static int command_func(int argc, char **argv)
 
     for (const char *tmp = command_args.addr->sval[0];; tmp++) {
         if (*tmp == ',' || *tmp == ' ' || *tmp == '|' || *tmp == '.' || *tmp == '\0') {
-            mac_str2hex(tmp - 17, addr_list[addrs_num]);
+            espnow_mac_str2hex(tmp - 17, addr_list[addrs_num]);
             addrs_num++;
 
             if (*tmp == '\0' || *(tmp + 1) == '\0') {
@@ -103,13 +103,13 @@ static int command_func(int argc, char **argv)
         frame_head.forward_rssi     = -25;
         frame_head.forward_ttl      = 1;
 
-        ret = espnow_send(ESPNOW_TYPE_DEBUG_COMMAND, addr_list[0], command_args.command->sval[0], 
+        ret = espnow_send(ESPNOW_DATA_TYPE_DEBUG_COMMAND, addr_list[0], command_args.command->sval[0], 
                     strlen(command_args.command->sval[0]) + 1, &frame_head, portMAX_DELAY);
         ESP_ERROR_RETURN(ret != ESP_OK, ret, "espnow_send");
     } else if(addrs_num < 8) {
         for(int i = 0; i < addrs_num; ++i) {
             espnow_add_peer(addr_list[i], NULL);
-            ret = espnow_send(ESPNOW_TYPE_DEBUG_COMMAND, addr_list[i], command_args.command->sval[0], 
+            ret = espnow_send(ESPNOW_DATA_TYPE_DEBUG_COMMAND, addr_list[i], command_args.command->sval[0], 
                               strlen(command_args.command->sval[0]) + 1, &frame_head, portMAX_DELAY);
             ESP_ERROR_RETURN(ret != ESP_OK, ret, "espnow_send");
             espnow_del_peer(addr_list[i]);
@@ -123,11 +123,11 @@ static int command_func(int argc, char **argv)
         frame_head.forward_ttl      = 1;
 
         esp_fill_random(temp_group, sizeof(espnow_addr_t));
-        espnow_send_group(addr_list, addrs_num, temp_group, &frame_head, true, portMAX_DELAY);
-        ret = espnow_send(ESPNOW_TYPE_DEBUG_COMMAND, temp_group, command_args.command->sval[0], 
+        espnow_set_group(addr_list, addrs_num, temp_group, &frame_head, true, portMAX_DELAY);
+        ret = espnow_send(ESPNOW_DATA_TYPE_DEBUG_COMMAND, temp_group, command_args.command->sval[0], 
                           strlen(command_args.command->sval[0]) + 1, &frame_head, portMAX_DELAY);
         ESP_ERROR_RETURN(ret != ESP_OK, ret, "espnow_send");
-        espnow_send_group(addr_list, addrs_num, temp_group, &frame_head, false, portMAX_DELAY);
+        espnow_set_group(addr_list, addrs_num, temp_group, &frame_head, false, portMAX_DELAY);
     }
 
     ESP_FREE(addr_list);
@@ -189,7 +189,7 @@ static int scan_func(int argc, char **argv)
     }
 
     if (scan_args.addr->count) {
-        ESP_ERROR_RETURN(!mac_str2hex(scan_args.addr->sval[0], addr), ESP_ERR_INVALID_ARG,
+        ESP_ERROR_RETURN(!espnow_mac_str2hex(scan_args.addr->sval[0], addr), ESP_ERR_INVALID_ARG,
                          "The format of the address is incorrect. Please enter the format as xx:xx:xx:xx:xx:xx");
     }
 
@@ -206,7 +206,7 @@ static int scan_func(int argc, char **argv)
             frame_head.channel = country.schan + i;
 
             for(int count = 0; count < 3; ++count) {
-                esp_err_t ret = espnow_send(ESPNOW_TYPE_DEBUG_COMMAND, addr,
+                esp_err_t ret = espnow_send(ESPNOW_DATA_TYPE_DEBUG_COMMAND, addr,
                                             data, strlen(data) + 1, &frame_head, portMAX_DELAY);
                 ESP_ERROR_RETURN(ret != ESP_OK, ret, "espnow_send");
                 vTaskDelay(100);
@@ -217,7 +217,7 @@ static int scan_func(int argc, char **argv)
 
         esp_wifi_set_channel(primary, second);
     } else {
-        esp_err_t ret = espnow_send(ESPNOW_TYPE_DEBUG_COMMAND, addr,
+        esp_err_t ret = espnow_send(ESPNOW_DATA_TYPE_DEBUG_COMMAND, addr,
                                     data, strlen(data) + 1, &frame_head, portMAX_DELAY);
         ESP_ERROR_RETURN(ret != ESP_OK, ret, "espnow_send");
     }
@@ -477,7 +477,7 @@ static int control_func(int argc, char **argv)
         espnow_addr_t dest_addr = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
 
         if (control_args.mac->count) {
-            mac_str2hex(control_args.mac->sval[0], dest_addr);
+            espnow_mac_str2hex(control_args.mac->sval[0], dest_addr);
         }
 
         ret = espnow_ctrl_send(dest_addr, &data, &frame_head, pdMS_TO_TICKS(1000));
@@ -661,7 +661,7 @@ static esp_err_t firmware_download(const char *url)
              total_size, (xTaskGetTickCount() - start_time) * portTICK_PERIOD_MS / 1000);
     
     g_ota_size = total_size;
-    esp_storage_set("binary_len", &total_size, sizeof(size_t));
+    espnow_storage_set("binary_len", &total_size, sizeof(size_t));
 
     ret = esp_ota_end(ota_handle);
     ESP_ERROR_GOTO(ret != ESP_OK, EXIT, "<%s> esp_ota_end", esp_err_to_name(ret));
@@ -680,7 +680,7 @@ static void ota_send_task(void *arg)
 
     for (const char *tmp = (char *)arg;; tmp++) {
         if (*tmp == ',' || *tmp == ' ' || *tmp == '|' || *tmp == '.' || *tmp == '\0') {
-            mac_str2hex(tmp - 17, addrs_list[addrs_num]);
+            espnow_mac_str2hex(tmp - 17, addrs_list[addrs_num]);
             addrs_num++;
 
             if (*tmp == '\0' || *(tmp + 1) == '\0') {
@@ -761,7 +761,7 @@ static int ota_func(int argc, char **argv)
     if (ota_args.send->count) {
         ESP_LOGI(TAG, "Send firmware to selected device: %s", ota_args.send->sval[0]);
 
-        if(!g_ota_data_partition && esp_storage_get("binary_len", &g_ota_size, sizeof(size_t)) != ESP_OK){
+        if(!g_ota_data_partition && espnow_storage_get("binary_len", &g_ota_size, sizeof(size_t)) != ESP_OK){
             ESP_LOGE(TAG, "Firmware not downloaded");
             return ESP_FAIL;
         }
@@ -825,7 +825,7 @@ static int beacon_func(int argc, char **argv)
     char *data = beacon_data;
     for (size_t size = MIN(beacon_data_len, ESPNOW_DATA_LEN);
             size > 0; data += size, beacon_data_len -= size, size = MIN(beacon_data_len, ESPNOW_DATA_LEN)) {
-        ret = espnow_send(ESPNOW_TYPE_DEBUG_LOG, g_src_addr,
+        ret = espnow_send(ESPNOW_DATA_TYPE_DEBUG_LOG, g_src_addr,
                         data, size, NULL, portMAX_DELAY);
     }
 
@@ -928,7 +928,7 @@ static int log_func(int argc, char **argv)
                     size++;
                 }
 
-                espnow_send(ESPNOW_TYPE_DEBUG_LOG, ESPNOW_ADDR_BROADCAST,
+                espnow_send(ESPNOW_DATA_TYPE_DEBUG_LOG, ESPNOW_ADDR_BROADCAST,
                             log_data, size, NULL, portMAX_DELAY);
             }
 
@@ -1078,7 +1078,7 @@ static void sec_send_task(void *arg)
 
     for (const char *tmp = (char *)arg;; tmp++) {
         if (*tmp == ',' || *tmp == ' ' || *tmp == '|' || *tmp == '.' || *tmp == '\0') {
-            mac_str2hex(tmp - 17, addrs_list[addrs_num]);
+            espnow_mac_str2hex(tmp - 17, addrs_list[addrs_num]);
             addrs_num++;
 
             if (*tmp == '\0' || *(tmp + 1) == '\0') {

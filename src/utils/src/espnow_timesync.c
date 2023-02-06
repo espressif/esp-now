@@ -12,8 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 #include <esp_log.h>
+
 #include "lwip/apps/sntp.h"
-#include <esp_utils.h>
+
+#include <espnow_utils.h>
 
 #define REF_TIME        1577808000 /* 2020-01-01 00:00:00 */
 #define DEFAULT_TICKS   (2000 / portTICK_PERIOD_MS) /* 2 seconds in ticks */
@@ -22,7 +24,7 @@
 static bool g_init_done = false;
 static const char *TAG = "esp_timesync";
 
-esp_err_t esp_timesync_start()
+esp_err_t espnow_timesync_start()
 {
     if (sntp_enabled()) {
         ESP_LOGI(TAG, "SNTP already initialized.");
@@ -57,7 +59,7 @@ bool esp_timesync_check(void)
 esp_err_t esp_timesync_wait(TickType_t ticks_to_wait)
 {
     if (!g_init_done) {
-        ESP_LOGW(TAG, "Time sync not initialised using 'esp_timesync_start'");
+        ESP_LOGW(TAG, "Time sync not initialised using 'espnow_timesync_start'");
     }
 
     ESP_LOGW(TAG, "Waiting for time to be synchronized. This may take time.");

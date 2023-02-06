@@ -18,8 +18,8 @@
 #include "esp_partition.h"
 #include "esp_app_format.h"
 
-#include "esp_utils.h"
 #include "espnow.h"
+#include "espnow_utils.h"
 
 #ifdef __cplusplus
 extern "C" {

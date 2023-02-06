@@ -20,10 +20,9 @@
 #include "esp_random.h"
 #endif
 
-#include "esp_utils.h"
-#include "esp_storage.h"
-
 #include "espnow.h"
+#include "espnow_storage.h"
+#include "espnow_utils.h"
 
 #ifdef CONFIG_APP_ESPNOW_DEBUG
 #include "espnow_console.h"
@@ -266,7 +265,7 @@ void app_espnow_initiator()
     espnow_console_commands_register();
 
     /** Receive esp-now data from other device */
-    espnow_set_type(ESPNOW_TYPE_DEBUG_LOG, 1, app_espnow_debug_recv_process);
+    espnow_set_config_for_data_type(ESPNOW_DATA_TYPE_DEBUG_LOG, true, app_espnow_debug_recv_process);
 #endif
 
 #ifdef CONFIG_APP_ESPNOW_OTA

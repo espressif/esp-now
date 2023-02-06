@@ -78,7 +78,7 @@ static void espnow_log_send_task(void *arg)
         if (strcasecmp(log_info->tag, "espnow") && log_info->level <= g_log_config->log_level_espnow) {
             log_info->size = MIN(ESPNOW_DATA_LEN - 1, log_info->size) + 1;
             log_info->data[log_info->size - 1] = '\0';
-            espnow_send(ESPNOW_TYPE_DEBUG_LOG, ESPNOW_ADDR_BROADCAST, log_info->data, log_info->size, NULL, portMAX_DELAY);
+            espnow_send(ESPNOW_DATA_TYPE_DEBUG_LOG, ESPNOW_ADDR_BROADCAST, log_info->data, log_info->size, NULL, portMAX_DELAY);
         }
 
         if (log_info->level <= g_log_config->log_level_custom) {

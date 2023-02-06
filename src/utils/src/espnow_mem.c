@@ -19,7 +19,7 @@
 
 #include <esp_log.h>
 
-#include "esp_mem.h"
+#include "espnow_mem.h"
 
 typedef struct {
     void *ptr;
@@ -27,14 +27,14 @@ typedef struct {
     const char *tag;
     int line;
     uint32_t timestamp;
-} esp_mem_info_t;
+} espnow_mem_info_t;
 
 static const char *TAG            = "esp_mem";
 static uint32_t g_mem_count       = 0;
-static esp_mem_info_t *g_mem_info = NULL;
+static espnow_mem_info_t *g_mem_info = NULL;
 static SemaphoreHandle_t g_mem_info_lock = NULL;
 
-void esp_mem_add_record(void *ptr, int size, const char *tag, int line)
+void espnow_mem_add_record(void *ptr, int size, const char *tag, int line)
 {
     if (!ptr || !size || !tag) {
         return;
@@ -44,12 +44,12 @@ void esp_mem_add_record(void *ptr, int size, const char *tag, int line)
              ptr, (int)size, esp_get_free_heap_size());
 
     if (!g_mem_info) {
-        g_mem_info = calloc(MEM_DBG_INFO_MAX, sizeof(esp_mem_info_t));
+        g_mem_info = calloc(MEM_DBG_INFO_MAX, sizeof(espnow_mem_info_t));
     }
 
     if (g_mem_count >= MEM_DBG_INFO_MAX) {
         ESP_LOGE(TAG, "The buffer space of the memory record is full");
-        esp_mem_print_record();
+        espnow_mem_print_record();
         return ;
     }
 
@@ -74,7 +74,7 @@ void esp_mem_add_record(void *ptr, int size, const char *tag, int line)
     xSemaphoreGive(g_mem_info_lock);
 }
 
-void esp_mem_remove_record(void *ptr, const char *tag, int line)
+void espnow_mem_remove_record(void *ptr, const char *tag, int line)
 {
     if (!ptr) {
         return;
@@ -83,7 +83,7 @@ void esp_mem_remove_record(void *ptr, const char *tag, int line)
     ESP_LOGV(TAG, "<%s : %d> Free ptr: %p, heap free: %" PRIu32 "", tag, line, ptr, esp_get_free_heap_size());
 
     if (!g_mem_info) {
-        g_mem_info = calloc(MEM_DBG_INFO_MAX, sizeof(esp_mem_info_t));
+        g_mem_info = calloc(MEM_DBG_INFO_MAX, sizeof(espnow_mem_info_t));
     }
 
     if (!g_mem_info_lock) {
@@ -103,7 +103,7 @@ void esp_mem_remove_record(void *ptr, const char *tag, int line)
     xSemaphoreGive(g_mem_info_lock);
 }
 
-void esp_mem_print_record(void)
+void espnow_mem_print_record(void)
 {
     size_t total_size = 0;
 
@@ -127,7 +127,7 @@ void esp_mem_print_record(void)
     ESP_LOGI(TAG, "Memory record, num: %d, size: %d", g_mem_count, total_size);
 }
 
-void esp_mem_print_task()
+void espnow_mem_print_task()
 {
 #if ( ( configUSE_TRACE_FACILITY == 1 ) && ( configUSE_STATS_FORMATTING_FUNCTIONS > 0 ) )
     TaskStatus_t *pxTaskStatusArray = NULL;
@@ -184,7 +184,7 @@ void esp_mem_print_task()
 }
 
 
-void esp_mem_print_heap(void)
+void espnow_mem_print_heap(void)
 {
 #ifndef CONFIG_SPIRAM_SUPPORT
     ESP_LOGI(TAG, "Free heap, current: %" PRIu32 ", minimum: %" PRIu32 "",

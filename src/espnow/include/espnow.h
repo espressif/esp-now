@@ -15,7 +15,8 @@
 #pragma once
 
 #include "esp_now.h"
-#include "esp_utils.h"
+
+#include "espnow_utils.h"
 #include "espnow_security.h"
 
 #ifdef __cplusplus
@@ -23,11 +24,13 @@ extern "C" {
 #endif /**< _cplusplus */
 
 #define ESPNOW_PAYLOAD_LEN                  (230)
-#ifdef CONFIG_APP_SECURITY
+
+#ifdef CONFIG_ESPNOW_APP_SECURITY
 #define ESPNOW_DATA_LEN                     ESPNOW_SEC_PACKET_MAX_SIZE
 #else
 #define ESPNOW_DATA_LEN                     ESPNOW_PAYLOAD_LEN
 #endif
+
 #define ESPNOW_ADDR_LEN                     (6)
 #define ESPNOW_DECLARE_COMMON_ADDR(addr)    extern const uint8_t addr[6];
 #define ESPNOW_ADDR_IS_EMPTY(addr)          (((addr)[0] | (addr)[1] | (addr)[2] | (addr)[3] | (addr)[4] | (addr)[5]) == 0x0)
@@ -48,6 +51,7 @@ ESPNOW_DECLARE_COMMON_ADDR(ESPNOW_ADDR_GROUP_PROV);
  * @brief Declaration of the task events family
  */
 ESP_EVENT_DECLARE_BASE(ESP_EVENT_ESPNOW);
+
 #define ESP_EVENT_ESPNOW_PROV_BASE          0x100
 #define ESP_EVENT_ESPNOW_CTRL_BASE          0x200
 #define ESP_EVENT_ESPNOW_OTA_BASE           0x300
@@ -67,35 +71,38 @@ ESP_EVENT_DECLARE_BASE(ESP_EVENT_ESPNOW);
  * @brief Initialize the configuration of espnow
  */
 typedef struct {
-    const uint8_t pmk[16];       /**< Primary master key */
-    bool forward_enable;         /**< Forward when packets are received */
-    bool forward_switch_channel; /**< Forward data packet with exchange channel */
-    uint8_t send_retry_num;      /**< Number of retransmissions */
-    uint32_t send_max_timeout;   /**< Maximum timeout */
-    uint8_t qsize;               /**< Size of packet buffer queue */
-    bool sec_enable;             /**< Encrypt espnow data payload when send and decrypt when receive */
+    const uint8_t pmk[16];                  /**< Primary master key */
+    bool forward_enable             : 1;    /**< Forward when packets are received */
+    bool forward_switch_channel     : 1;    /**< Forward data packet with exchange channel */
+    bool sec_enable                 : 1;    /**< Encrypt ESP-NOW data payload when send and decrypt when receive */
+    uint8_t reverse                 : 5;
+    uint8_t qsize;                          /**< Size of packet buffer queue */
+    uint8_t send_retry_num;                 /**< Number of retransmissions */
+    uint32_t send_max_timeout;              /**< Maximum timeout */
     struct {
-        bool ack;
-        bool forward;
-        bool group;
-        bool provisoning;
-        bool control_bind;
-        bool control_data;
-        bool ota_status;
-        bool ota_data;
-        bool debug_log;
-        bool debug_command;
-        bool data;
-        bool sec_status;
-        bool sec;
-        bool sec_data;
-        bool reserved;
-    } receive_enable;            /**< Receive status of packet type */
+        bool ack                    : 1;
+        bool forward                : 1;
+        bool group                  : 1;
+        bool provisoning            : 1;
+        bool control_bind           : 1;
+        bool control_data           : 1;
+        bool ota_status             : 1;
+        bool ota_data               : 1;
+        bool debug_log              : 1;
+        bool debug_command          : 1;
+        bool data                   : 1;
+        bool sec_status             : 1;
+        bool sec                    : 1;
+        bool sec_data               : 1;
+        uint32_t reserved           : 18;
+    } receive_enable;            /**< Set 1 to enable receiving the corresponding ESP-NOW data type */
 } espnow_config_t;
 
 #define ESPNOW_INIT_CONFIG_DEFAULT() { \
     .pmk = "ESP_NOW", \
-    .forward_enable = true, \
+    .forward_enable = 1, \
+    .forward_switch_channel = 0, \
+    .sec_enable = 0, \
     .send_retry_num = 10, \
     .send_max_timeout = pdMS_TO_TICKS(3000),\
     .qsize = 32, \
@@ -119,26 +126,26 @@ typedef struct {
     }
 
 /**
- * @brief Divide espnow data into multiple pipes
+ * @brief Divide ESP-NOW data into multiple pipes
  */
 typedef enum {
-    ESPNOW_TYPE_ACK,            /**< For reliable data transmission */
-    ESPNOW_TYPE_FORWARD,        /**< Set to forward packets */
-    ESPNOW_TYPE_GROUP,          /**< Send a packet that sets the group type */
-    ESPNOW_TYPE_PROV,           /**< Network configuration packet */
-    ESPNOW_TYPE_CONTROL_BIND,   /**< Binding or unbinding packet */
-    ESPNOW_TYPE_CONTROL_DATA,   /**< Control data packet */
-    ESPNOW_TYPE_OTA_STATUS,     /**< Status packet for rapid upgrade of batch Device */
-    ESPNOW_TYPE_OTA_DATA,       /**< Data packet for rapid upgrade of batch Device */
-    ESPNOW_TYPE_DEBUG_LOG,      /**< Equipment debugging log packet */
-    ESPNOW_TYPE_DEBUG_COMMAND,  /**< Equipment debugging command packet */
-    ESPNOW_TYPE_DATA,           /**< User-defined use */
-    ESPNOW_TYPE_SECURITY_STATUS,/**< Security status packet */
-    ESPNOW_TYPE_SECURITY,       /**< Security handshake packet */
-    ESPNOW_TYPE_SECURITY_DATA,  /**< Security packet */
-    ESPNOW_TYPE_RESERVED,       /**< Reserved for other function */
-    ESPNOW_TYPE_MAX,
-} espnow_type_t;
+    ESPNOW_DATA_TYPE_ACK,            /**< For reliable data transmission */
+    ESPNOW_DATA_TYPE_FORWARD,        /**< Set to forward packets */
+    ESPNOW_DATA_TYPE_GROUP,          /**< Send a packet that sets the group type */
+    ESPNOW_DATA_TYPE_PROV,           /**< Network configuration packet */
+    ESPNOW_DATA_TYPE_CONTROL_BIND,   /**< Binding or unbinding packet */
+    ESPNOW_DATA_TYPE_CONTROL_DATA,   /**< Control data packet */
+    ESPNOW_DATA_TYPE_OTA_STATUS,     /**< Status packet for rapid upgrade of batch Device */
+    ESPNOW_DATA_TYPE_OTA_DATA,       /**< Data packet for rapid upgrade of batch Device */
+    ESPNOW_DATA_TYPE_DEBUG_LOG,      /**< Equipment debugging log packet */
+    ESPNOW_DATA_TYPE_DEBUG_COMMAND,  /**< Equipment debugging command packet */
+    ESPNOW_DATA_TYPE_DATA,           /**< User-defined use */
+    ESPNOW_DATA_TYPE_SECURITY_STATUS,/**< Security status packet */
+    ESPNOW_DATA_TYPE_SECURITY,       /**< Security handshake packet */
+    ESPNOW_DATA_TYPE_SECURITY_DATA,  /**< Security packet */
+    ESPNOW_DATA_TYPE_RESERVED,       /**< Reserved for other function */
+    ESPNOW_DATA_TYPE_MAX,
+} espnow_data_type_t;
 
 /**
  * @brief Frame header of espnow
@@ -146,7 +153,7 @@ typedef enum {
 typedef struct {
     uint16_t magic;                    /**< Unique identifier of each packet. Packets with the same identifier will be filtered. 0: a random number */
     uint8_t channel              : 4;  /**< Set the channel where the packet is sent, ESPNOW_CHANNEL_CURRENT or ESPNOW_CHANNEL_ALL */
-    bool filter_adjacent_channel : 1;  /**< Because espnow is sent through HT20, it can receive packets from adjacent channels */
+    bool filter_adjacent_channel : 1;  /**< Because ESP-NOW is sent through HT20, it can receive packets from adjacent channels */
     bool filter_weak_signal      : 1;  /**< When the signal received by the receiving device is lower than forward_rssi, frame_head data will be discarded */
     bool security                : 1;  /**< The payload data is encrypted if security is true */
     uint16_t                     : 4;  /**< Reserved */
@@ -182,7 +189,7 @@ esp_err_t espnow_add_peer(const espnow_addr_t addr, const uint8_t *lmk);
  * @brief When used for unicast, delete the target device
  *
  * @param[in]     peer MAC address
- * 
+ *
  * @return
  *    - ESP_OK
  *    - ESP_ERR_INVALID_ARG
@@ -190,9 +197,9 @@ esp_err_t espnow_add_peer(const espnow_addr_t addr, const uint8_t *lmk);
 esp_err_t espnow_del_peer(const espnow_addr_t addr);
 
 /**
- * @brief   Send ESPNOW data
+ * @brief   Send ESP-NOW data
  *
- * @param[in]   type  espnow data type defined by espnow_type_t
+ * @param[in]   type  ESP-NOW data type defined by espnow_data_type_t
  * @param[in]   dest_addr  destination mac address
  * @param[in]   data  the sending data which must not be NULL
  * @param[in]   size  the maximum length of data, must be no more than ESPNOW_DATA_LEN
@@ -205,11 +212,11 @@ esp_err_t espnow_del_peer(const espnow_addr_t addr);
  *    - ESP_ERR_TIMEOUT
  *    - ESP_ERR_WIFI_TIMEOUT
  */
-esp_err_t espnow_send(espnow_type_t type, const espnow_addr_t dest_addr, const void *data,
+esp_err_t espnow_send(espnow_data_type_t type, const espnow_addr_t dest_addr, const void *data,
                       size_t size, const espnow_frame_head_t *frame_config, TickType_t wait_ticks);
 
 /**
- * @brief   ESPNOW type data receive callback function
+ * @brief   ESP-NOW data receive callback function for the corresponding data type
  *
  * @param[in]  src_addr  peer MAC address
  * @param[in]  data  received data
@@ -220,11 +227,11 @@ esp_err_t espnow_send(espnow_type_t type, const espnow_addr_t dest_addr, const v
  *    - ESP_OK
  *    - ESP_ERR_INVALID_ARG
  */
-typedef esp_err_t (*type_handle_t)(uint8_t *src_addr, void *data,
-                      size_t size, wifi_pkt_rx_ctrl_t *rx_ctrl);
+typedef esp_err_t (*handler_for_data_t)(uint8_t *src_addr, void *data,
+                                   size_t size, wifi_pkt_rx_ctrl_t *rx_ctrl);
 
 /**
- * @brief De-initialize ESPNOW function
+ * @brief De-initialize ESP-NOW function
  *
  * @return
  *    - ESP_OK
@@ -233,10 +240,10 @@ typedef esp_err_t (*type_handle_t)(uint8_t *src_addr, void *data,
 esp_err_t espnow_deinit(void);
 
 /**
- * @brief Initialize ESPNOW function
+ * @brief Initialize ESP-NOW function
  *
- * @param[in]  config  configuration of espnow
- * 
+ * @param[in]  config  configuration of ESP-NOW
+ *
  * @return
  *    - ESP_OK
  *    - ESP_FAIL
@@ -244,29 +251,31 @@ esp_err_t espnow_deinit(void);
 esp_err_t espnow_init(const espnow_config_t *config);
 
 /**
- * @brief Set the type data receive status and callback function
+ * @brief Set configuration when receiving the corresponding ESP-NOW data type
+ *        Include: Set to enable/disable handling the corresponding ESP-NOW data type
+ *                 Set the callback function when receiving the corresponding ESP-NOW data type
  *
- * @param[in]  type  data type defined by espnow_type_t
- * @param[in]  enable  enable or disable the data receive, false - disable, true - enable
- * @param[in]  handle  the receive callback function
+ * @param[in]  type  data type defined by espnow_data_type_t
+ * @param[in]  enable  enable or disable the receive of data type, false - disable, true - enable
+ * @param[in]  handle  the receive callback function for data type
  *
  * @return
  *    - ESP_OK
  *    - ESP_ERR_INVALID_ARG
  */
-esp_err_t espnow_set_type(espnow_type_t type, bool enable, type_handle_t handle);
+esp_err_t espnow_set_config_for_data_type(espnow_data_type_t type, bool enable, handler_for_data_t handle);
 
 /**
- * @brief Get the type data receive status
+ * @brief Get the configuration that whether to handle the corresponding ESP-NOW data type
  *
- * @param[in]  type  data type defined by espnow_type_t
- * @param[out]  enable  store the current receive status of the type data
- * 
+ * @param[in]  type  data type defined by espnow_data_type_t
+ * @param[out]  enable  store the current receiving status of this data type
+ *
  * @return
  *    - ESP_OK
  *    - ESP_ERR_INVALID_ARG
  */
-esp_err_t espnow_get_type(espnow_type_t type, bool *enable);
+esp_err_t espnow_get_config_for_data_type(espnow_data_type_t type, bool *enable);
 
 /**
  * @brief      Set group ID addresses
@@ -313,7 +322,7 @@ esp_err_t espnow_get_group_list(espnow_group_t *group_id_list, size_t num);
  * @brief      Check whether the specified group address is my group
  *
  * @param[in]  group_id  pointer to the specified group ID addresses
- * 
+ *
  * @return     true/false
  */
 bool espnow_is_my_group(const espnow_group_t group_id);
@@ -321,30 +330,30 @@ bool espnow_is_my_group(const espnow_group_t group_id);
 /**
  * @brief       Dynamically set the grouping of devices through commands
  *
- * @param[in]   addrs_list  mac address list of the grouping devices
+ * @param[in]   addrs_list  MAC address list of the grouping devices
  * @param[in]   addrs_num  number of the grouping devices
  * @param[in]   group_id  pointer to the specified group ID addresses
  * @param[in]   frame_head  use ESPNOW_FRAME_CONFIG_DEFAULT configuration if frame_config is NULL
- * @param[in]   type  true: add group, false: delete group
+ * @param[in]   enable  true: add group, false: delete group
  * @param[in]   wait_ticks  the maximum sending time in ticks
- * 
+ *
  * @return
  *    - ESP_OK
  *    - ESP_ERR_INVALID_ARG
  */
-esp_err_t espnow_send_group(const espnow_addr_t *addrs_list, size_t addrs_num,
+esp_err_t espnow_set_group(const espnow_addr_t *addrs_list, size_t addrs_num,
                             const espnow_group_t group_id, espnow_frame_head_t *frame_head,
-                            bool type, TickType_t wait_ticks);
+                            bool enable, TickType_t wait_ticks);
 
 /**
  * @brief Set the security key info
  *        The security key info is used to derive key and stored to flash.
- *        The derived key is used to encrypt espnow data payload when send and decrypt espnow data payload when receive.
+ *        The derived key is used to encrypt ESP-NOW data payload when send and decrypt ESP-NOW data payload when receive.
  *
- * @attention Set sec_enable in espnow_config to true when espnow initializes, or the function will return failed.
- * 
+ * @attention Set sec_enable in espnow_config to true when ESP-NOW initializes, or the function will return failed.
+ *
  * @param[in]  key_info  security key info
- * 
+ *
  *    - ESP_OK
  *    - ESP_ERR_INVALID_ARG
  */
@@ -355,7 +364,7 @@ esp_err_t espnow_set_key(uint8_t key_info[APP_KEY_LEN]);
  *        If no security key info is stored in flash, the function will return failed.
  *
  * @param[out]  key_info  security key info
- * 
+ *
  *    - ESP_OK
  *    - ESP_ERR_INVALID_ARG
  */
@@ -368,6 +377,7 @@ esp_err_t espnow_get_key(uint8_t key_info[APP_KEY_LEN]);
  *    - ESP_ERR_NVS_NOT_FOUND
  */
 esp_err_t espnow_erase_key(void);
+
 #ifdef __cplusplus
 }
 #endif /**< _cplusplus */

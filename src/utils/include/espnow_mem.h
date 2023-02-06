@@ -19,24 +19,24 @@
 #include "freertos/task.h"
 
 #include "esp_heap_caps.h"
-#include "esp_utils.h"
+#include "espnow_utils.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif /**< _cplusplus */
 
-#ifdef CONFIG_MEM_DEBUG
+#ifdef CONFIG_ESPNOW_MEM_DEBUG
 #define ESP_MEM_DEBUG true
 #else
 #define ESP_MEM_DEBUG false
-#endif /**< CONFIG_MEM_DEBUG */
+#endif /**< CONFIG_ESPNOW_MEM_DEBUG */
 
-#ifndef CONFIG_MEM_DBG_INFO_MAX
-#define CONFIG_MEM_DBG_INFO_MAX     (256)
-#endif  /**< CONFIG_MEM_DBG_INFO_MAX */
-#define MEM_DBG_INFO_MAX CONFIG_MEM_DBG_INFO_MAX
+#ifndef CONFIG_ESPNOW_MEM_DBG_INFO_MAX
+#define CONFIG_ESPNOW_MEM_DBG_INFO_MAX     (256)
+#endif  /**< CONFIG_ESPNOW_MEM_DBG_INFO_MAX */
+#define MEM_DBG_INFO_MAX CONFIG_ESPNOW_MEM_DBG_INFO_MAX
 
-#ifdef CONFIG_MEM_ALLOCATION_SPIRAM
+#ifdef CONFIG_ESPNOW_MEM_ALLOCATION_SPIRAM
 #define MALLOC_CAP_INDICATE MALLOC_CAP_SPIRAM
 #else
 #define MALLOC_CAP_INDICATE MALLOC_CAP_DEFAULT
@@ -50,7 +50,7 @@ extern "C" {
  * @param[in] tag  description tag
  * @param[in] line line number
  */
-void esp_mem_add_record(void *ptr, int size, const char *tag, int line);
+void espnow_mem_add_record(void *ptr, int size, const char *tag, int line);
 
 /**
  * @brief Remove from memory record
@@ -59,24 +59,24 @@ void esp_mem_add_record(void *ptr, int size, const char *tag, int line);
  * @param[in] tag  description tag
  * @param[in] line line number
  */
-void esp_mem_remove_record(void *ptr, const char *tag, int line);
+void espnow_mem_remove_record(void *ptr, const char *tag, int line);
 
 /**
  * @brief Print the all allocation but not released memory
  *
- * @attention Must configure CONFIG_MEM_DEBUG == y annd esp_log_level_set(esp_mem, ESP_LOG_INFO);
+ * @attention Must configure CONFIG_ESPNOW_MEM_DEBUG == y annd esp_log_level_set(esp_mem, ESP_LOG_INFO);
  */
-void esp_mem_print_record(void);
+void espnow_mem_print_record(void);
 
 /**
  * @brief Print memory and free space on the stack
  */
-void esp_mem_print_heap(void);
+void espnow_mem_print_heap(void);
 
 /**
  * @brief Print the state of tasks in the system
  */
-void esp_mem_print_task(void);
+void espnow_mem_print_task(void);
 
 /**
  * @brief  Malloc memory
@@ -93,7 +93,7 @@ void esp_mem_print_task(void);
             if(!ptr) { \
                 ESP_LOGW(TAG, "[%s, %d] <ESP_ERR_NO_MEM> Malloc size: %d, ptr: %p, heap free: %" PRIu32 "", __func__, __LINE__, (int)size, ptr, esp_get_free_heap_size()); \
             } else { \
-                esp_mem_add_record(ptr, size, TAG, __LINE__); \
+                espnow_mem_add_record(ptr, size, TAG, __LINE__); \
             } \
         } \
         ptr; \
@@ -115,7 +115,7 @@ void esp_mem_print_task(void);
             if(!ptr) { \
                 ESP_LOGW(TAG, "[%s, %d] <ESP_ERR_NO_MEM> Calloc size: %d, ptr: %p, heap free: %" PRIu32 "", __func__, __LINE__, (int)(n) * (size), ptr, esp_get_free_heap_size()); \
             } else { \
-                esp_mem_add_record(ptr, (n) * (size), TAG, __LINE__); \
+                espnow_mem_add_record(ptr, (n) * (size), TAG, __LINE__); \
             } \
         } \
         ptr; \
@@ -137,8 +137,8 @@ void esp_mem_print_task(void);
             if(!new_ptr) { \
                 ESP_LOGW(TAG, "[%s, %d] <ESP_ERR_NO_MEM> Realloc size: %d, new_ptr: %p, heap free: %" PRIu32 "", __func__, __LINE__, (int)size, new_ptr, esp_get_free_heap_size()); \
             } else { \
-                esp_mem_remove_record(ptr, TAG, __LINE__); \
-                esp_mem_add_record(new_ptr, size, TAG, __LINE__); \
+                espnow_mem_remove_record(ptr, TAG, __LINE__); \
+                espnow_mem_add_record(new_ptr, size, TAG, __LINE__); \
             } \
         } \
         new_ptr; \
@@ -162,8 +162,8 @@ void esp_mem_print_task(void);
             vTaskDelay(pdMS_TO_TICKS(100)); \
         } \
         if (ESP_MEM_DEBUG) { \
-            esp_mem_remove_record(ptr, TAG, __LINE__); \
-            esp_mem_add_record(new_ptr, size, TAG, __LINE__); \
+            espnow_mem_remove_record(ptr, TAG, __LINE__); \
+            espnow_mem_add_record(new_ptr, size, TAG, __LINE__); \
         } \
         new_ptr; \
     })
@@ -177,7 +177,7 @@ void esp_mem_print_task(void);
         if(ptr) { \
             free(ptr); \
             if (ESP_MEM_DEBUG) { \
-                esp_mem_remove_record(ptr, TAG, __LINE__); \
+                espnow_mem_remove_record(ptr, TAG, __LINE__); \
             } \
             ptr = NULL; \
         } \

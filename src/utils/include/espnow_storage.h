@@ -28,7 +28,7 @@ extern "C"
  *     - ESP_FAIL
  *     - ESP_OK
  */
-esp_err_t esp_storage_init(void);
+esp_err_t espnow_storage_init(void);
 
 /**
  * @brief Save the information with given key
@@ -43,7 +43,7 @@ esp_err_t esp_storage_init(void);
  *     - ESP_FAIL
  *     - ESP_OK
  */
-esp_err_t esp_storage_set(const char *key, const void *value, size_t length);
+esp_err_t espnow_storage_set(const char *key, const void *value, size_t length);
 
 /**
  * @brief Load the information with given key
@@ -56,7 +56,7 @@ esp_err_t esp_storage_set(const char *key, const void *value, size_t length);
  *     - ESP_FAIL
  *     - ESP_OK
  */
-esp_err_t esp_storage_get(const char *key, void *value, size_t length);
+esp_err_t espnow_storage_get(const char *key, void *value, size_t length);
 
 /**
  * @brief  Erase the information with given key
@@ -67,7 +67,7 @@ esp_err_t esp_storage_get(const char *key, void *value, size_t length);
  *     - ESP_FAIL
  *     - ESP_OK
  */
-esp_err_t esp_storage_erase(const char *key);
+esp_err_t espnow_storage_erase(const char *key);
 
 #ifdef __cplusplus
 }

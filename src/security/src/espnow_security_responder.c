@@ -44,7 +44,7 @@ static esp_err_t espnow_sec_info(const uint8_t *src_addr)
 
     info->type = ESPNOW_SEC_TYPE_INFO;
 
-    ret = espnow_send(ESPNOW_TYPE_SECURITY_STATUS, src_addr, info, size, &g_frame_config, portMAX_DELAY);
+    ret = espnow_send(ESPNOW_DATA_TYPE_SECURITY_STATUS, src_addr, info, size, &g_frame_config, portMAX_DELAY);
 
     ESP_ERROR_RETURN(ret != ESP_OK, ret, "espnow_write");
 
@@ -106,7 +106,7 @@ static esp_err_t espnow_sec_handle(const char *ep_name, uint8_t resp_type, const
         response_data->size = outlen;
         memcpy(response_data->data, outbuf, outlen);
         response_size = sizeof(espnow_sec_packet_t) + outlen;
-        ret = espnow_send(ESPNOW_TYPE_SECURITY, src_addr, response_data, response_size, &frame_head, portMAX_DELAY);
+        ret = espnow_send(ESPNOW_DATA_TYPE_SECURITY, src_addr, response_data, response_size, &frame_head, portMAX_DELAY);
         if (ret != ESP_OK) {
             ESP_LOGW(TAG, "espnow-session send failed");
         }
@@ -163,7 +163,7 @@ static esp_err_t espnow_sec_responder_process(uint8_t *src_addr, void *data,
 static esp_err_t protocomm_espnow_responder_start(protocomm_t *pc)
 {
     g_espnow_pc = pc;
-    espnow_set_type(ESPNOW_TYPE_SECURITY, 1, espnow_sec_responder_process);
+    espnow_set_config_for_data_type(ESPNOW_DATA_TYPE_SECURITY, 1, espnow_sec_responder_process);
 
     return ESP_OK;
 }
@@ -193,7 +193,7 @@ static esp_err_t espnow_config_data_handler(uint32_t session_id, const uint8_t *
 
 static esp_err_t protocomm_espnow_responder_stop()
 {
-    espnow_set_type(ESPNOW_TYPE_SECURITY, 0, NULL);
+    espnow_set_config_for_data_type(ESPNOW_DATA_TYPE_SECURITY, 0, NULL);
 
     return ESP_OK;
 }

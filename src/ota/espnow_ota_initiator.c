@@ -31,9 +31,9 @@
 #include "esp_system.h"
 #endif
 
-#include "esp_utils.h"
-#include "espnow_ota.h"
 #include "espnow.h"
+#include "espnow_ota.h"
+#include "espnow_utils.h"
 
 static const char *TAG = "espnow_ota_initatior";
 static bool g_ota_send_running_flag   = false;
@@ -194,11 +194,11 @@ esp_err_t espnow_ota_initiator_scan(espnow_ota_responder_t **info_list, size_t *
     espnow_ota_initiator_scan_result_free();
 
     g_info_en = true;
-    espnow_set_type(ESPNOW_TYPE_OTA_STATUS, 1, espnow_ota_initiator_status_process);
+    espnow_set_config_for_data_type(ESPNOW_DATA_TYPE_OTA_STATUS, 1, espnow_ota_initiator_status_process);
 
     for (int i = 0, start_ticks = xTaskGetTickCount(), recv_ticks = 500; i < 5 && wait_ticks - (xTaskGetTickCount() - start_ticks) > 0;
             ++i, recv_ticks = 500) {
-        ret = espnow_send(ESPNOW_TYPE_OTA_DATA, ESPNOW_ADDR_BROADCAST, &request_ota_info, 1, &frame_head, portMAX_DELAY);
+        ret = espnow_send(ESPNOW_DATA_TYPE_OTA_DATA, ESPNOW_ADDR_BROADCAST, &request_ota_info, 1, &frame_head, portMAX_DELAY);
         ESP_ERROR_GOTO(ret != ESP_OK, EXIT, "espnow_send");
 
         vTaskDelay(recv_ticks);
@@ -208,7 +208,7 @@ esp_err_t espnow_ota_initiator_scan(espnow_ota_responder_t **info_list, size_t *
     *num = g_scan_num;
 
 EXIT:
-    espnow_set_type(ESPNOW_TYPE_OTA_STATUS, 0, NULL);
+    espnow_set_config_for_data_type(ESPNOW_DATA_TYPE_OTA_STATUS, 0, NULL);
     g_info_en = false;
 
     return ret;
@@ -250,10 +250,10 @@ static esp_err_t espnow_ota_request_status(uint8_t (*progress_array)[ESPNOW_OTA_
             result->successed_addr = ESP_REALLOC_RETRY(result->successed_addr,
                                      result->successed_num * ESPNOW_ADDR_LEN);
             memcpy(result->successed_addr + (result->successed_num - 1), src_addr, ESPNOW_ADDR_LEN);
-            espnow_send_group((uint8_t (*)[6])src_addr, 1, ESPNOW_ADDR_GROUP_OTA, NULL, false, portMAX_DELAY);
+            espnow_set_group((uint8_t (*)[6])src_addr, 1, ESPNOW_ADDR_GROUP_OTA, NULL, false, portMAX_DELAY);
         } else if (response_data->error_code == ESP_ERR_ESPNOW_OTA_STOP) {
             addrs_remove(result->unfinished_addr, &result->unfinished_num, src_addr);
-            espnow_send_group((uint8_t (*)[6])src_addr, 1, ESPNOW_ADDR_GROUP_OTA, NULL, false, portMAX_DELAY);
+            espnow_set_group((uint8_t (*)[6])src_addr, 1, ESPNOW_ADDR_GROUP_OTA, NULL, false, portMAX_DELAY);
         }
 
         if (result->unfinished_num == 0) {
@@ -279,7 +279,7 @@ static esp_err_t espnow_ota_request_status(uint8_t (*progress_array)[ESPNOW_OTA_
     };
 
     for (int i = 0, wait_ticks = pdMS_TO_TICKS(500); i < 3 && response_num > 0; ++i, wait_ticks = pdMS_TO_TICKS(100)) {
-        if (espnow_send(ESPNOW_TYPE_OTA_DATA, ESPNOW_ADDR_GROUP_OTA, status,
+        if (espnow_send(ESPNOW_DATA_TYPE_OTA_DATA, ESPNOW_ADDR_GROUP_OTA, status,
                         sizeof(espnow_ota_status_t), &status_frame, portMAX_DELAY) != ESP_OK) {
             ESP_LOGW(TAG, "Request devices upgrade status");
         }
@@ -305,7 +305,7 @@ static esp_err_t espnow_ota_request_status(uint8_t (*progress_array)[ESPNOW_OTA_
                 ESP_LOGW(TAG, "<ESP_ERR_ESPNOW_OTA_FIRMWARE_PARTITION> response_data->error_code: ");
                 addrs_remove(result->unfinished_addr, &result->unfinished_num, src_addr);
                 addrs_remove(response_addrs, &response_num, src_addr);
-                espnow_send_group((uint8_t (*)[6])src_addr, 1, ESPNOW_ADDR_GROUP_OTA, NULL, false, portMAX_DELAY);
+                espnow_set_group((uint8_t (*)[6])src_addr, 1, ESPNOW_ADDR_GROUP_OTA, NULL, false, portMAX_DELAY);
                 continue;
             }
 
@@ -335,7 +335,7 @@ static esp_err_t espnow_ota_request_status(uint8_t (*progress_array)[ESPNOW_OTA_
                                          result->successed_num * ESPNOW_ADDR_LEN);
                 memcpy(result->successed_addr + (result->successed_num - 1), src_addr, ESPNOW_ADDR_LEN);
 
-                espnow_send_group((uint8_t (*)[6])src_addr, 1, ESPNOW_ADDR_GROUP_OTA, NULL, false, portMAX_DELAY);
+                espnow_set_group((uint8_t (*)[6])src_addr, 1, ESPNOW_ADDR_GROUP_OTA, NULL, false, portMAX_DELAY);
             } else {
                 ESP_LOG_BUFFER_HEXDUMP(TAG, response_data->progress_array[0],
                                        sizeof(espnow_ota_status_t) + ESPNOW_OTA_PROGRESS_MAX_SIZE, ESP_LOG_VERBOSE);
@@ -426,11 +426,11 @@ esp_err_t espnow_ota_initiator_send(const uint8_t addrs_list[][6], size_t addrs_
         memcpy(result->unfinished_addr, addrs_list, result->unfinished_num * ESPNOW_ADDR_LEN);
     }
 
-    espnow_send_group(addrs_list, addrs_num, ESPNOW_ADDR_GROUP_OTA, NULL, true, portMAX_DELAY);
+    espnow_set_group(addrs_list, addrs_num, ESPNOW_ADDR_GROUP_OTA, NULL, true, portMAX_DELAY);
     /* Set queue size to unfinished num to avoid send queue failed */
     g_ota_queue = xQueueCreate(result->unfinished_num, sizeof(espnow_ota_data_t));
     ESP_ERROR_GOTO(!g_ota_queue, EXIT, "Create espnow ota queue fail");
-    espnow_set_type(ESPNOW_TYPE_OTA_STATUS, 1, espnow_ota_initiator_status_process);
+    espnow_set_config_for_data_type(ESPNOW_DATA_TYPE_OTA_STATUS, 1, espnow_ota_initiator_status_process);
 
     packet->type = ESPNOW_OTA_TYPE_DATA;
     packet->size = ESPNOW_OTA_PACKET_MAX_SIZE;
@@ -460,7 +460,7 @@ esp_err_t espnow_ota_initiator_send(const uint8_t addrs_list[][6], size_t addrs_
                 ESP_ERROR_GOTO(ret != ESP_OK, EXIT, "<%s> Read data from Flash", esp_err_to_name(ret));
 
                 ESP_LOGD(TAG, "seq: %d, size: %d, addrs_num: %d", packet->seq, packet->size, result->requested_num);
-                ret = espnow_send(ESPNOW_TYPE_OTA_DATA, ESPNOW_ADDR_GROUP_OTA, packet, sizeof(espnow_ota_packet_t), &frame_head, portMAX_DELAY);
+                ret = espnow_send(ESPNOW_DATA_TYPE_OTA_DATA, ESPNOW_ADDR_GROUP_OTA, packet, sizeof(espnow_ota_packet_t), &frame_head, portMAX_DELAY);
                 ESP_ERROR_CONTINUE(ret != ESP_OK, "<%s> espnow write", esp_err_to_name(ret));
             }
         }
@@ -468,7 +468,7 @@ esp_err_t espnow_ota_initiator_send(const uint8_t addrs_list[][6], size_t addrs_
 
 EXIT:
 
-    espnow_set_type(ESPNOW_TYPE_OTA_STATUS, 0, NULL);
+    espnow_set_config_for_data_type(ESPNOW_DATA_TYPE_OTA_STATUS, 0, NULL);
     if (g_ota_queue) {
         espnow_ota_data_t *tmp_data = NULL;
 
@@ -481,7 +481,7 @@ EXIT:
     }
 
     if (result->unfinished_num > 0) {
-        espnow_send_group(result->unfinished_addr, result->unfinished_num, ESPNOW_ADDR_GROUP_OTA, NULL, false, portMAX_DELAY);
+        espnow_set_group(result->unfinished_addr, result->unfinished_num, ESPNOW_ADDR_GROUP_OTA, NULL, false, portMAX_DELAY);
         ret = ESP_ERR_ESPNOW_OTA_FIRMWARE_INCOMPLETE;
     }
 

@@ -28,9 +28,9 @@
 #include "esp_mac.h"
 #endif
 
-#include "esp_utils.h"
+#include "espnow_utils.h"
 
-static const char *TAG = "esp_utils";
+static const char *TAG = "espnow_utils";
 
 static void show_system_info_timercb(TimerHandle_t timer)
 {
@@ -51,14 +51,14 @@ static void show_system_info_timercb(TimerHandle_t timer)
     }
 }
 
-void esp_print_system_info(uint32_t interval_ms)
+void espnow_print_system_info(uint32_t interval_ms)
 {
     TimerHandle_t timer = xTimerCreate("show_system_info", pdMS_TO_TICKS(interval_ms),
                                        true, NULL, show_system_info_timercb);
     xTimerStart(timer, 0);
 }
 
-uint8_t *mac_str2hex(const char *mac_str, uint8_t *mac_hex)
+uint8_t *espnow_mac_str2hex(const char *mac_str, uint8_t *mac_hex)
 {
     ESP_ERROR_CHECK(!mac_str);
     ESP_ERROR_CHECK(!mac_hex);
