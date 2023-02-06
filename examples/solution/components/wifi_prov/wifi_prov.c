@@ -6,9 +6,7 @@
    software is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
    CONDITIONS OF ANY KIND, either express or implied.
 */
-#include "sdkconfig.h"
 
-#ifdef CONFIG_WIFI_PROV
 #include <stdio.h>
 #include <string.h>
 
@@ -22,13 +20,13 @@
 
 #include <wifi_provisioning/manager.h>
 
-#ifdef CONFIG_EXAMPLE_PROV_TRANSPORT_BLE
+#ifdef CONFIG_APP_WIFI_PROVISION_TRANSPORT_BLE
 #include <wifi_provisioning/scheme_ble.h>
-#endif /* CONFIG_EXAMPLE_PROV_TRANSPORT_BLE */
+#endif /* CONFIG_APP_WIFI_PROVISION_TRANSPORT_BLE */
 
-#ifdef CONFIG_EXAMPLE_PROV_TRANSPORT_SOFTAP
+#ifdef CONFIG_APP_WIFI_PROVISION_TRANSPORT_SOFTAP
 #include <wifi_provisioning/scheme_softap.h>
-#endif /* CONFIG_EXAMPLE_PROV_TRANSPORT_SOFTAP */
+#endif /* CONFIG_APP_WIFI_PROVISION_TRANSPORT_SOFTAP */
 #include "qrcode.h"
 
 static const char *TAG = "prov";
@@ -47,7 +45,7 @@ static EventGroupHandle_t wifi_event_group;
 static void event_handler(void* arg, esp_event_base_t event_base,
                           int32_t event_id, void* event_data)
 {
-#ifdef CONFIG_EXAMPLE_RESET_PROV_MGR_ON_FAILURE
+#ifdef CONFIG_APP_WIFI_PROVISION_RESET_PROV_MGR_ON_FAILURE
     static int retries;
 #endif
     if (event_base == WIFI_PROV_EVENT) {
@@ -69,9 +67,9 @@ static void event_handler(void* arg, esp_event_base_t event_base,
                          "\n\tPlease reset to factory and retry provisioning",
                          (*reason == WIFI_PROV_STA_AUTH_ERROR) ?
                          "Wi-Fi station authentication failed" : "Wi-Fi access-point not found");
-#ifdef CONFIG_EXAMPLE_RESET_PROV_MGR_ON_FAILURE
+#ifdef CONFIG_APP_WIFI_PROVISION_RESET_PROV_MGR_ON_FAILURE
                 retries++;
-                if (retries >= CONFIG_EXAMPLE_PROV_MGR_MAX_RETRY_CNT) {
+                if (retries >= CONFIG_APP_WIFI_PROVISION_PROV_MGR_MAX_RETRY_CNT) {
                     ESP_LOGI(TAG, "Failed to connect with provisioned AP, reseting provisioned credentials");
                     wifi_prov_mgr_reset_sm_state_on_failure();
                     retries = 0;
@@ -81,7 +79,7 @@ static void event_handler(void* arg, esp_event_base_t event_base,
             }
             case WIFI_PROV_CRED_SUCCESS:
                 ESP_LOGI(TAG, "Provisioning successful");
-#ifdef CONFIG_EXAMPLE_RESET_PROV_MGR_ON_FAILURE
+#ifdef CONFIG_APP_WIFI_PROVISION_RESET_PROV_MGR_ON_FAILURE
                 retries = 0;
 #endif
                 break;
@@ -90,7 +88,7 @@ static void event_handler(void* arg, esp_event_base_t event_base,
                 wifi_prov_mgr_deinit();
                 break;
             case WIFI_PROV_DEINIT:
-#ifdef CONFIG_EXAMPLE_PROV_TRANSPORT_BLE
+#ifdef CONFIG_APP_WIFI_PROVISION_TRANSPORT_BLE
                 ESP_ERROR_CHECK(esp_wifi_set_ps(WIFI_PS_NONE));
 #endif
                 xEventGroupSetBits(wifi_event_group, WIFI_PROV_DEINIT_EVENT);
@@ -165,11 +163,11 @@ static void wifi_prov_print_qr(const char *name, const char *pop, const char *tr
                     ",\"transport\":\"%s\"}",
                     PROV_QR_VERSION, name, transport);
     }
-#ifdef CONFIG_EXAMPLE_PROV_SHOW_QR
+#ifdef CONFIG_APP_WIFI_PROVISION_SHOW_QR
     ESP_LOGI(TAG, "Scan this QR code from the provisioning application for Provisioning.");
     esp_qrcode_config_t cfg = ESP_QRCODE_CONFIG_DEFAULT();
     esp_qrcode_generate(&cfg, payload);
-#endif /* CONFIG_APP_WIFI_PROV_SHOW_QR */
+#endif /* CONFIG_APP_WIFI_PROVISION_SHOW_QR */
     ESP_LOGI(TAG, "If QR code is not visible, copy paste the below URL in a browser.\n%s?data=%s", QRCODE_BASE_URL, payload);
 }
 
@@ -189,13 +187,13 @@ void wifi_prov_init(void)
 
     /* Initialize Wi-Fi including netif with default config */
     esp_netif_create_default_wifi_sta();
-#ifdef CONFIG_EXAMPLE_PROV_TRANSPORT_SOFTAP
+#ifdef CONFIG_APP_WIFI_PROVISION_TRANSPORT_SOFTAP
     esp_netif_create_default_wifi_ap();
-#endif /* CONFIG_EXAMPLE_PROV_TRANSPORT_SOFTAP */
+#endif /* CONFIG_APP_WIFI_PROVISION_TRANSPORT_SOFTAP */
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
     ESP_ERROR_CHECK(esp_wifi_init(&cfg));
 
-#ifdef CONFIG_EXAMPLE_RESET_PROVISIONED
+#ifdef CONFIG_APP_WIFI_PROVISION_RESET_PROVISIONED
     wifi_prov_mgr_reset_provisioning();
 #endif
     
@@ -209,12 +207,12 @@ void wifi_prov(void)
     wifi_prov_mgr_config_t config = {
         /* What is the Provisioning Scheme that we want ?
          * wifi_prov_scheme_softap or wifi_prov_scheme_ble */
-#ifdef CONFIG_EXAMPLE_PROV_TRANSPORT_BLE
+#ifdef CONFIG_APP_WIFI_PROVISION_TRANSPORT_BLE
         .scheme = wifi_prov_scheme_ble,
-#endif /* CONFIG_EXAMPLE_PROV_TRANSPORT_BLE */
-#ifdef CONFIG_EXAMPLE_PROV_TRANSPORT_SOFTAP
+#endif /* CONFIG_APP_WIFI_PROVISION_TRANSPORT_BLE */
+#ifdef CONFIG_APP_WIFI_PROVISION_TRANSPORT_SOFTAP
         .scheme = wifi_prov_scheme_softap,
-#endif /* CONFIG_EXAMPLE_PROV_TRANSPORT_SOFTAP */
+#endif /* CONFIG_APP_WIFI_PROVISION_TRANSPORT_SOFTAP */
 
         /* Any default scheme specific event handler that you would
          * like to choose. Since our example application requires
@@ -224,12 +222,12 @@ void wifi_prov(void)
          * appropriate scheme specific event handler allows the manager
          * to take care of this automatically. This can be set to
          * WIFI_PROV_EVENT_HANDLER_NONE when using wifi_prov_scheme_softap*/
-#ifdef CONFIG_EXAMPLE_PROV_TRANSPORT_BLE
+#ifdef CONFIG_APP_WIFI_PROVISION_TRANSPORT_BLE
         .scheme_event_handler = WIFI_PROV_SCHEME_BLE_EVENT_HANDLER_FREE_BTDM
-#endif /* CONFIG_EXAMPLE_PROV_TRANSPORT_BLE */
-#ifdef CONFIG_EXAMPLE_PROV_TRANSPORT_SOFTAP
+#endif /* CONFIG_APP_WIFI_PROVISION_TRANSPORT_BLE */
+#ifdef CONFIG_APP_WIFI_PROVISION_TRANSPORT_SOFTAP
         .scheme_event_handler = WIFI_PROV_EVENT_HANDLER_NONE
-#endif /* CONFIG_EXAMPLE_PROV_TRANSPORT_SOFTAP */
+#endif /* CONFIG_APP_WIFI_PROVISION_TRANSPORT_SOFTAP */
     };
 
     /* Initialize provisioning manager with the
@@ -245,7 +243,7 @@ void wifi_prov(void)
     if (!provisioned) {
         ESP_LOGI(TAG, "Starting provisioning");
 
-#ifdef CONFIG_EXAMPLE_PROV_TRANSPORT_BLE
+#ifdef CONFIG_APP_WIFI_PROVISION_TRANSPORT_BLE
         ESP_ERROR_CHECK(esp_wifi_set_ps(WIFI_PS_MIN_MODEM));
 #endif
 
@@ -279,7 +277,7 @@ void wifi_prov(void)
          */
         const char *service_key = NULL;
 
-#ifdef CONFIG_EXAMPLE_PROV_TRANSPORT_BLE
+#ifdef CONFIG_APP_WIFI_PROVISION_TRANSPORT_BLE
         /* This step is only useful when scheme is wifi_prov_scheme_ble. This will
          * set a custom 128 bit UUID which will be included in the BLE advertisement
          * and will correspond to the primary GATT service that provides provisioning
@@ -300,7 +298,7 @@ void wifi_prov(void)
          * forgotten to enable the BT stack or BTDM BLE settings in the SDK (e.g. see
          * the sdkconfig.defaults in the example project) */
         wifi_prov_scheme_ble_set_service_uuid(custom_service_uuid);
-#endif /* CONFIG_EXAMPLE_PROV_TRANSPORT_BLE */
+#endif /* CONFIG_APP_WIFI_PROVISION_TRANSPORT_BLE */
 
         /* An optional endpoint that applications can create if they expect to
          * get some additional custom data during provisioning workflow.
@@ -323,11 +321,11 @@ void wifi_prov(void)
         // wifi_prov_mgr_wait();
         // wifi_prov_mgr_deinit();
         /* Print QR code for provisioning */
-#ifdef CONFIG_EXAMPLE_PROV_TRANSPORT_BLE
+#ifdef CONFIG_APP_WIFI_PROVISION_TRANSPORT_BLE
         wifi_prov_print_qr(service_name, pop, PROV_TRANSPORT_BLE);
-#else /* CONFIG_EXAMPLE_PROV_TRANSPORT_SOFTAP */
+#else /* CONFIG_APP_WIFI_PROVISION_TRANSPORT_SOFTAP */
         wifi_prov_print_qr(service_name, pop, PROV_TRANSPORT_SOFTAP);
-#endif /* CONFIG_EXAMPLE_PROV_TRANSPORT_BLE */
+#endif /* CONFIG_APP_WIFI_PROVISION_TRANSPORT_BLE */
     } else {
         ESP_LOGI(TAG, "Already provisioned, starting Wi-Fi STA");
 
@@ -336,4 +334,3 @@ void wifi_prov(void)
         wifi_prov_mgr_deinit();
     }
 }
-#endif
