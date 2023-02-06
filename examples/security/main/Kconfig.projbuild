@@ -1,32 +1,38 @@
 menu "Example Configuration"
+    config APP_ESPNOW_RETRY_NUM
+        int "Packet retransmission count"
+        default 5
+        help
+            Set the packet retransmission count. The more retransmission 
+            times, the lower the throughput rate.
 
-    config ESPNOW_SESSION_POP
+    config APP_ESPNOW_SESSION_POP
         string "Proof of Possession"
         default "espnow_pop"
         help
             Proof of Possession (PoP) string used to authorize session and derive shared key.
 
-    choice ESPNOW_SEC_MODE
+    choice APP_ESPNOW_SEC_MODE
         bool "ESP-NOW Mode"
-        default ESPNOW_SEC_INITATOR
+        default APP_ESPNOW_SEC_INITATOR
         help
             Select the ESP-NOW Mode.
 
-        config ESPNOW_SEC_INITATOR
-            bool "ESP-NOW SEC initator Mode"
+        config APP_ESPNOW_SEC_INITATOR
+            bool "Initator Mode"
             help
                 Select the ESP-NOW SEC initator Mode.
 
-        config ESPNOW_SEC_RESPONDER
-            bool "ESP-NOW SEC responder Mode"
+        config APP_ESPNOW_SEC_RESPONDER
+            bool "Responder Mode"
             help
                 Select the ESP-NOW SEC responder Mode.
 
     endchoice
 
-    config ESPNOW_SEC_MODE
+    config APP_ESPNOW_SEC_MODE
         int
-        default 0 if ESPNOW_SEC_INITATOR
-        default 1 if ESPNOW_SEC_RESPONDER
+        default 0 if APP_ESPNOW_SEC_INITATOR
+        default 1 if APP_ESPNOW_SEC_RESPONDER
 
 endmenu
