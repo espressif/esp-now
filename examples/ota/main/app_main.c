@@ -6,29 +6,20 @@
    software is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
    CONDITIONS OF ANY KIND, either express or implied.
 */
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <esp_log.h>
-#include <esp_ota_ops.h>
-#include <errno.h>
 
 #include "freertos/FreeRTOS.h"
-#include "freertos/queue.h"
 #include "freertos/task.h"
-#include "freertos/event_groups.h"
+
 #include "esp_http_client.h"
-
-#include "esp_system.h"
 #include "esp_log.h"
-#include "esp_wifi.h"
 #include "esp_netif.h"
-
-#include "nvs_flash.h"
-#include "nvs.h"
+#include "esp_ota_ops.h"
+#include "esp_system.h"
+#include "esp_wifi.h"
 
 #include "esp_utils.h"
 #include "esp_storage.h"
+
 #include "espnow.h"
 #include "espnow_ota.h"
 
@@ -36,8 +27,8 @@
 
 static const char *TAG = "app_main";
 
-#ifdef CONFIG_ESPNOW_OTA_INITATOR
-static size_t firmware_download(const char *url)
+#ifdef CONFIG_APP_ESPNOW_OTA_INITIATOR
+static size_t app_firmware_download(const char *url)
 {
 #define OTA_DATA_PAYLOAD_LEN 1024
 
@@ -100,7 +91,7 @@ static size_t firmware_download(const char *url)
             /**< Write OTA update data to partition */
             ret = esp_ota_write(ota_handle, data, OTA_DATA_PAYLOAD_LEN);
             ESP_ERROR_GOTO(ret != ESP_OK, EXIT, "<%s> Write firmware to flash, size: %u, data: %.*s",
-                esp_err_to_name(ret), size, size, data);
+                           esp_err_to_name(ret), size, size, data);
         } else {
             ESP_LOGW(TAG, "<%s> esp_http_client_read", esp_err_to_name(ret));
             goto EXIT;
@@ -121,7 +112,7 @@ EXIT:
     return total_size;
 }
 
-esp_err_t ota_initator_data_cb(size_t src_offset, void* dst, size_t size)
+esp_err_t app_ota_initiator_data_cb(size_t src_offset, void *dst, size_t size)
 {
     static const esp_partition_t *data_partition = NULL;
 
@@ -132,7 +123,7 @@ esp_err_t ota_initator_data_cb(size_t src_offset, void* dst, size_t size)
     return esp_partition_read(data_partition, src_offset, dst, size);
 }
 
-static void firmware_send(size_t firmware_size, uint8_t sha[ESPNOW_OTA_HASH_LEN])
+static void app_firmware_send(size_t firmware_size, uint8_t sha[ESPNOW_OTA_HASH_LEN])
 {
     esp_err_t ret       = ESP_OK;
     uint32_t start_time = xTaskGetTickCount();
@@ -156,8 +147,8 @@ static void firmware_send(size_t firmware_size, uint8_t sha[ESPNOW_OTA_HASH_LEN]
 
     espnow_ota_initator_scan_result_free();
 
-    ret = espnow_ota_initator_send(dest_addr_list, num, sha, firmware_size, ota_initator_data_cb, &espnow_ota_result);
-    ESP_ERROR_GOTO(ret != ESP_OK, EXIT, "<%s> espnow_ota_initator_send", esp_err_to_name(ret));
+    ret = espnow_ota_initator_send(dest_addr_list, num, sha, firmware_size, app_ota_initiator_data_cb, &espnow_ota_result);
+    ESP_ERROR_GOTO(ret != ESP_OK, EXIT, "<%s> espnow_ota_initiator_send", esp_err_to_name(ret));
 
     if (espnow_ota_result.successed_num == 0) {
         ESP_LOGW(TAG, "Devices upgrade failed, unfinished_num: %u", espnow_ota_result.unfinished_num);
@@ -166,7 +157,7 @@ static void firmware_send(size_t firmware_size, uint8_t sha[ESPNOW_OTA_HASH_LEN]
 
     ESP_LOGI(TAG, "Firmware is sent to the device to complete, Spend time: %" PRIu32 "s",
              (xTaskGetTickCount() - start_time) * portTICK_PERIOD_MS / 1000);
-    ESP_LOGI(TAG, "Devices upgrade completed, successed_num: %u, unfinished_num: %u", 
+    ESP_LOGI(TAG, "Devices upgrade completed, successed_num: %u, unfinished_num: %u",
              espnow_ota_result.successed_num, espnow_ota_result.unfinished_num);
 
 EXIT:
@@ -176,33 +167,34 @@ EXIT:
 
 #endif
 
-void app_main()
+static void app_wifi_init()
 {
-    ESP_ERROR_CHECK(nvs_flash_init());
     ESP_ERROR_CHECK(esp_netif_init());
     ESP_ERROR_CHECK(esp_event_loop_create_default());
 
-    /* This helper function configures Wi-Fi or Ethernet, as selected in menuconfig.
-     * Read "Establishing Wi-Fi or Ethernet Connection" section in
-     * examples/protocols/README.md for more information about this function.
-     */
     ESP_ERROR_CHECK(example_connect());
     ESP_ERROR_CHECK(esp_wifi_set_ps(WIFI_PS_NONE));
+}
 
+void app_main()
+{
     esp_storage_init();
+
+    app_wifi_init();
+
     espnow_config_t espnow_config = ESPNOW_INIT_CONFIG_DEFAULT();
     espnow_init(&espnow_config);
 
-#ifdef CONFIG_ESPNOW_OTA_INITATOR
+#ifdef CONFIG_APP_ESPNOW_OTA_INITIATOR
     uint8_t sha_256[32] = {0};
     const esp_partition_t *data_partition = esp_ota_get_next_update_partition(NULL);
 
-    size_t firmware_size = firmware_download(CONFIG_FIRMWARE_UPGRADE_URL);
+    size_t firmware_size = app_firmware_download(CONFIG_APP_ESPNOW_FIRMWARE_UPGRADE_URL);
     esp_partition_get_sha256(data_partition, sha_256);
 
-    firmware_send(firmware_size, sha_256);
+    app_firmware_send(firmware_size, sha_256);
 
-#elif CONFIG_ESPNOW_OTA_RESPONDER
+#elif CONFIG_APP_ESPNOW_OTA_RESPONDER
 
     espnow_ota_config_t ota_config = {
         .skip_version_check       = true,
