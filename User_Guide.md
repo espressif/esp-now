@@ -1,7 +1,7 @@
 # ESP-NOW
 This project provides examples to simplify the use of ESP-NOW.  
 
-ESP-NOW is a kind of connectionless Wi-Fi communication protocol that is defined by Espressif. Different from traditional Wi-Fi protocols, the first five upper layers in OSI are simplified to one layer in ESP-NOW, so the data does not need to go through the physical layer, data link layer, network layer, transport layer in turn, which reduces the delay caused by packet loss under congested network, and leads to quickly response time.
+ESP-NOW is a kind of connectionless Wi-Fi communication protocol that is defined by Espressif. Different from traditional Wi-Fi protocols, the first five upper layers in OSI are simplified to one layer in ESP-NOW, so the data doesn't need to be transmitted through the network layer, the transport layer, the session layer, the presentation layer, and the application layer, which reduces the delay caused by packet loss under congested network, and leads to quickly response time.
 
 <img src="docs/_static/en/protocol_stack.png" width="800">
 
@@ -19,7 +19,6 @@ There are two roles defined in ESP-NOW according to the data flow, initiator and
   - [ ] Gateway
   - [ ] Low-power
   - [ ] Frequency-Hopping
-  - [ ] ESP8266 supporting
 
 ### IDF Version
 
@@ -30,17 +29,17 @@ The ESP-IDF master branch is marked as not supported because the major feature c
 End of Life IDF branches are marked as not supported, such as ESP-IDF Release/v4.0. See [IDF Supported Periods](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/versions.html#support-periods) for details.
 
 
-|                       | ESP-IDF <br> Release/v4.1| ESP-IDF <br> Release/v4.2| ESP-IDF <br> Release/v4.3| ESP-IDF <br> Release/v4.4 | ESP-IDF <br> Master |
-|:----------- | :---------------------:|:---------------------: | :---------------------:| :---------------------:| :---------------------:|
-| esp-now <br> Master  | ![alt text](docs/_static/yes-checkm.png "supported") | ![alt text](docs/_static/yes-checkm.png "supported") | ![alt text](docs/_static/yes-checkm.png "supported") | ![alt text](docs/_static/yes-checkm.png "supported") |![alt text](docs/_static/no-icon.png "not supported") |
-| esp-now <br> v1.0  | ![alt text](docs/_static/yes-checkm.png "supported") | ![alt text](docs/_static/yes-checkm.png "supported") | ![alt text](docs/_static/yes-checkm.png "supported") | ![alt text](docs/_static/yes-checkm.png "supported") <sup> **1** </sup> | ![alt text](docs/_static/no-icon.png "not supported")  |
+|                       | ESP-IDF <br> Release/v4.1| ESP-IDF <br> Release/v4.2| ESP-IDF <br> Release/v4.3| ESP-IDF <br> Release/v4.4 | ESP-IDF <br> Release/v5.0 | ESP-IDF <br> Master |
+|:----------- | :---------------------:|:---------------------: | :---------------------:| :---------------------:| :---------------------:| :---------------------:|
+| esp-now <br> Master  | ![alt text](docs/_static/no-icon.png "not supported") | ![alt text](docs/_static/no-icon.png "not supported") | ![alt text](docs/_static/yes-checkm.png "supported") | ![alt text](docs/_static/yes-checkm.png "supported") | ![alt text](docs/_static/yes-checkm.png "supported") |![alt text](docs/_static/yes-checkm.png "supported") |
+| esp-now <br> v1.0  | ![alt text](docs/_static/yes-checkm.png "supported") | ![alt text](docs/_static/yes-checkm.png "supported") | ![alt text](docs/_static/yes-checkm.png "supported") | ![alt text](docs/_static/yes-checkm.png "supported") <sup> **1** </sup> | ![alt text](docs/_static/no-icon.png "not supported")  | ![alt text](docs/_static/no-icon.png "not supported")  |
 
 
 **Note 1:** The built-in IDF branch of esp-now v1.0 is IDF Release/v4.4 at the current time.
 
 ## Quick Start
 ### Hardware Preparation
-Chips of ESP32、ESP32-C3、ESP32-S2、ESP32-S3 are recommended. ESP8266 will be supported soon.
+Chips of ESP32、ESP32-C3、ESP32-S2、ESP32-S3、ESP32C2 are recommended.
 
 ### Set up Development Environment
 Setting the environment and getting ESP-IDF (release/v4.4 or tag v4.4) follow the [Step](https://docs.espressif.com/projects/esp-idf/en/release-v4.4/esp32/index.html) .
@@ -48,9 +47,8 @@ Setting the environment and getting ESP-IDF (release/v4.4 or tag v4.4) follow th
 ### Get the ESP-NOW project
 Download ESP-NOW using the following:
 ```shell
-git clone --recursive https://github.com/espressif/esp-now.git
+git clone https://github.com/espressif/esp-now.git
 ```
-> note: the `--recursive` option. This is required to pull the dependencies into ESP-NOW. In case you have already cloned the repository without this option, execute this to pull the submodules: `git submodule update --init --recursive`
 
 ### Build and Flash firmware
 It is recommended to first erase the flash if you are using this for the first time and then flash the firmware. Here are the steps:
@@ -118,3 +116,4 @@ ESP-NOW can protect the data security with ECDH and AES128-CCM.
 - [ESP-NOW in Arduino](https://github.com/yoursunny/WifiEspNow)
 - The [esp32.com forum](https://esp32.com/) is a place to ask questions and find community resources.
 - [Check the Issues section on github](https://github.com/espressif/esp-now/issues) if you find a bug or have a feature request. Please check existing Issues before opening a new one.
+- [Troubleshooting](https://docs.espressif.com/projects/espressif-esp-faq/en/latest/) which include some common FAQs. Please click it if something is not working when you enable ESP-NOW in your project.
