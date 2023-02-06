@@ -259,22 +259,22 @@ static esp_err_t responder_recv_callback(uint8_t *src_addr, void *data,
     ESP_PARAM_CHECK(size);
     ESP_PARAM_CHECK(rx_ctrl);
 
-    espnow_prov_initator_t *initator_info = (espnow_prov_initator_t *)data;
+    espnow_prov_initiator_t *initiator_info = (espnow_prov_initiator_t *)data;
     /**
      * @brief Authenticate the device through the information of the initiator
      */
     s_device_num ++;
     ESP_LOGI(TAG, "NUM: %d, MAC: "MACSTR", Channel: %d, RSSI: %d, Product_id: %s, Device Name: %s, Auth Mode: %d, device_secret: %s",
                 s_device_num, MAC2STR(src_addr), rx_ctrl->channel, rx_ctrl->rssi,
-                initator_info->product_id, initator_info->device_name,
-                initator_info->auth_mode, initator_info->device_secret);
+                initiator_info->product_id, initiator_info->device_name,
+                initiator_info->auth_mode, initiator_info->device_secret);
 
     return ESP_OK;
 }
 
 static TaskHandle_t s_prov_task;
 
-static esp_err_t initator_recv_callback(uint8_t *src_addr, void *data,
+static esp_err_t initiator_recv_callback(uint8_t *src_addr, void *data,
                       size_t size, wifi_pkt_rx_ctrl_t *rx_ctrl)
 {
     ESP_PARAM_CHECK(src_addr);
@@ -292,31 +292,31 @@ static esp_err_t initator_recv_callback(uint8_t *src_addr, void *data,
     return ESP_OK;
 }
 
-static void provisioning_initator(void *arg)
+static void provisioning_initiator(void *arg)
 {
     esp_err_t ret = ESP_OK;
     wifi_pkt_rx_ctrl_t rx_ctrl = {0};
-    espnow_prov_initator_t initator_info = {
+    espnow_prov_initiator_t initiator_info = {
         .product_id = "debug_board",
     };
     espnow_addr_t responder_addr = {0};
     espnow_prov_responder_t responder_info = {0};
 
     for (;;) {
-        ret = espnow_prov_initator_scan(responder_addr, &responder_info, &rx_ctrl, pdMS_TO_TICKS(3 * 1000));
+        ret = espnow_prov_initiator_scan(responder_addr, &responder_info, &rx_ctrl, pdMS_TO_TICKS(3 * 1000));
         ESP_ERROR_CONTINUE(ret != ESP_OK, "");
 
         ESP_LOGI(TAG, "MAC: "MACSTR", Channel: %d, RSSI: %d, Product_id: %s, Device Name: %s",
                  MAC2STR(responder_addr), rx_ctrl.channel, rx_ctrl.rssi,
                  responder_info.product_id, responder_info.device_name);
 
-        ret = espnow_prov_initator_send(responder_addr, &initator_info, initator_recv_callback, pdMS_TO_TICKS(3 * 1000));
+        ret = espnow_prov_initiator_send(responder_addr, &initiator_info, initiator_recv_callback, pdMS_TO_TICKS(3 * 1000));
         ESP_ERROR_CONTINUE(ret != ESP_OK, "<%s> espnow_prov_responder_add", esp_err_to_name(ret));
 
         break;
     }
 
-    ESP_LOGI(TAG, "provisioning initator exit");
+    ESP_LOGI(TAG, "provisioning initiator exit");
     vTaskDelete(NULL);
     s_prov_task = NULL;
 }
@@ -341,7 +341,7 @@ static int provisioning_func(int argc, char **argv)
 
     if (prov_args.responder->count) {
         if (!s_prov_task) {
-            xTaskCreate(provisioning_initator, "PROV_init", 3072, NULL, tskIDLE_PRIORITY + 1, &s_prov_task);
+            xTaskCreate(provisioning_initiator, "PROV_init", 3072, NULL, tskIDLE_PRIORITY + 1, &s_prov_task);
             ESP_LOGI(TAG, "Start provisioning");
         } else {
             ESP_LOGI(TAG, "Already start provisioning");
@@ -555,7 +555,7 @@ static struct {
 static const esp_partition_t *g_ota_data_partition = NULL;
 static size_t g_ota_size = 0;
 
-static esp_err_t ota_initator_data_cb(size_t src_offset, void* dst, size_t size)
+static esp_err_t ota_initiator_data_cb(size_t src_offset, void* dst, size_t size)
 {
     return esp_partition_read(g_ota_data_partition, src_offset, dst, size);
 }
@@ -694,8 +694,8 @@ static void ota_send_task(void *arg)
     uint8_t sha_256[32] = {0};
     esp_partition_get_sha256(g_ota_data_partition, sha_256);
     ESP_LOG_BUFFER_HEXDUMP(TAG, sha_256, 32, ESP_LOG_DEBUG);
-    espnow_ota_initator_send(addrs_list, addrs_num, sha_256, g_ota_size,
-                                    ota_initator_data_cb, &ota_result);
+    espnow_ota_initiator_send(addrs_list, addrs_num, sha_256, g_ota_size,
+                                    ota_initiator_data_cb, &ota_result);
 
     ESP_LOGI(TAG, "Firmware is sent to the device to complete, Spend time: %ds",
                 (xTaskGetTickCount() - start_time) * portTICK_PERIOD_MS / 1000);
@@ -703,7 +703,7 @@ static void ota_send_task(void *arg)
                 ota_result.successed_num, ota_result.unfinished_num);
 
     ESP_FREE(addrs_list);
-    espnow_ota_initator_result_free(&ota_result);
+    espnow_ota_initiator_result_free(&ota_result);
     ESP_FREE(arg);
 
     vTaskDelete(NULL);
@@ -732,8 +732,8 @@ static int ota_func(int argc, char **argv)
 
         size_t num = 0;
         espnow_ota_responder_t *info_list = NULL;
-        ret = espnow_ota_initator_scan(&info_list, &num, pdMS_TO_TICKS(ota_args.find->ival[0]));
-        ESP_ERROR_RETURN(ret != ESP_OK, ret, "<%s> espnow_ota_initator_scan", esp_err_to_name(ret));
+        ret = espnow_ota_initiator_scan(&info_list, &num, pdMS_TO_TICKS(ota_args.find->ival[0]));
+        ESP_ERROR_RETURN(ret != ESP_OK, ret, "<%s> espnow_ota_initiator_scan", esp_err_to_name(ret));
 
         if (num > 0) {
             char (*addrs_list)[18] = ESP_MALLOC(num * 18 + 1);
@@ -755,7 +755,7 @@ static int ota_func(int argc, char **argv)
             }
         }
 
-        espnow_ota_initator_scan_result_free();
+        espnow_ota_initiator_scan_result_free();
     }
 
     if (ota_args.send->count) {
@@ -1099,7 +1099,7 @@ static void sec_send_task(void *arg)
              sec_result.successed_num, sec_result.unfinished_num);
 
     ESP_FREE(addrs_list);
-    espnow_sec_initator_result_free(&sec_result);
+    espnow_sec_initiator_result_free(&sec_result);
     ESP_FREE(arg);
 
     vTaskDelete(NULL);

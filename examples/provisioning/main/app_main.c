@@ -28,7 +28,7 @@ static void app_wifi_init()
 {
     ESP_ERROR_CHECK(esp_event_loop_create_default());
 
-#ifdef CONFIG_APP_ESPNOW_PROV_INITATOR
+#ifdef CONFIG_APP_ESPNOW_PROV_INITIATOR
     ESP_ERROR_CHECK(esp_netif_init());
     esp_netif_create_default_wifi_sta();
 #endif
@@ -51,14 +51,14 @@ static esp_err_t app_espnow_prov_recv_cb(uint8_t *src_addr, void *data,
     ESP_PARAM_CHECK(size);
     ESP_PARAM_CHECK(rx_ctrl);
 
-    espnow_prov_initator_t *initator_info = (espnow_prov_initator_t *)data;
+    espnow_prov_initiator_t *initiator_info = (espnow_prov_initiator_t *)data;
     /**
      * @brief Authenticate the device through the information of the initiator
      */
     ESP_LOGI(TAG, "MAC: "MACSTR", Channel: %d, RSSI: %d, Product_id: %s, Device Name: %s, Auth Mode: %d, device_secret: %s",
              MAC2STR(src_addr), rx_ctrl->channel, rx_ctrl->rssi,
-             initator_info->product_id, initator_info->device_name,
-             initator_info->auth_mode, initator_info->device_secret);
+             initiator_info->product_id, initiator_info->device_name,
+             initiator_info->auth_mode, initiator_info->device_secret);
 
     return ESP_OK;
 }
@@ -83,7 +83,7 @@ static esp_err_t app_responder_init()
 }
 #endif
 
-#ifdef CONFIG_APP_ESPNOW_PROV_INITATOR
+#ifdef CONFIG_APP_ESPNOW_PROV_INITIATOR
 static esp_err_t app_espnow_prov_recv_cb(uint8_t *src_addr, void *data,
         size_t size, wifi_pkt_rx_ctrl_t *rx_ctrl)
 {
@@ -103,26 +103,26 @@ static esp_err_t app_espnow_prov_recv_cb(uint8_t *src_addr, void *data,
     return ESP_OK;
 }
 
-static esp_err_t app_initator_init()
+static esp_err_t app_initiator_init()
 {
     esp_err_t ret = ESP_OK;
     wifi_pkt_rx_ctrl_t rx_ctrl = {0};
-    espnow_prov_initator_t initator_info = {
-        .product_id = "initator_test",
+    espnow_prov_initiator_t initiator_info = {
+        .product_id = "initiator_test",
     };
     espnow_addr_t responder_addr = {0};
     espnow_prov_responder_t responder_info = {0};
 
     for (;;) {
-        ret = espnow_prov_initator_scan(responder_addr, &responder_info, &rx_ctrl, portMAX_DELAY);
+        ret = espnow_prov_initiator_scan(responder_addr, &responder_info, &rx_ctrl, portMAX_DELAY);
         ESP_ERROR_CONTINUE(ret != ESP_OK, "espnow_prov_responder_beacon");
 
         ESP_LOGI(TAG, "MAC: "MACSTR", Channel: %d, RSSI: %d, Product_id: %s, Device Name: %s",
                  MAC2STR(responder_addr), rx_ctrl.channel, rx_ctrl.rssi,
                  responder_info.product_id, responder_info.device_name);
 
-        ret = espnow_prov_initator_send(responder_addr, &initator_info, app_espnow_prov_recv_cb, pdMS_TO_TICKS(3 * 1000));
-        ESP_ERROR_CONTINUE(ret != ESP_OK, "<%s> espnow_prov_initator_send", esp_err_to_name(ret));
+        ret = espnow_prov_initiator_send(responder_addr, &initiator_info, app_espnow_prov_recv_cb, pdMS_TO_TICKS(3 * 1000));
+        ESP_ERROR_CONTINUE(ret != ESP_OK, "<%s> espnow_prov_initiator_send", esp_err_to_name(ret));
 
         break;
     }
@@ -140,8 +140,8 @@ void app_main()
     espnow_config_t espnow_config = ESPNOW_INIT_CONFIG_DEFAULT();
     espnow_init(&espnow_config);
 
-#ifdef CONFIG_APP_ESPNOW_PROV_INITATOR
-    app_initator_init();
+#ifdef CONFIG_APP_ESPNOW_PROV_INITIATOR
+    app_initiator_init();
 #elif CONFIG_APP_ESPNOW_PROV_RESPONDER
     app_responder_init();
 #endif

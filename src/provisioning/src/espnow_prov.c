@@ -40,7 +40,7 @@ typedef enum {
 typedef struct {
     uint8_t type;
     union {
-        espnow_prov_initator_t initator_info;
+        espnow_prov_initiator_t initiator_info;
         espnow_prov_responder_t responder_info;
         espnow_prov_wifi_t wifi_config;
     };
@@ -73,7 +73,7 @@ typedef struct {
 static espnow_prov_init_t *g_prov_init = NULL;
 static espnow_prov_resp_t *g_prov_resp = NULL;
 
-static esp_err_t espnow_prov_responder_send(const espnow_addr_t *initator_addr_list, size_t initator_addr_num,
+static esp_err_t espnow_prov_responder_send(const espnow_addr_t *initiator_addr_list, size_t initiator_addr_num,
                                      const espnow_prov_wifi_t *wifi_config);
 
 static esp_err_t espnow_prov_recv(uint8_t *src_addr, void *data,
@@ -106,12 +106,12 @@ static esp_err_t espnow_prov_recv(uint8_t *src_addr, void *data,
             if (g_prov_resp && g_prov_resp->device_en) {
                 ret = ESP_OK;
                 if (g_prov_resp->device_cb) {
-                    ret = g_prov_resp->device_cb(src_addr, &recv_data->initator_info, size - 1, rx_ctrl);
+                    ret = g_prov_resp->device_cb(src_addr, &recv_data->initiator_info, size - 1, rx_ctrl);
                 }
                 if (ret == ESP_OK) {
-                    espnow_addr_t initator_addr = {0};
-                    memcpy(initator_addr, src_addr, 6);
-                    ret = espnow_prov_responder_send((const espnow_addr_t *)&initator_addr, 1, g_prov_resp->wifi_config);
+                    espnow_addr_t initiator_addr = {0};
+                    memcpy(initiator_addr, src_addr, 6);
+                    ret = espnow_prov_responder_send((const espnow_addr_t *)&initiator_addr, 1, g_prov_resp->wifi_config);
                 }
             }
             break;
@@ -136,7 +136,7 @@ static esp_err_t espnow_prov_recv(uint8_t *src_addr, void *data,
     return ret;
 }
 
-esp_err_t espnow_prov_initator_scan(espnow_addr_t responder_addr, espnow_prov_responder_t *responder_info,
+esp_err_t espnow_prov_initiator_scan(espnow_addr_t responder_addr, espnow_prov_responder_t *responder_info,
                                     wifi_pkt_rx_ctrl_t *rx_ctrl, TickType_t wait_ticks)
 {
     ESP_PARAM_CHECK(responder_addr);
@@ -179,15 +179,15 @@ esp_err_t espnow_prov_initator_scan(espnow_addr_t responder_addr, espnow_prov_re
     return ret;
 }
 
-esp_err_t espnow_prov_initator_send(const espnow_addr_t responder_addr, const espnow_prov_initator_t *initator_info, espnow_prov_cb_t cb, TickType_t wait_ticks)
+esp_err_t espnow_prov_initiator_send(const espnow_addr_t responder_addr, const espnow_prov_initiator_t *initiator_info, espnow_prov_cb_t cb, TickType_t wait_ticks)
 {
     ESP_PARAM_CHECK(responder_addr);
-    ESP_PARAM_CHECK(initator_info);
+    ESP_PARAM_CHECK(initiator_info);
 
     esp_err_t ret = ESP_ERR_WIFI_TIMEOUT;
     espnow_prov_data_t *prov_data = ESP_MALLOC(sizeof(espnow_prov_data_t));
     prov_data->type = ESPNOW_PROV_TYPE_DEVICE;
-    memcpy(&prov_data->initator_info, initator_info, sizeof(espnow_prov_initator_t));
+    memcpy(&prov_data->initiator_info, initiator_info, sizeof(espnow_prov_initiator_t));
     espnow_frame_head_t frame_head = {
         .filter_adjacent_channel = true,
     };
@@ -295,18 +295,18 @@ esp_err_t espnow_prov_responder_start(const espnow_prov_responder_t *responder_i
 /**
  * @brief  Responder sends WiFi configuration
  *
- * @param[in]  initator_addr_list  mac address list of initiators
- * @param[in]  initator_addr_num  initiator address number
+ * @param[in]  initiator_addr_list  mac address list of initiators
+ * @param[in]  initiator_addr_num  initiator address number
  * @param[in]  wifi_config  WiFi configuration information
  * 
  * @return
  *    - ESP_OK
  *    - ESP_ERR_INVALID_ARG
  */
-static esp_err_t espnow_prov_responder_send(const espnow_addr_t *initator_addr_list, size_t initator_addr_num,
+static esp_err_t espnow_prov_responder_send(const espnow_addr_t *initiator_addr_list, size_t initiator_addr_num,
                                      const espnow_prov_wifi_t *wifi_config)
 {
-    ESP_PARAM_CHECK(initator_addr_list);
+    ESP_PARAM_CHECK(initiator_addr_list);
     ESP_PARAM_CHECK(wifi_config);
 
     esp_err_t ret = ESP_OK;
@@ -316,14 +316,14 @@ static esp_err_t espnow_prov_responder_send(const espnow_addr_t *initator_addr_l
         .broadcast = true,
     };
 
-    ESP_LOGD(TAG, MACSTR ", num: %d", MAC2STR(initator_addr_list[0]), initator_addr_num);
+    ESP_LOGD(TAG, MACSTR ", num: %d", MAC2STR(initiator_addr_list[0]), initiator_addr_num);
 
-    if (initator_addr_num > 1) {
-        espnow_send_group(initator_addr_list, initator_addr_num, ESPNOW_ADDR_GROUP_PROV, NULL, true, portMAX_DELAY);
+    if (initiator_addr_num > 1) {
+        espnow_send_group(initiator_addr_list, initiator_addr_num, ESPNOW_ADDR_GROUP_PROV, NULL, true, portMAX_DELAY);
         frame_head.group = true;
         memcpy(dest_addr, ESPNOW_ADDR_GROUP_PROV, 6);
     } else {
-        memcpy(dest_addr, initator_addr_list[0], 6);
+        memcpy(dest_addr, initiator_addr_list[0], 6);
         espnow_add_peer(dest_addr, NULL);
     }
 
@@ -341,8 +341,8 @@ static esp_err_t espnow_prov_responder_send(const espnow_addr_t *initator_addr_l
 
     ESP_FREE(prov_data);
 
-    if (initator_addr_num > 1) {
-        espnow_send_group(initator_addr_list, initator_addr_num, ESPNOW_ADDR_GROUP_PROV, NULL, false, portMAX_DELAY);
+    if (initiator_addr_num > 1) {
+        espnow_send_group(initiator_addr_list, initiator_addr_num, ESPNOW_ADDR_GROUP_PROV, NULL, false, portMAX_DELAY);
     } else {
         espnow_del_peer(dest_addr);
     }

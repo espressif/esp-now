@@ -111,9 +111,9 @@ I (6189) esp_image: segment 3: paddr=00200020 vaddr=42000020 size=1516ch ( 86380
 I (6203) esp_image: segment 4: paddr=00215194 vaddr=4038861c size=014b0h (  5296) 
 I (6204) esp_image: segment 5: paddr=0021664c vaddr=50000000 size=00010h (    16) 
 W (8321) app_main: espnow wait ota num: 1
-I (8321) espnow_ota_initatior: [espnow_ota_initator_send, 301]: total_size: 157312, packet_num: 697
-I (9180) espnow_ota_initatior: count: 0, Upgrade_initator_send, requested_num: 1, unfinished_num: 1, successed_num: 0
-I (11260) espnow_ota_initatior: count: 1, Upgrade_initator_send, requested_num: 1, unfinished_num: 1, successed_num: 0
+I (8321) espnow_ota_initatior: [espnow_ota_initiator_send, 301]: total_size: 157312, packet_num: 697
+I (9180) espnow_ota_initatior: count: 0, Upgrade_initiator_send, requested_num: 1, unfinished_num: 1, successed_num: 0
+I (11260) espnow_ota_initatior: count: 1, Upgrade_initiator_send, requested_num: 1, unfinished_num: 1, successed_num: 0
 I (11412) app_main: Firmware is sent to the device to complete, Spend time: 5s
 I (11412) app_main: Devices upgrade completed, successed_num: 1, unfinished_num: 0
 

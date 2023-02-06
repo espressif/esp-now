@@ -133,7 +133,7 @@ void app_main()
 
     espnow_set_type(ESPNOW_TYPE_DATA, 1, app_uart_write_handle);
 
-#ifdef CONFIG_APP_ESPNOW_SEC_INITATOR
+#ifdef CONFIG_APP_ESPNOW_SEC_INITIATOR
     uint8_t key_info[APP_KEY_LEN];
 
     if (espnow_get_key(key_info) != ESP_OK) {
@@ -163,7 +163,7 @@ void app_main()
 
     uint32_t start_time2 = xTaskGetTickCount();
     esp_err_t ret = espnow_sec_initiator_start(key_info, pop_data, dest_addr_list, num, &espnow_sec_result);
-    ESP_ERROR_GOTO(ret != ESP_OK, EXIT, "<%s> espnow_sec_initator_start", esp_err_to_name(ret));
+    ESP_ERROR_GOTO(ret != ESP_OK, EXIT, "<%s> espnow_sec_initiator_start", esp_err_to_name(ret));
 
     ESP_LOGI(TAG, "App key is sent to the device to complete, Spend time: %" PRId32 "ms, Scan time: %" PRId32 "ms",
              (xTaskGetTickCount() - start_time1) * portTICK_PERIOD_MS,
@@ -173,7 +173,7 @@ void app_main()
 
 EXIT:
     ESP_FREE(dest_addr_list);
-    espnow_sec_initator_result_free(&espnow_sec_result);
+    espnow_sec_initiator_result_free(&espnow_sec_result);
 #elif CONFIG_APP_ESPNOW_SEC_RESPONDER
     uint8_t key_info[APP_KEY_LEN];
 

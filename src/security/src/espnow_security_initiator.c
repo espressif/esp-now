@@ -275,7 +275,7 @@ static esp_err_t protocomm_espnow_initiator_start(const protocomm_security_t *pr
         size_t success_addrs_num = 0;
         wait_ticks = pdMS_TO_TICKS(1200 + 300 * current_addrs_num);
 
-        ESP_LOGI(TAG, "count: %d, Secure_initator_send, requested_num: %d, unfinished_num: %d, successed_num: %d",
+        ESP_LOGI(TAG, "count: %d, Secure_initiator_send, requested_num: %d, unfinished_num: %d, successed_num: %d",
                  i, current_addrs_num, result->unfinished_num, result->successed_num);
 
         for (int i = 0; i < current_addrs_num; i++) {
@@ -405,7 +405,7 @@ exit_init:
     if (res) {
         memcpy(res, result, sizeof(espnow_sec_result_t));
     } else {
-        espnow_sec_initator_result_free(result);
+        espnow_sec_initiator_result_free(result);
     }
 
     g_sec_initiator_flag = false;
@@ -473,7 +473,7 @@ esp_err_t espnow_sec_initiator_stop()
     return ESP_OK;
 }
 
-esp_err_t espnow_sec_initator_result_free(espnow_sec_result_t *result)
+esp_err_t espnow_sec_initiator_result_free(espnow_sec_result_t *result)
 {
     ESP_PARAM_CHECK(result);
 

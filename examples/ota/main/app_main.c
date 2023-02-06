@@ -132,7 +132,7 @@ static void app_firmware_send(size_t firmware_size, uint8_t sha[ESPNOW_OTA_HASH_
     espnow_addr_t *dest_addr_list = NULL;
     size_t num = 0;
 
-    espnow_ota_initator_scan(&info_list, &num, pdMS_TO_TICKS(3000));
+    espnow_ota_initiator_scan(&info_list, &num, pdMS_TO_TICKS(3000));
     ESP_LOGW(TAG, "espnow wait ota num: %u", num);
 
     if (!num) {
@@ -145,9 +145,9 @@ static void app_firmware_send(size_t firmware_size, uint8_t sha[ESPNOW_OTA_HASH_
         memcpy(dest_addr_list[i], info_list[i].mac, ESPNOW_ADDR_LEN);
     }
 
-    espnow_ota_initator_scan_result_free();
+    espnow_ota_initiator_scan_result_free();
 
-    ret = espnow_ota_initator_send(dest_addr_list, num, sha, firmware_size, app_ota_initiator_data_cb, &espnow_ota_result);
+    ret = espnow_ota_initiator_send(dest_addr_list, num, sha, firmware_size, app_ota_initiator_data_cb, &espnow_ota_result);
     ESP_ERROR_GOTO(ret != ESP_OK, EXIT, "<%s> espnow_ota_initiator_send", esp_err_to_name(ret));
 
     if (espnow_ota_result.successed_num == 0) {
@@ -162,7 +162,7 @@ static void app_firmware_send(size_t firmware_size, uint8_t sha[ESPNOW_OTA_HASH_
 
 EXIT:
     ESP_FREE(dest_addr_list);
-    espnow_ota_initator_result_free(&espnow_ota_result);
+    espnow_ota_initiator_result_free(&espnow_ota_result);
 }
 
 #endif

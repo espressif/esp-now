@@ -1,14 +1,14 @@
 menu "Example Configuration"
     choice APP_ESPNOW_PROV_MODE
         bool "ESP-NOW provisioning Mode"
-        default APP_ESPNOW_PROV_INITATOR
+        default APP_ESPNOW_PROV_INITIATOR
         help
             Select the ESP-NOW provisioning Mode.
 
-        config APP_ESPNOW_PROV_INITATOR
-            bool "Initator Mode"
+        config APP_ESPNOW_PROV_INITIATOR
+            bool "Initiator Mode"
             help
-                Select the ESP-NOW provisioning initator Mode.
+                Select the ESP-NOW provisioning initiator Mode.
 
         config APP_ESPNOW_PROV_RESPONDER
             bool "Responder Mode"
@@ -19,7 +19,7 @@ menu "Example Configuration"
 
     config APP_ESPNOW_PROV_MODE
         int
-        default 0 if APP_ESPNOW_PROV_INITATOR
+        default 0 if APP_ESPNOW_PROV_INITIATOR
         default 1 if APP_ESPNOW_PROV_RESPONDER
 
         config APP_ESPNOW_WIFI_SSID

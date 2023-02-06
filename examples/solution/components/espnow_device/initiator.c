@@ -104,14 +104,14 @@ static esp_err_t app_espnow_prov_responder_recv_cb(uint8_t *src_addr, void *data
     ESP_PARAM_CHECK(size);
     ESP_PARAM_CHECK(rx_ctrl);
 
-    espnow_prov_initator_t *initator_info = (espnow_prov_initator_t *)data;
+    espnow_prov_initiator_t *initiator_info = (espnow_prov_initiator_t *)data;
     /**
      * @brief Authenticate the device through the information of the initiator
      */
     ESP_LOGI(TAG, "MAC: "MACSTR", Channel: %d, RSSI: %d, Product_id: %s, Device Name: %s, Auth Mode: %d, device_secret: %s",
              MAC2STR(src_addr), rx_ctrl->channel, rx_ctrl->rssi,
-             initator_info->product_id, initator_info->device_name,
-             initator_info->auth_mode, initator_info->device_secret);
+             initiator_info->product_id, initiator_info->device_name,
+             initiator_info->auth_mode, initiator_info->device_secret);
 
     return ESP_OK;
 }
@@ -218,7 +218,7 @@ static void app_espnow_initiator_sec_task(void *arg)
 
     uint32_t start_time2 = xTaskGetTickCount();
     esp_err_t ret = espnow_sec_initiator_start(key_info, pop_data, dest_addr_list, num, &espnow_sec_result);
-    ESP_ERROR_GOTO(ret != ESP_OK, EXIT, "<%s> espnow_sec_initator_start", esp_err_to_name(ret));
+    ESP_ERROR_GOTO(ret != ESP_OK, EXIT, "<%s> espnow_sec_initiator_start", esp_err_to_name(ret));
 
     ESP_LOGI(TAG, "App key is sent to the device to complete, Spend time: %" PRId32" ms, Scan time: %" PRId32 "ms",
              (xTaskGetTickCount() - start_time1) * portTICK_PERIOD_MS,
@@ -228,7 +228,7 @@ static void app_espnow_initiator_sec_task(void *arg)
 
 EXIT:
     ESP_FREE(dest_addr_list);
-    espnow_sec_initator_result_free(&espnow_sec_result);
+    espnow_sec_initiator_result_free(&espnow_sec_result);
 
     vTaskDelete(NULL);
     s_sec_task = NULL;

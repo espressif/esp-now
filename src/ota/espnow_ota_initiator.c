@@ -177,7 +177,7 @@ static esp_err_t espnow_ota_initiator_status_process(uint8_t *src_addr, void *da
     return ret;
 }
 
-esp_err_t espnow_ota_initator_scan(espnow_ota_responder_t **info_list, size_t *num, TickType_t wait_ticks)
+esp_err_t espnow_ota_initiator_scan(espnow_ota_responder_t **info_list, size_t *num, TickType_t wait_ticks)
 {
     esp_err_t ret = ESP_OK;
     espnow_ota_info_t request_ota_info = {.type = ESPNOW_OTA_TYPE_REQUEST};
@@ -191,7 +191,7 @@ esp_err_t espnow_ota_initator_scan(espnow_ota_responder_t **info_list, size_t *n
         .forward_rssi     = CONFIG_ESPNOW_OTA_SEND_FORWARD_RSSI,
     };
 
-    espnow_ota_initator_scan_result_free();
+    espnow_ota_initiator_scan_result_free();
 
     g_info_en = true;
     espnow_set_type(ESPNOW_TYPE_OTA_STATUS, 1, espnow_ota_initiator_status_process);
@@ -214,7 +214,7 @@ EXIT:
     return ret;
 }
 
-esp_err_t espnow_ota_initator_scan_result_free(void)
+esp_err_t espnow_ota_initiator_scan_result_free(void)
 {
     ESP_FREE(g_info_list);
     g_scan_num = 0;
@@ -374,9 +374,9 @@ static esp_err_t espnow_ota_request_status(uint8_t (*progress_array)[ESPNOW_OTA_
     return ret;
 }
 
-esp_err_t espnow_ota_initator_send(const uint8_t addrs_list[][6], size_t addrs_num,
+esp_err_t espnow_ota_initiator_send(const uint8_t addrs_list[][6], size_t addrs_num,
                                    const uint8_t sha_256[ESPNOW_OTA_HASH_LEN], size_t size,
-                                   espnow_ota_initator_data_cb_t ota_data_cb, espnow_ota_result_t *res)
+                                   espnow_ota_initiator_data_cb_t ota_data_cb, espnow_ota_result_t *res)
 {
     ESP_PARAM_CHECK(addrs_list);
     ESP_PARAM_CHECK(addrs_num);
@@ -407,8 +407,8 @@ esp_err_t espnow_ota_initator_send(const uint8_t addrs_list[][6], size_t addrs_n
     if (addrs_num == 1 && ESPNOW_ADDR_IS_BROADCAST(addrs_list[0])) {
         espnow_ota_responder_t *info_list = NULL;
         size_t info_num = 0;
-        ret = espnow_ota_initator_scan(&info_list, &info_num, 3000);
-        ESP_ERROR_GOTO(ret != ESP_OK, EXIT, "<%s> espnow_ota_initator_scan", esp_err_to_name(ret));
+        ret = espnow_ota_initiator_scan(&info_list, &info_num, 3000);
+        ESP_ERROR_GOTO(ret != ESP_OK, EXIT, "<%s> espnow_ota_initiator_scan", esp_err_to_name(ret));
 
         ESP_LOGI(TAG, "Scan OTA list, num: %d", info_num);
 
@@ -419,7 +419,7 @@ esp_err_t espnow_ota_initator_send(const uint8_t addrs_list[][6], size_t addrs_n
             memcpy(result->unfinished_addr[i], info_list[i].mac, ESPNOW_ADDR_LEN);
         }
 
-        espnow_ota_initator_scan_result_free();
+        espnow_ota_initiator_scan_result_free();
     } else {
         result->unfinished_num  = addrs_num;
         result->unfinished_addr = ESP_CALLOC(result->unfinished_num, ESPNOW_ADDR_LEN);
@@ -446,7 +446,7 @@ esp_err_t espnow_ota_initator_send(const uint8_t addrs_list[][6], size_t addrs_n
         ret = espnow_ota_request_status(progress_array, &status, result);
         ESP_ERROR_BREAK(ret == ESP_OK || ret == ESP_ERR_ESPNOW_OTA_DEVICE_NO_EXIST, "");
 
-        ESP_LOGI(TAG, "count: %d, Upgrade_initator_send, requested_num: %d, unfinished_num: %d, successed_num: %d",
+        ESP_LOGI(TAG, "count: %d, Upgrade_initiator_send, requested_num: %d, unfinished_num: %d, successed_num: %d",
                  i, result->unfinished_num, result->requested_num, result->successed_num);
         ESP_LOG_BUFFER_HEXDUMP(TAG, progress_array, sizeof(espnow_ota_status_t) + ESPNOW_OTA_PROGRESS_MAX_SIZE, ESP_LOG_DEBUG);
 
@@ -490,7 +490,7 @@ EXIT:
     if (res) {
         memcpy(res, result, sizeof(espnow_ota_result_t));
     } else {
-        espnow_ota_initator_result_free(result);
+        espnow_ota_initiator_result_free(result);
     }
 
     ESP_FREE(packet);
@@ -504,7 +504,7 @@ EXIT:
     return ret;
 }
 
-esp_err_t espnow_ota_initator_result_free(espnow_ota_result_t *result)
+esp_err_t espnow_ota_initiator_result_free(espnow_ota_result_t *result)
 {
     ESP_PARAM_CHECK(result);
 
@@ -518,7 +518,7 @@ esp_err_t espnow_ota_initator_result_free(espnow_ota_result_t *result)
     return ESP_OK;
 }
 
-esp_err_t espnow_ota_initator_stop()
+esp_err_t espnow_ota_initiator_stop()
 {
     if (!g_ota_send_running_flag) {
         return ESP_OK;
