@@ -7,17 +7,14 @@
    CONDITIONS OF ANY KIND, either express or implied.
 */
 
-#include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
-
+#include "sdkconfig.h"
 #include "monitor.h"
 
 void app_main()
 {
-#if CONFIG_ESPNOW_DEBUG_MONITOR
-    monitor();
-#elif CONFIG_ESPNOW_DEBUG_MONITORED
-    monitored_device();
+#if CONFIG_APP_ESPNOW_DEBUG_MONITOR
+    app_espnow_monitor_device_start();
+#elif CONFIG_APP_ESPNOW_DEBUG_MONITORED
+    app_espnow_monitored_device_start();
 #endif
 }
