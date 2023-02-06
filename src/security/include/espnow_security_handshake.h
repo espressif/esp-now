@@ -120,7 +120,7 @@ esp_err_t espnow_sec_initiator_scan_result_free(void);
  * @param[in]  pop_data  Proof of Possession (PoP) string
  * @param[in]  dest_addrs  destination nodes of mac
  * @param[in]  dest_addrs_num  number of destination nodes
- * @param[out]  res  must call espnow_sec_initator_result_free to free memory
+ * @param[out]  res  must call espnow_sec_initiator_result_free to free memory
  *
  * @return
  *    - ESP_OK
@@ -146,7 +146,7 @@ esp_err_t espnow_sec_initiator_stop();
  *    - ESP_OK
  *    - ESP_ERR_INVALID_ARG
  */
-esp_err_t espnow_sec_initator_result_free(espnow_sec_result_t *result);
+esp_err_t espnow_sec_initiator_result_free(espnow_sec_result_t *result);
 
 /**
  * @brief Start security process

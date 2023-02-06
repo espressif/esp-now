@@ -173,7 +173,7 @@ static void app_log_read_task(void *arg)
 #ifdef CONFIG_APP_ESPNOW_PROVISION
 static TaskHandle_t s_prov_task;
 
-static esp_err_t app_espnow_prov_initator_recv_cb(uint8_t *src_addr, void *data,
+static esp_err_t app_espnow_prov_initiator_recv_cb(uint8_t *src_addr, void *data,
         size_t size, wifi_pkt_rx_ctrl_t *rx_ctrl)
 {
     ESP_PARAM_CHECK(src_addr);
@@ -192,12 +192,12 @@ static esp_err_t app_espnow_prov_initator_recv_cb(uint8_t *src_addr, void *data,
     return ESP_OK;
 }
 
-static void app_espnow_prov_initator_init(void *arg)
+static void app_espnow_prov_initiator_init(void *arg)
 {
     esp_err_t ret = ESP_OK;
     wifi_pkt_rx_ctrl_t rx_ctrl = {0};
-    espnow_prov_initator_t initator_info = {
-        .product_id = "initator_test",
+    espnow_prov_initiator_t initiator_info = {
+        .product_id = "initiator_test",
     };
     espnow_addr_t responder_addr = {0};
     espnow_prov_responder_t responder_info = {0};
@@ -213,20 +213,20 @@ static void app_espnow_prov_initator_init(void *arg)
         }
 #endif
 
-        ret = espnow_prov_initator_scan(responder_addr, &responder_info, &rx_ctrl, pdMS_TO_TICKS(3 * 1000));
+        ret = espnow_prov_initiator_scan(responder_addr, &responder_info, &rx_ctrl, pdMS_TO_TICKS(3 * 1000));
         ESP_ERROR_CONTINUE(ret != ESP_OK, "");
 
         ESP_LOGI(TAG, "MAC: "MACSTR", Channel: %d, RSSI: %d, Product_id: %s, Device Name: %s",
                  MAC2STR(responder_addr), rx_ctrl.channel, rx_ctrl.rssi,
                  responder_info.product_id, responder_info.device_name);
 
-        ret = espnow_prov_initator_send(responder_addr, &initator_info, app_espnow_prov_initator_recv_cb, pdMS_TO_TICKS(3 * 1000));
+        ret = espnow_prov_initiator_send(responder_addr, &initiator_info, app_espnow_prov_initiator_recv_cb, pdMS_TO_TICKS(3 * 1000));
         ESP_ERROR_CONTINUE(ret != ESP_OK, "<%s> espnow_prov_responder_add", esp_err_to_name(ret));
 
         break;
     }
 
-    ESP_LOGI(TAG, "provisioning initator exit");
+    ESP_LOGI(TAG, "provisioning initiator exit");
     vTaskDelete(NULL);
     s_prov_task = NULL;
 }
@@ -234,7 +234,7 @@ static void app_espnow_prov_initator_init(void *arg)
 esp_err_t app_espnow_prov_responder_start(void)
 {
     if (!s_prov_task) {
-        xTaskCreate(app_espnow_prov_initator_init, "PROV_init", 3072, NULL, tskIDLE_PRIORITY + 1, &s_prov_task);
+        xTaskCreate(app_espnow_prov_initiator_init, "PROV_init", 3072, NULL, tskIDLE_PRIORITY + 1, &s_prov_task);
     }
 
     return ESP_OK;

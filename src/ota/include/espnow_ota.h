@@ -153,7 +153,7 @@ typedef struct {
  *    - ESP_OK
  *    - ESP_FAIL
  */
-typedef esp_err_t (* espnow_ota_initator_data_cb_t)(size_t src_offset, void *dst, size_t size);
+typedef esp_err_t (* espnow_ota_initiator_data_cb_t)(size_t src_offset, void *dst, size_t size);
 
 /**
  * @brief  Root sends firmware to other nodes
@@ -165,16 +165,16 @@ typedef esp_err_t (* espnow_ota_initator_data_cb_t)(size_t src_offset, void *dst
  * @param[in]  sha_256  SHA-256 digest for the upgrade partition
  * @param[in]  size  upgrade firmware total size
  * @param[in]  ota_data_cb  upgrade data callback function
- * @param[out]  res  must call espnow_ota_initator_result_free to free memory
+ * @param[out]  res  must call espnow_ota_initiator_result_free to free memory
  *
  * @return
  *    - ESP_OK
  *    - ESP_ERR_ESPNOW_OTA_FIRMWARE_NOT_INIT
  *    - ESP_ERR_ESPNOW_OTA_DEVICE_NO_EXIST
  */
-esp_err_t espnow_ota_initator_send(const espnow_addr_t *addrs_list, size_t addrs_num,
+esp_err_t espnow_ota_initiator_send(const espnow_addr_t *addrs_list, size_t addrs_num,
                                    const uint8_t sha_256[ESPNOW_OTA_HASH_LEN], size_t size,
-                                   espnow_ota_initator_data_cb_t ota_data_cb, espnow_ota_result_t *res);
+                                   espnow_ota_initiator_data_cb_t ota_data_cb, espnow_ota_result_t *res);
 
 /**
  * @brief Stop root to send firmware to other nodes
@@ -183,7 +183,7 @@ esp_err_t espnow_ota_initator_send(const espnow_addr_t *addrs_list, size_t addrs
  *    - ESP_OK
  *    - ESP_ERR_NOT_SUPPORTED
  */
-esp_err_t espnow_ota_initator_stop();
+esp_err_t espnow_ota_initiator_stop();
 
 /**
  * @brief  Free memory in the result list
@@ -194,7 +194,7 @@ esp_err_t espnow_ota_initator_stop();
  *    - ESP_OK
  *    - ESP_ERR_INVALID_ARG
  */
-esp_err_t espnow_ota_initator_result_free(espnow_ota_result_t *result);
+esp_err_t espnow_ota_initiator_result_free(espnow_ota_result_t *result);
 
 /**
  * @brief  Root scans other nodes
@@ -207,7 +207,7 @@ esp_err_t espnow_ota_initator_result_free(espnow_ota_result_t *result);
  *    - ESP_OK
  *    - ESP_ERR_INVALID_ARG
  */
-esp_err_t espnow_ota_initator_scan(espnow_ota_responder_t **info_list, size_t *num, TickType_t wait_ticks);
+esp_err_t espnow_ota_initiator_scan(espnow_ota_responder_t **info_list, size_t *num, TickType_t wait_ticks);
 
 /**
  * @brief  Free memory in the responder information list
@@ -215,7 +215,7 @@ esp_err_t espnow_ota_initator_scan(espnow_ota_responder_t **info_list, size_t *n
  * @return
  *    - ESP_OK
  */
-esp_err_t espnow_ota_initator_scan_result_free(void);
+esp_err_t espnow_ota_initiator_scan_result_free(void);
 
 /**
  * @brief Get the status of the upgrade

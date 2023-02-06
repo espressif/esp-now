@@ -289,7 +289,7 @@ static esp_err_t debug_send_handler(httpd_req_t *req)
 
 static size_t g_ota_size = 0;
 
-esp_err_t ota_initator_data_cb(size_t src_offset, void* dst, size_t size)
+esp_err_t ota_initiator_data_cb(size_t src_offset, void* dst, size_t size)
 {
     static const esp_partition_t *data_partition = NULL;
 
@@ -326,8 +326,8 @@ static void ota_send_task(void *arg)
     ret = esp_partition_get_sha256(data_partition, sha_256);
     ESP_ERROR_GOTO(ret!= ESP_OK, EXIT, "<%s> esp_partition_get_sha256", esp_err_to_name(ret));
 
-    ret = espnow_ota_initator_send(addrs_list, addrs_num, sha_256, g_ota_size,
-                                    ota_initator_data_cb, &ota_result);
+    ret = espnow_ota_initiator_send(addrs_list, addrs_num, sha_256, g_ota_size,
+                                    ota_initiator_data_cb, &ota_result);
     ESP_ERROR_GOTO(ret!= ESP_OK, EXIT, "<%s> esp_partition_get_sha256", esp_err_to_name(ret));
 
     ESP_LOGI(TAG, "Firmware is sent to the device to complete, Spend time: %ds",
@@ -336,7 +336,7 @@ static void ota_send_task(void *arg)
                 ota_result.successed_num, ota_result.unfinished_num);
 
     ESP_FREE(addrs_list);
-    espnow_ota_initator_result_free(&ota_result);
+    espnow_ota_initiator_result_free(&ota_result);
 
 EXIT:
     ESP_FREE(arg);

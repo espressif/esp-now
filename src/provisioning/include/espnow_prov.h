@@ -46,7 +46,7 @@ typedef struct {
     };
     uint8_t custom_size;
     uint8_t custom_data[0];
-} espnow_prov_initator_t;
+} espnow_prov_initiator_t;
 
 /**
  * @brief Responder information
@@ -104,13 +104,13 @@ typedef esp_err_t (*espnow_prov_cb_t)(uint8_t *src_addr, void *data,
  *    - ESP_OK
  *    - ESP_ERR_INVALID_ARG
  */
-esp_err_t espnow_prov_initator_scan(espnow_addr_t responder_addr, espnow_prov_responder_t *responder_info, wifi_pkt_rx_ctrl_t *rx_ctrl, TickType_t wait_ticks);
+esp_err_t espnow_prov_initiator_scan(espnow_addr_t responder_addr, espnow_prov_responder_t *responder_info, wifi_pkt_rx_ctrl_t *rx_ctrl, TickType_t wait_ticks);
 
 /**
  * @brief  Initiator sends information to request WiFi configuration
  *
  * @param[in]  responder_addr  mac address of responder
- * @param[in]  initator_info  information of initiator
+ * @param[in]  initiator_info  information of initiator
  * @param[in]  cb  WiFi configuration callback function
  * @param[in]  wait_ticks  the maximum waiting time in ticks
  *
@@ -119,7 +119,7 @@ esp_err_t espnow_prov_initator_scan(espnow_addr_t responder_addr, espnow_prov_re
  *    - ESP_ERR_WIFI_TIMEOUT
  *    - ESP_ERR_INVALID_ARG
  */
-esp_err_t espnow_prov_initator_send(const espnow_addr_t responder_addr, const espnow_prov_initator_t *initator_info, espnow_prov_cb_t cb, TickType_t wait_ticks);
+esp_err_t espnow_prov_initiator_send(const espnow_addr_t responder_addr, const espnow_prov_initiator_t *initiator_info, espnow_prov_cb_t cb, TickType_t wait_ticks);
 
 /**
  * @brief  Responder starts to send provision beacon, receives initiator request and send WiFi configuration

@@ -14,14 +14,14 @@ menu "Example Configuration"
 
     choice APP_ESPNOW_SEC_MODE
         bool "ESP-NOW Mode"
-        default APP_ESPNOW_SEC_INITATOR
+        default APP_ESPNOW_SEC_INITIATOR
         help
             Select the ESP-NOW Mode.
 
-        config APP_ESPNOW_SEC_INITATOR
-            bool "Initator Mode"
+        config APP_ESPNOW_SEC_INITIATOR
+            bool "Initiator Mode"
             help
-                Select the ESP-NOW SEC initator Mode.
+                Select the ESP-NOW SEC initiator Mode.
 
         config APP_ESPNOW_SEC_RESPONDER
             bool "Responder Mode"
@@ -32,7 +32,7 @@ menu "Example Configuration"
 
     config APP_ESPNOW_SEC_MODE
         int
-        default 0 if APP_ESPNOW_SEC_INITATOR
+        default 0 if APP_ESPNOW_SEC_INITIATOR
         default 1 if APP_ESPNOW_SEC_RESPONDER
 
 endmenu

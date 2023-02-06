@@ -38,7 +38,7 @@ idf.py menuconfig
 idf.py menuconfig
     Example Configuration  --->
         ESP-NOW Mode  --->
-            () Initator Mode
+            () Initiator Mode
             (X) Responder Mode
 ```
 
@@ -46,13 +46,13 @@ idf.py menuconfig
 
 ### Step 2: Build & Flash & Run the Initiator
 
-- Select the ESP-NOW security initator Mode:
+- Select the ESP-NOW security initiator Mode:
 
 ```
 idf.py menuconfig
     Example Configuration  --->
         ESP-NOW Mode  --->
-            (X) Initator Mode
+            (X) Initiator Mode
             () Responder Mode
 ```
 
@@ -93,7 +93,7 @@ I (567) phy_init: phy_version 4670,719f9f6,Feb 18 2021,17:07:07
 I (657) wifi:modeI (660) app_main: Uart read handle task is running
 I (660) app_main: Uart write task is running
 W (767) app_main: espnow wait security num: 1
-I (767) espnow_sec_init: count: 0, Secure_initator_send, requested_num: 1, unfinished_num: 1, successed_num: 0
+I (767) espnow_sec_init: count: 0, Secure_initiator_send, requested_num: 1, unfinished_num: 1, successed_num: 0
 I (1807) app_main: App key is sent to the device to complete, Spend time: 3629ms, Scan time: 2506ms
 I (1807) app_main: Devices security completed, successed_num: 1, unfinished_num: 0
 

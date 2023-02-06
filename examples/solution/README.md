@@ -126,7 +126,7 @@ I (821) gpio: GPIO[9]| InputEn: 1| OutputEn: 0| OpenDrain: 0| Pullup: 1| Pulldow
 I (843) espnow_console: Partition size: total: 52961, used: 0
 I (845) espnow_console: Command history enabled
 esp32c3> W (3333) init: espnow wait security num: 1
-I (3333) espnow_sec_init: count: 0, Secure_initator_send, requested_num: 1, unfinished_num: 1, successed_num: 0
+I (3333) espnow_sec_init: count: 0, Secure_initiator_send, requested_num: 1, unfinished_num: 1, successed_num: 0
 I (4096) init: App key is sent to the device to complete, Spend time: 3265ms, Scan time: 2502ms
 I (4097) init: Devices security completed, successed_num: 1, unfinished_num: 0
 [7c:df:a1:86:d8:24][1][-20]: I (12854) espnow_sec_resp: Get APP key
@@ -216,7 +216,7 @@ I (232708) wifi:Set ps type: 0
 I (260677) espnow_prov: Responder beacon end
 I (273601) app: ESPNOW provisioning press
 I (273601) espnow_prov: Responder beacon start, timer: 30s
-I (274203) init: MAC: 7c:df:a1:86:d8:24, Channel: 5, RSSI: -22, Product_id: initator_test, Device Name: , Auth Mode: 0, device_secret: 
+I (274203) init: MAC: 7c:df:a1:86:d8:24, Channel: 5, RSSI: -22, Product_id: initiator_test, Device Name: , Auth Mode: 0, device_secret: 
 [7c:df:a1:86:d8:24][5][-23]: I (282958) resp: MAC: 7c:df:a1:76:42:38, Channel: 5, RSSI: -25, Product_id: responder_test, Device Name: 
 [7c:df:a1:86:d8:24][5][-29]: I (283485) wifi:[7c:df:a1:86:d8:24][5][-30]: new:<5,1>, old:<5,0>, ap:<255,255>, sta:<5,1>, prof:1[7c:df:a1:86:d8:24][5][-29]: 
 [7c:df:a1:86:d8:24][5][-27]: I (284082) wifi:[7c:df:a1:86:d8:24][5][-27]: state: init -> auth (b0)[7c:df:a1:86:d8:24][5][-24]: 
@@ -276,7 +276,7 @@ I (269310) phy: chan:2,max_power:80
 I (269358) phy: chan:14,max_power:80
 I (282958) resp: MAC: 7c:df:a1:76:42:38, Channel: 5, RSSI: -25, Product_id: responder_test, Device Name: 
 I (282994) resp: MAC: 7c:df:a1:76:42:38, Channel: 5, RSSI: -25, wifi_mode: 0, ssid: myssid, password: mypassword, token: 
-I (283064) resp: provisioning initator exit
+I (283064) resp: provisioning initiator exit
 I (283485) wifi:new:<5,1>, old:<5,0>, ap:<255,255>, sta:<5,1>, prof:1
 I (284082) wifi:state: init -> auth (b0)
 I (284087) wifi:state: auth -> assoc (0)

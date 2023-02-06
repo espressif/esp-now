@@ -64,6 +64,6 @@ Console output of the responder device:
 ```
 I (578) ESPNOW: espnow [version: 1.0] init
 I (588) espnow_prov: Responder beacon start, timer: 30s
-I (688) app_main: MAC: 7c:df:a1:76:42:38, Channel: 1, RSSI: -39, Product_id: initator_test, Device Name: , Auth Mode: 0, device_secret: 
+I (688) app_main: MAC: 7c:df:a1:76:42:38, Channel: 1, RSSI: -39, Product_id: initiator_test, Device Name: , Auth Mode: 0, device_secret: 
 I (30688) espnow_prov: Responder beacon end
 ```
