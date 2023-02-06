@@ -15,8 +15,9 @@
 #pragma once
 
 #include "esp_now.h"
-#include "espnow.h"
 #include "esp_event.h"
+
+#include "espnow.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -49,8 +50,8 @@ typedef enum {
     ESPNOW_ATTRIBUTE_SATURATION_ADD = 0x0106,
     ESPNOW_ATTRIBUTE_WARM           = 0x0107,
     ESPNOW_ATTRIBUTE_WARM_ADD       = 0x0108,
-    ESPNOW_ATTRIBUTE_CLOD           = 0x0109,
-    ESPNOW_ATTRIBUTE_CLOD_ADD       = 0x010a,
+    ESPNOW_ATTRIBUTE_COLD           = 0x0109,
+    ESPNOW_ATTRIBUTE_COLD_ADD       = 0x010a,
     ESPNOW_ATTRIBUTE_RED            = 0x010b,
     ESPNOW_ATTRIBUTE_RED_ADD        = 0x010c,
     ESPNOW_ATTRIBUTE_GREEN          = 0x010d,
@@ -61,7 +62,7 @@ typedef enum {
     ESPNOW_ATTRIBUTE_MODE_ADD       = 0x0112,
 
     /**< button */
-    ESPNOW_BUTTON_ATTRIBUTE         = 0x0200,
+    ESPNOW_ATTRIBUTE_BUTTON_BASE    = 0x0200,
     ESPNOW_ATTRIBUTE_KEY_1          = 0x0201,
     ESPNOW_ATTRIBUTE_KEY_2          = 0x0202,
     ESPNOW_ATTRIBUTE_KEY_3          = 0x0203,
@@ -78,16 +79,16 @@ typedef enum {
  * @brief Bind information from initiator
  */
 typedef struct {
-    uint8_t mac[6];                /**< Initiator mac address */
-    uint16_t initiator_attribute;  /**< Initiator attribute */
+    uint8_t mac[6];                         /**< Initiator's MAC address */
+    espnow_attribute_t initiator_attribute; /**< Initiator's attribute */
 } espnow_ctrl_bind_info_t;
 
 /**
  * @brief Control data from initiator
  */
 typedef struct {
-    uint16_t initiator_attribute;         /**< Initiator attribute */
-    uint16_t responder_attribute;         /**< Responder attribute */
+    espnow_attribute_t initiator_attribute;         /**< Initiator's attribute */
+    espnow_attribute_t responder_attribute;         /**< Responder's attribute */
     union {
         bool responder_value_b;   /**< Boolean */
         int responder_value_i;    /**< Integer */
@@ -114,24 +115,24 @@ typedef struct {
  *    - TRUE
  *    - FALSE
  */
-typedef bool (* espnow_ctrl_bind_cb_t)(espnow_attribute_t initiator_attribute, uint8_t mac[6], uint8_t rssi);
+typedef bool (* espnow_ctrl_bind_cb_t)(espnow_attribute_t initiator_attribute, uint8_t mac[6], int8_t rssi);
 
 /**
  * @brief  The control data callback function
  *
- * @param[in]  initiator_attribute  the received initiator attribute
- * @param[in]  responder_attribute  the received responder attribute
+ * @param[in]  initiator_attribute  the received initiator's attribute
+ * @param[in]  responder_attribute  the received responder's attribute
  * @param[in]  responder_value  the received responder value
  *
  */
 typedef void (* espnow_ctrl_data_cb_t)(espnow_attribute_t initiator_attribute,
-                                     espnow_attribute_t responder_attribute,
-                                     uint32_t responder_value);
+                                       espnow_attribute_t responder_attribute,
+                                       uint32_t responder_value);
 
 /**
  * @brief  The raw control data callback function
  *
- * @param[in]  src_addr  mac address of sender
+ * @param[in]  src_addr  MAC address of sender
  * @param[in]  data  control data from sender
  * @param[in]  rx_ctrl  received packet radio metadata header
  *
@@ -153,8 +154,8 @@ esp_err_t espnow_ctrl_initiator_bind(espnow_attribute_t initiator_attribute, boo
 /**
  * @brief  The initiator sends a broadcast control data frame
  *
- * @param[in]  initiator_attribute  the sending initiator attribute
- * @param[in]  responder_attribute  the sending responder attribute
+ * @param[in]  initiator_attribute  the sending initiator's attribute
+ * @param[in]  responder_attribute  the sending responder's attribute
  * @param[in]  responder_value  the sending responder value
  *
  * @return
@@ -167,12 +168,12 @@ esp_err_t espnow_ctrl_initiator_send(espnow_attribute_t initiator_attribute, esp
  * @brief  The responder creates a bind task to process the received bind frame
  *
  * @attention  The bind frame will be processed if the callback function returns true
- *             or wait time is not timeout, or bind frame rssi is higher than the set rssi.
- * 
+ *             and wait time is not timeout, and bind frame's RSSI is higher than the set RSSI.
+ *
  * @attention  The responder will bind or unbind with the sender according to the value in bind frame.
- * 
+ *
  * @param[in]  wait_ms  maximum waiting bind time in millisecond
- * @param[in]  rssi  the minimum bind frame rssi
+ * @param[in]  rssi  the minimum bind frame RSSI
  * @param[in]  cb  the bind callback function
  *
  * @return

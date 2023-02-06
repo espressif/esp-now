@@ -21,10 +21,9 @@
 #include "esp_mac.h"
 #endif
 
-#include "esp_utils.h"
-#include "espnow_ota.h"
-
 #include "espnow.h"
+#include "espnow_ota.h"
+#include "espnow_utils.h"
 
 #define ESPNOW_OTA_STORE_CONFIG_KEY "upugrad_config"
 #define CONFIG_ESPNOW_OTA_SKIP_VERSION_CHECK
@@ -95,7 +94,7 @@ static esp_err_t espnow_ota_info(const uint8_t *src_addr)
     memcpy(&info->app_desc, esp_ota_get_app_description(), sizeof(esp_app_desc_t));
 #endif
 
-    ret = espnow_send(ESPNOW_TYPE_OTA_STATUS, src_addr, info, size, &g_frame_config, portMAX_DELAY);
+    ret = espnow_send(ESPNOW_DATA_TYPE_OTA_STATUS, src_addr, info, size, &g_frame_config, portMAX_DELAY);
 
     ESP_ERROR_RETURN(ret != ESP_OK, ret, "espnow_write");
 
@@ -126,7 +125,7 @@ static esp_err_t espnow_ota_status_handle(const espnow_addr_t src_addr, const es
         g_ota_config   = ESP_CALLOC(1, config_size);
         ESP_ERROR_GOTO(!g_ota_config, EXIT, "<ESP_ERR_NO_MEM> g_ota_config");
 
-        esp_storage_get(ESPNOW_OTA_STORE_CONFIG_KEY, g_ota_config, 0);
+        espnow_storage_get(ESPNOW_OTA_STORE_CONFIG_KEY, g_ota_config, 0);
 
         g_ota_config->start_time = xTaskGetTickCount();
         g_ota_config->partition = esp_ota_get_next_update_partition(NULL);
@@ -159,7 +158,7 @@ static esp_err_t espnow_ota_status_handle(const espnow_addr_t src_addr, const es
     g_ota_config->status.written_size = 0;
     g_ota_config->status.error_code = ESP_ERR_ESPNOW_OTA_FIRMWARE_NOT_INIT;
 
-    ret = espnow_send(ESPNOW_TYPE_OTA_STATUS, src_addr, &g_ota_config->status,
+    ret = espnow_send(ESPNOW_DATA_TYPE_OTA_STATUS, src_addr, &g_ota_config->status,
                       sizeof(espnow_ota_status_t), &g_frame_config, portMAX_DELAY);
     ESP_ERROR_RETURN(ret != ESP_OK, ret, "espnow_write");
 
@@ -187,7 +186,7 @@ static esp_err_t espnow_ota_status_handle(const espnow_addr_t src_addr, const es
     ESP_ERROR_GOTO(ret != ESP_OK, EXIT, "esp_ota_begin failed");
 
     /**< Save upgrade infomation to flash. */
-    ret = esp_storage_set(ESPNOW_OTA_STORE_CONFIG_KEY, g_ota_config,
+    ret = espnow_storage_set(ESPNOW_OTA_STORE_CONFIG_KEY, g_ota_config,
                           sizeof(ota_config_t) + g_ota_config->status.packet_num / 8 + 1);
     ESP_ERROR_GOTO(ret != ESP_OK, EXIT, "info_store_save, ret: %d", ret);
 
@@ -208,7 +207,7 @@ EXIT:
             if (!ESPNOW_OTA_GET_BITS(g_ota_config->status.progress_array, seq)) {
                 tmp_status->progress_index = seq / (ESPNOW_OTA_PROGRESS_MAX_SIZE * 8);
                 memcpy(tmp_status->progress_array[0], g_ota_config->status.progress_array[tmp_status->progress_index], ESPNOW_OTA_PROGRESS_MAX_SIZE);
-                ret = espnow_send(ESPNOW_TYPE_OTA_STATUS, src_addr, tmp_status,
+                ret = espnow_send(ESPNOW_DATA_TYPE_OTA_STATUS, src_addr, tmp_status,
                                   sizeof(espnow_ota_status_t) + ESPNOW_OTA_PROGRESS_MAX_SIZE, NULL, portMAX_DELAY);
                 ESP_LOG_BUFFER_HEXDUMP(TAG, tmp_status->progress_array, ESPNOW_OTA_PROGRESS_MAX_SIZE, ESP_LOG_DEBUG);
                 ESP_ERROR_BREAK(ret != ESP_OK, "espnow_send");
@@ -229,7 +228,7 @@ EXIT:
 
     ESP_LOGD(TAG, "Response upgrade status, written_size: %d, response_size: %d, addr: " MACSTR,
              g_ota_config->status.written_size, response_size, MAC2STR(src_addr));
-    ret = espnow_send(ESPNOW_TYPE_OTA_STATUS, src_addr, &g_ota_config->status,
+    ret = espnow_send(ESPNOW_DATA_TYPE_OTA_STATUS, src_addr, &g_ota_config->status,
                       sizeof(espnow_ota_status_t), &g_frame_config, portMAX_DELAY);
     ESP_ERROR_RETURN(ret != ESP_OK, ret, "espnow_write");
 
@@ -253,9 +252,9 @@ static esp_err_t espnow_ota_write(const espnow_addr_t src_addr, const espnow_ota
         g_ota_config->status.type         = ESPNOW_OTA_TYPE_STATUS;
         g_ota_config->status.written_size = 0;
         memset(g_ota_config->status.progress_array, 0, g_ota_config->status.packet_num / 8 + 1);
-        esp_storage_erase(ESPNOW_OTA_STORE_CONFIG_KEY);
+        espnow_storage_erase(ESPNOW_OTA_STORE_CONFIG_KEY);
 
-        ret = espnow_send(ESPNOW_TYPE_OTA_STATUS, src_addr, &g_ota_config->status,
+        ret = espnow_send(ESPNOW_DATA_TYPE_OTA_STATUS, src_addr, &g_ota_config->status,
                           sizeof(espnow_ota_status_t), &g_frame_config, portMAX_DELAY);
         ESP_ERROR_RETURN(ret != ESP_OK, ret, "espnow_write");
 
@@ -297,7 +296,7 @@ static esp_err_t espnow_ota_write(const espnow_addr_t src_addr, const espnow_ota
             ESP_LOGD(TAG, "Save the data of upgrade status to flash");
             s_next_written_percentage += g_espnow_ota_config->progress_report_interval;
 
-            esp_storage_set(ESPNOW_OTA_STORE_CONFIG_KEY, g_ota_config,
+            espnow_storage_set(ESPNOW_OTA_STORE_CONFIG_KEY, g_ota_config,
                             sizeof(ota_config_t) + g_ota_config->status.packet_num / 8 + 1);
 
             /**< Send ESP_EVENT_ESPNOW_OTA_STATUS event to the event handler */
@@ -320,7 +319,7 @@ static esp_err_t espnow_ota_write(const espnow_addr_t src_addr, const espnow_ota
         /**< If ESP32 was reset duration OTA, and after restart, the update_handle will be invalid,
              but it still can switch boot partition and reboot successful */
         esp_ota_end(g_ota_config->handle);
-        esp_storage_erase(ESPNOW_OTA_STORE_CONFIG_KEY);
+        espnow_storage_erase(ESPNOW_OTA_STORE_CONFIG_KEY);
 
         const esp_partition_t *update_partition = esp_ota_get_next_update_partition(NULL);
 
@@ -341,7 +340,7 @@ static esp_err_t espnow_ota_write(const espnow_addr_t src_addr, const espnow_ota
         g_ota_config->status.type = ESPNOW_OTA_TYPE_STATUS;
 
         /**< Response firmware upgrade status to root node. */
-        ret = espnow_send(ESPNOW_TYPE_OTA_STATUS, src_addr, &g_ota_config->status,
+        ret = espnow_send(ESPNOW_DATA_TYPE_OTA_STATUS, src_addr, &g_ota_config->status,
                           sizeof(espnow_ota_status_t), &g_frame_config, portMAX_DELAY);
         ESP_ERROR_RETURN(ret != ESP_OK, ret, "espnow_send");
     
@@ -379,9 +378,9 @@ esp_err_t espnow_ota_responder_stop()
     g_ota_config->status.error_code   = ESP_ERR_ESPNOW_OTA_STOP;
     g_ota_config->status.written_size = 0;
     memset(g_ota_config->status.progress_array, 0, g_ota_config->status.packet_num / 8 + 1);
-    esp_storage_erase(ESPNOW_OTA_STORE_CONFIG_KEY);
+    espnow_storage_erase(ESPNOW_OTA_STORE_CONFIG_KEY);
 
-    ret = espnow_send(ESPNOW_TYPE_OTA_STATUS, ESPNOW_ADDR_BROADCAST,
+    ret = espnow_send(ESPNOW_DATA_TYPE_OTA_STATUS, ESPNOW_ADDR_BROADCAST,
                       &g_ota_config->status, sizeof(espnow_ota_status_t), NULL, portMAX_DELAY);
     ESP_ERROR_RETURN(ret != ESP_OK, ret, "espnow_write");
 
@@ -431,7 +430,7 @@ esp_err_t espnow_ota_responder_start(const espnow_ota_config_t *config)
 
     g_espnow_ota_config = ESP_MALLOC(sizeof(espnow_ota_config_t));
     memcpy(g_espnow_ota_config, config, sizeof(espnow_ota_config_t));
-    espnow_set_type(ESPNOW_TYPE_OTA_DATA, 1, espnow_ota_responder_data_process);
+    espnow_set_config_for_data_type(ESPNOW_DATA_TYPE_OTA_DATA, 1, espnow_ota_responder_data_process);
 
     return ESP_OK;
 }

@@ -20,12 +20,12 @@
 #include "nvs_flash.h"
 #include "esp_ota_ops.h"
 
-#include "esp_utils.h"
-#include "esp_storage.h"
+#include "espnow_storage.h"
+#include "espnow_utils.h"
 
-static const char *TAG = "esp_storage";
+static const char *TAG = "espnow_storage";
 
-esp_err_t esp_storage_init()
+esp_err_t espnow_storage_init()
 {
     static bool init_flag = false;
 
@@ -60,7 +60,7 @@ esp_err_t esp_storage_init()
     return ESP_OK;
 }
 
-esp_err_t esp_storage_erase(const char *key)
+esp_err_t espnow_storage_erase(const char *key)
 {
     // ESP_PARAM_CHECK(key);
 
@@ -68,11 +68,11 @@ esp_err_t esp_storage_erase(const char *key)
     nvs_handle handle = 0;
 
     /**< Open non-volatile storage with a given namespace from the default NVS partition */
-    ret = nvs_open(CONFIG_NVS_NAMESPACE, NVS_READWRITE, &handle);
+    ret = nvs_open(CONFIG_ESPNOW_NVS_NAMESPACE, NVS_READWRITE, &handle);
     ESP_ERROR_RETURN(ret != ESP_OK, ret, "Open non-volatile storage");
 
     /**
-     * @brief If key is CONFIG_NVS_NAMESPACE, erase all info in CONFIG_NVS_NAMESPACE
+     * @brief If key is CONFIG_ESPNOW_NVS_NAMESPACE, erase all info in CONFIG_ESPNOW_NVS_NAMESPACE
      */
     if (!key) {
         ret = nvs_erase_all(handle);
@@ -92,7 +92,7 @@ esp_err_t esp_storage_erase(const char *key)
     return ESP_OK;
 }
 
-esp_err_t esp_storage_set(const char *key, const void *value, size_t length)
+esp_err_t espnow_storage_set(const char *key, const void *value, size_t length)
 {
     ESP_PARAM_CHECK(key);
     ESP_PARAM_CHECK(value);
@@ -102,7 +102,7 @@ esp_err_t esp_storage_set(const char *key, const void *value, size_t length)
     nvs_handle handle = 0;
 
     /**< Open non-volatile storage with a given namespace from the default NVS partition */
-    ret = nvs_open(CONFIG_NVS_NAMESPACE, NVS_READWRITE, &handle);
+    ret = nvs_open(CONFIG_ESPNOW_NVS_NAMESPACE, NVS_READWRITE, &handle);
     ESP_ERROR_RETURN(ret != ESP_OK, ret, "Open non-volatile storage");
 
     /**< set variable length binary value for given key */
@@ -119,7 +119,7 @@ esp_err_t esp_storage_set(const char *key, const void *value, size_t length)
     return ESP_OK;
 }
 
-esp_err_t esp_storage_get(const char *key, void *value, size_t length)
+esp_err_t espnow_storage_get(const char *key, void *value, size_t length)
 {
     ESP_PARAM_CHECK(key);
     ESP_PARAM_CHECK(value);
@@ -129,7 +129,7 @@ esp_err_t esp_storage_get(const char *key, void *value, size_t length)
     nvs_handle handle = 0;
 
     /**< Open non-volatile storage with a given namespace from the default NVS partition */
-    ret = nvs_open(CONFIG_NVS_NAMESPACE, NVS_READWRITE, &handle);
+    ret = nvs_open(CONFIG_ESPNOW_NVS_NAMESPACE, NVS_READWRITE, &handle);
     ESP_ERROR_RETURN(ret != ESP_OK, ret, "Open non-volatile storage");
 
     if (length == 0) {

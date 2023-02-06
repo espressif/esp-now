@@ -27,9 +27,9 @@
 #include "esp_system.h"
 #endif
 
-#include "esp_utils.h"
 #include "espnow.h"
 #include "espnow_prov.h"
+#include "espnow_utils.h"
 
 typedef enum {
     ESPNOW_PROV_TYPE_BEACON,
@@ -158,7 +158,7 @@ esp_err_t espnow_prov_initiator_scan(espnow_addr_t responder_addr, espnow_prov_r
     g_prov_init->scan_info.rx_ctrl = rx_ctrl;
     g_prov_init->scan_info.addr = responder_addr;
 
-    espnow_set_type(ESPNOW_TYPE_PROV, 1, espnow_prov_recv);
+    espnow_set_config_for_data_type(ESPNOW_DATA_TYPE_PROV, 1, espnow_prov_recv);
     esp_wifi_get_country(&country);
 
     while (g_prov_init->fix_ch == false && (wait_ticks == portMAX_DELAY || xTaskGetTickCount() - start_ticks < wait_ticks)) {
@@ -173,7 +173,7 @@ esp_err_t espnow_prov_initiator_scan(espnow_addr_t responder_addr, espnow_prov_r
         ret = ESP_OK;
     }
 
-    espnow_set_type(ESPNOW_TYPE_PROV, 0, NULL);
+    espnow_set_config_for_data_type(ESPNOW_DATA_TYPE_PROV, 0, NULL);
     ESP_FREE(g_prov_init);
 
     return ret;
@@ -195,7 +195,7 @@ esp_err_t espnow_prov_initiator_send(const espnow_addr_t responder_addr, const e
 
     espnow_add_peer(responder_addr, NULL);
 
-    ret = espnow_send(ESPNOW_TYPE_PROV, responder_addr, prov_data,
+    ret = espnow_send(ESPNOW_DATA_TYPE_PROV, responder_addr, prov_data,
                       sizeof(espnow_prov_data_t), &frame_head, portMAX_DELAY);
 
     espnow_del_peer(responder_addr);
@@ -208,13 +208,13 @@ esp_err_t espnow_prov_initiator_send(const espnow_addr_t responder_addr, const e
     g_prov_init->wifi_cb = cb;
     g_prov_init->wifi_en = true;
     g_prov_init->config = false;
-    espnow_set_type(ESPNOW_TYPE_PROV, 1, espnow_prov_recv);
+    espnow_set_config_for_data_type(ESPNOW_DATA_TYPE_PROV, 1, espnow_prov_recv);
 
     while (g_prov_init->config == false && (wait_ticks == portMAX_DELAY || xTaskGetTickCount() - start_ticks < wait_ticks)) {
         vTaskDelay(pdMS_TO_TICKS(100));
     }
 
-    espnow_set_type(ESPNOW_TYPE_PROV, 0, NULL);
+    espnow_set_config_for_data_type(ESPNOW_DATA_TYPE_PROV, 0, NULL);
 
     if (g_prov_init->config == false) {
         ret = ESP_FAIL;
@@ -241,7 +241,7 @@ static void responder_beacon_timercb(TimerHandle_t timer)
         g_prov_resp->device_en = false;
         ESP_FREE(g_prov_resp->wifi_config);
         ESP_FREE(g_prov_resp);
-        espnow_set_type(ESPNOW_TYPE_PROV, 0, NULL);
+        espnow_set_config_for_data_type(ESPNOW_DATA_TYPE_PROV, 0, NULL);
         return ;
     }
 
@@ -252,7 +252,7 @@ static void responder_beacon_timercb(TimerHandle_t timer)
         .filter_adjacent_channel = true,
     };
 
-    espnow_send(ESPNOW_TYPE_PROV, ESPNOW_ADDR_BROADCAST, g_beacon_prov_data, 
+    espnow_send(ESPNOW_DATA_TYPE_PROV, ESPNOW_ADDR_BROADCAST, g_beacon_prov_data, 
                 sizeof(espnow_prov_responder_t) + 1, &frame_head, portMAX_DELAY);
 }
 
@@ -287,7 +287,7 @@ esp_err_t espnow_prov_responder_start(const espnow_prov_responder_t *responder_i
     }
     memcpy(g_prov_resp->wifi_config, wifi_config, sizeof(espnow_prov_wifi_t));
 
-    espnow_set_type(ESPNOW_TYPE_PROV, 1, espnow_prov_recv);
+    espnow_set_config_for_data_type(ESPNOW_DATA_TYPE_PROV, 1, espnow_prov_recv);
 
     return ESP_OK;
 }
@@ -319,7 +319,7 @@ static esp_err_t espnow_prov_responder_send(const espnow_addr_t *initiator_addr_
     ESP_LOGD(TAG, MACSTR ", num: %d", MAC2STR(initiator_addr_list[0]), initiator_addr_num);
 
     if (initiator_addr_num > 1) {
-        espnow_send_group(initiator_addr_list, initiator_addr_num, ESPNOW_ADDR_GROUP_PROV, NULL, true, portMAX_DELAY);
+        espnow_set_group(initiator_addr_list, initiator_addr_num, ESPNOW_ADDR_GROUP_PROV, NULL, true, portMAX_DELAY);
         frame_head.group = true;
         memcpy(dest_addr, ESPNOW_ADDR_GROUP_PROV, 6);
     } else {
@@ -332,7 +332,7 @@ static esp_err_t espnow_prov_responder_send(const espnow_addr_t *initiator_addr_
     memcpy(&prov_data->wifi_config, wifi_config, size - 1);
     prov_data->type = ESPNOW_PROV_TYPE_WIFI;
 
-    ret = espnow_send(ESPNOW_TYPE_PROV, dest_addr, prov_data, size, &frame_head, portMAX_DELAY);
+    ret = espnow_send(ESPNOW_DATA_TYPE_PROV, dest_addr, prov_data, size, &frame_head, portMAX_DELAY);
     if (ret != ESP_OK) {
         ESP_FREE(prov_data);
         ESP_LOGW(TAG, "[%s, %d] <%s> " "espnow_send", __func__, __LINE__, esp_err_to_name(ret));
@@ -342,7 +342,7 @@ static esp_err_t espnow_prov_responder_send(const espnow_addr_t *initiator_addr_
     ESP_FREE(prov_data);
 
     if (initiator_addr_num > 1) {
-        espnow_send_group(initiator_addr_list, initiator_addr_num, ESPNOW_ADDR_GROUP_PROV, NULL, false, portMAX_DELAY);
+        espnow_set_group(initiator_addr_list, initiator_addr_num, ESPNOW_ADDR_GROUP_PROV, NULL, false, portMAX_DELAY);
     } else {
         espnow_del_peer(dest_addr);
     }

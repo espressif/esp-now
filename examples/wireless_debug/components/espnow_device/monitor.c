@@ -18,9 +18,6 @@
 #include "esp_random.h"
 #endif
 
-#include "esp_utils.h"
-#include "esp_storage.h"
-
 #include "espnow.h"
 #include "espnow_cmd.h"
 #include "espnow_console.h"
@@ -28,6 +25,8 @@
 #include "espnow_log.h"
 #include "espnow_ota.h"
 #include "espnow_prov.h"
+#include "espnow_storage.h"
+#include "espnow_utils.h"
 
 #include "sdcard.h"
 
@@ -115,14 +114,14 @@ static uint8_t app_find_device_channel(const uint8_t addr[ESPNOW_ADDR_LEN])
     };
 
     esp_wifi_get_country(&country);
-    espnow_set_type(ESPNOW_TYPE_DEBUG_LOG, 1, app_espnow_debug_recv_beacon);
+    espnow_set_config_for_data_type(ESPNOW_DATA_TYPE_DEBUG_LOG, true, app_espnow_debug_recv_beacon);
     device_channel = 0;
 
     for (int i = 0; i < country.nchan; ++i) {
         esp_wifi_set_channel(country.schan + i, WIFI_SECOND_CHAN_NONE);
         frame_head.channel = country.schan + i;
 
-        ret = espnow_send(ESPNOW_TYPE_DEBUG_COMMAND, ESPNOW_ADDR_BROADCAST,
+        ret = espnow_send(ESPNOW_DATA_TYPE_DEBUG_COMMAND, ESPNOW_ADDR_BROADCAST,
                           data, strlen(data) + 1, &frame_head, portMAX_DELAY);
         ESP_ERROR_CONTINUE(ret != ESP_OK, "<%s> espnow_send", esp_err_to_name(ret));
 
@@ -132,7 +131,7 @@ static uint8_t app_find_device_channel(const uint8_t addr[ESPNOW_ADDR_LEN])
         }
     }
 
-    espnow_set_type(ESPNOW_TYPE_DEBUG_LOG, 0, NULL);
+    espnow_set_config_for_data_type(ESPNOW_DATA_TYPE_DEBUG_LOG, false, NULL);
 
     return device_channel;
 }
@@ -245,7 +244,7 @@ void app_espnow_monitor_device_start()
     esp_log_level_set("httpd_txrx", ESP_LOG_ERROR);
     esp_log_level_set("httpd_uri", ESP_LOG_ERROR);
 
-    esp_storage_init();
+    espnow_storage_init();
 
     app_wifi_init();
 
@@ -274,5 +273,5 @@ void app_espnow_monitor_device_start()
 #endif /**< CONFIG_APP_WEB_SERVER */
 
     /** Receive esp-now data from other device */
-    espnow_set_type(ESPNOW_TYPE_DEBUG_LOG, 1, app_espnow_debug_recv_process);
+    espnow_set_config_for_data_type(ESPNOW_DATA_TYPE_DEBUG_LOG, true, app_espnow_debug_recv_process);
 }

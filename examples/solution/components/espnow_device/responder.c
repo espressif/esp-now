@@ -19,10 +19,9 @@
 #include "esp_mac.h"
 #endif
 
-#include "esp_utils.h"
-#include "esp_storage.h"
-
 #include "espnow.h"
+#include "espnow_storage.h"
+#include "espnow_utils.h"
 
 #ifdef CONFIG_APP_ESPNOW_DEBUG
 #include "espnow_log.h"
@@ -270,7 +269,7 @@ void app_espnow_responder()
 
 #ifdef CONFIG_APP_ESPNOW_DEBUG
     /**< Initialize time synchronization */
-    esp_timesync_start();
+    espnow_timesync_start();
 
     espnow_console_config_t console_config = {
         .monitor_command.uart   = true,

@@ -38,11 +38,11 @@
 #include "freertos/task.h"
 #include "sdkconfig.h"
 
-#include "esp_utils.h"
 #include "esp_ota_ops.h"
 #include "esp_partition.h"
 
 #include "espnow_log.h"
+#include "espnow_utils.h"
 
 #if CONFIG_IDF_TARGET_ESP32
 #include "esp32/rom/spi_flash.h"
@@ -176,7 +176,7 @@ static int restart_func(int argc, char **argv)
     if (restart_args.info->count) {
         esp_reset_reason_t reset_reason = esp_reset_reason();
         ESP_LOGI(__func__, "num: %d, reason: %d, crash: %d",
-                 esp_reboot_total_count(), reset_reason, esp_reboot_is_exception(false));
+                 espnow_reboot_total_count(), reset_reason, espnow_reboot_is_exception(false));
     } else {
         ESP_LOGI(__func__, "Restarting");
         esp_restart();
@@ -208,9 +208,9 @@ static void register_restart()
  */
 static int heap_func(int argc, char **argv)
 {
-    esp_mem_print_record();
-    esp_mem_print_heap();
-    esp_mem_print_task();
+    espnow_mem_print_record();
+    espnow_mem_print_heap();
+    espnow_mem_print_task();
 
     if (!heap_caps_check_integrity_all(true)) {
         ESP_LOGE(__func__, "At least one heap is corrupt");

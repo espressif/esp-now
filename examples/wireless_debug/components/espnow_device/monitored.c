@@ -22,12 +22,11 @@
 #include "esp_mac.h"
 #endif
 
-#include "esp_utils.h"
-#include "esp_storage.h"
-
 #include "espnow.h"
-#include "espnow_log.h"
 #include "espnow_console.h"
+#include "espnow_log.h"
+#include "espnow_storage.h"
+#include "espnow_utils.h"
 
 static const char *TAG = "monitored";
 
@@ -218,11 +217,11 @@ static void app_espnow_event_handler(void *handler_args, esp_event_base_t base, 
 
 void app_espnow_monitored_device_start()
 {
-    esp_storage_init();
+    espnow_storage_init();
     app_wifi_init();
 
     /**< Initialize time synchronization */
-    esp_timesync_start();
+    espnow_timesync_start();
 
     /**
      * @brief ESPNOW init

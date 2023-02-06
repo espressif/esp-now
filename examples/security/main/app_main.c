@@ -19,12 +19,11 @@
 #include "esp_random.h"
 #endif
 
-#include "esp_utils.h"
-#include "esp_storage.h"
-
 #include "espnow.h"
 #include "espnow_security.h"
 #include "espnow_security_handshake.h"
+#include "espnow_storage.h"
+#include "espnow_utils.h"
 
 #include "driver/uart.h"
 
@@ -56,7 +55,7 @@ static void app_uart_read_task(void *arg)
         size = uart_read_bytes(UART_PORT_NUM, data, ESPNOW_SEC_PACKET_MAX_SIZE, pdMS_TO_TICKS(10));
         ESP_ERROR_CONTINUE(size <= 0, "");
 
-        ret = espnow_send(ESPNOW_TYPE_DATA, ESPNOW_ADDR_BROADCAST, data, size, &frame_head, portMAX_DELAY);
+        ret = espnow_send(ESPNOW_DATA_TYPE_DATA, ESPNOW_ADDR_BROADCAST, data, size, &frame_head, portMAX_DELAY);
         ESP_ERROR_CONTINUE(ret != ESP_OK, "<%s> espnow_send", esp_err_to_name(ret));
 
         ESP_LOGI(TAG, "espnow_send, count: %" PRIu32 ", size: %u, data: %s", count++, size, data);
@@ -122,7 +121,7 @@ static esp_err_t app_uart_write_handle(uint8_t *src_addr, void *data,
 
 void app_main()
 {
-    esp_storage_init();
+    espnow_storage_init();
 
     app_wifi_init();
     app_uart_initialize();
@@ -131,7 +130,7 @@ void app_main()
     espnow_config.sec_enable = 1;
     espnow_init(&espnow_config);
 
-    espnow_set_type(ESPNOW_TYPE_DATA, 1, app_uart_write_handle);
+    espnow_set_config_for_data_type(ESPNOW_DATA_TYPE_DATA, true, app_uart_write_handle);
 
 #ifdef CONFIG_APP_ESPNOW_SEC_INITIATOR
     uint8_t key_info[APP_KEY_LEN];

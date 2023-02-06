@@ -28,7 +28,7 @@
 #include "argtable3/argtable3.h"
 #include "pcap.h"
 
-#include "esp_utils.h"
+#include "espnow_utils.h"
 
 #define SNIFFER_DEFAULT_FILE_NAME        "wifi_sniffer"
 #define SNIFFER_DEFAULT_CHANNEL          13

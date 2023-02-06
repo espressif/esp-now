@@ -21,15 +21,14 @@
 #include "nvs.h"
 #include "nvs_flash.h"
 
-#include "esp_utils.h"
-#include "esp_storage.h"
 #include "espnow.h"
-
 #include "espnow_log.h"
 #include "espnow_log_flash.h"
+#include "espnow_storage.h"
+#include "espnow_utils.h"
 
 #define LOG_FLASH_FILE_MAX_NUM      2                                /**< Create several files */
-#define LOG_FLASH_FILE_MAX_SIZE     CONFIG_DEBUG_LOG_FILE_MAX_SIZE   /**< File storage size */
+#define LOG_FLASH_FILE_MAX_SIZE     CONFIG_ESPNOW_DEBUG_LOG_FILE_MAX_SIZE   /**< File storage size */
 #define LOG_FLASH_STORE_KEY         "log_info"
 #define LOG_FLASH_STORE_NAMESPACE   "log_info"
 
@@ -50,7 +49,7 @@ static const char *TAG                   = "espnow_log_flash";
 
 static esp_err_t log_info_storage_init()
 {
-    esp_err_t err = nvs_flash_init_partition(CONFIG_DEBUG_LOG_PARTITION_LABEL_NVS);
+    esp_err_t err = nvs_flash_init_partition(CONFIG_ESPNOW_DEBUG_LOG_PARTITION_LABEL_NVS);
     ESP_ERROR_RETURN(err != ESP_OK, err, "NVS Flash init failed");
 
     return ESP_OK;
@@ -63,10 +62,10 @@ static void *log_info_storage_get(const char *key)
     void *value = NULL;
     size_t required_size = 0;
 
-    if ((err = nvs_open_from_partition(CONFIG_DEBUG_LOG_PARTITION_LABEL_NVS, LOG_FLASH_STORE_NAMESPACE,
+    if ((err = nvs_open_from_partition(CONFIG_ESPNOW_DEBUG_LOG_PARTITION_LABEL_NVS, LOG_FLASH_STORE_NAMESPACE,
                                        NVS_READONLY, &handle)) != ESP_OK) {
         ESP_LOGW(TAG, "<%s> NVS open for %s %s %s failed",
-                 esp_err_to_name(err), CONFIG_DEBUG_LOG_PARTITION_LABEL_NVS, LOG_FLASH_STORE_NAMESPACE, key);
+                 esp_err_to_name(err), CONFIG_ESPNOW_DEBUG_LOG_PARTITION_LABEL_NVS, LOG_FLASH_STORE_NAMESPACE, key);
         return NULL;
     }
 
@@ -87,7 +86,7 @@ static esp_err_t log_info_storage_set(const char *key, void *data, size_t len)
     nvs_handle handle;
     esp_err_t err;
 
-    if ((err = nvs_open_from_partition(CONFIG_DEBUG_LOG_PARTITION_LABEL_NVS, LOG_FLASH_STORE_NAMESPACE,
+    if ((err = nvs_open_from_partition(CONFIG_ESPNOW_DEBUG_LOG_PARTITION_LABEL_NVS, LOG_FLASH_STORE_NAMESPACE,
                                        NVS_READWRITE, &handle)) != ESP_OK) {
         ESP_LOGE(TAG, "NVS open failed with error %d", err);
         return ESP_FAIL;
@@ -109,7 +108,7 @@ static esp_err_t log_info_storage_erase(const char *key)
     nvs_handle handle;
     esp_err_t err;
 
-    if ((err = nvs_open_from_partition(CONFIG_DEBUG_LOG_PARTITION_LABEL_NVS, LOG_FLASH_STORE_NAMESPACE,
+    if ((err = nvs_open_from_partition(CONFIG_ESPNOW_DEBUG_LOG_PARTITION_LABEL_NVS, LOG_FLASH_STORE_NAMESPACE,
                                        NVS_READWRITE, &handle)) != ESP_OK) {
         ESP_LOGE(TAG, "NVS open failed with error %d", err);
         return ESP_FAIL;
@@ -141,9 +140,9 @@ esp_err_t espnow_log_flash_init()
     ESP_ERROR_RETURN(err != ESP_OK, err, "log_info_storage_init");
 
     esp_partition_iterator_t part_itra = esp_partition_find(ESP_PARTITION_TYPE_DATA,
-                                         ESP_PARTITION_SUBTYPE_ANY, CONFIG_DEBUG_LOG_PARTITION_LABEL_DATA);
+                                         ESP_PARTITION_SUBTYPE_ANY, CONFIG_ESPNOW_DEBUG_LOG_PARTITION_LABEL_DATA);
     ESP_ERROR_RETURN(!part_itra, ESP_ERR_NOT_SUPPORTED, "partition no find, subtype: 0x%x, label: %s",
-                     ESP_PARTITION_SUBTYPE_ANY, CONFIG_DEBUG_LOG_PARTITION_LABEL_DATA);
+                     ESP_PARTITION_SUBTYPE_ANY, CONFIG_ESPNOW_DEBUG_LOG_PARTITION_LABEL_DATA);
 
     g_log_part = esp_partition_get(part_itra);
 
@@ -158,13 +157,13 @@ esp_err_t espnow_log_flash_init()
 
     if (!g_log_info) {
         g_log_info = ESP_CALLOC(LOG_FLASH_FILE_MAX_NUM, sizeof(flash_log_info_t));
-        err = esp_partition_erase_range(g_log_part, CONFIG_DEBUG_LOG_PARTITION_OFFSET, LOG_FLASH_FILE_MAX_SIZE);
+        err = esp_partition_erase_range(g_log_part, CONFIG_ESPNOW_DEBUG_LOG_PARTITION_OFFSET, LOG_FLASH_FILE_MAX_SIZE);
         ESP_ERROR_RETURN(err != ESP_OK, err, "esp_partition_erase_range");
     }
 
     /**< Create two files */
     for (size_t i = 0, min_size = LOG_FLASH_FILE_MAX_SIZE / LOG_FLASH_FILE_MAX_NUM; i < LOG_FLASH_FILE_MAX_NUM; i++) {
-        (g_log_info + i)->addr = CONFIG_DEBUG_LOG_PARTITION_OFFSET + LOG_FLASH_FILE_MAX_SIZE / LOG_FLASH_FILE_MAX_NUM * i;
+        (g_log_info + i)->addr = CONFIG_ESPNOW_DEBUG_LOG_PARTITION_OFFSET + LOG_FLASH_FILE_MAX_SIZE / LOG_FLASH_FILE_MAX_NUM * i;
 
         /**< Whether file is full */
         if ((g_log_info + i)->size < LOG_FLASH_FILE_MAX_SIZE / LOG_FLASH_FILE_MAX_NUM && (g_log_info + i)->size < min_size) {
@@ -176,7 +175,7 @@ esp_err_t espnow_log_flash_init()
     g_espnow_log_flash_init_flag = true;
     ESP_LOGI(TAG, "LOG flash initialized successfully");
     ESP_LOGI(TAG, "Log save partition subtype: label: %s, addr:0x%x, offset: %d, size: %d",
-             CONFIG_DEBUG_LOG_PARTITION_LABEL_DATA, g_log_part->address, CONFIG_DEBUG_LOG_PARTITION_OFFSET, g_log_part->size);
+             CONFIG_ESPNOW_DEBUG_LOG_PARTITION_LABEL_DATA, g_log_part->address, CONFIG_ESPNOW_DEBUG_LOG_PARTITION_OFFSET, g_log_part->size);
 
     return ESP_OK;
 }
@@ -328,7 +327,7 @@ esp_err_t espnow_log_flash_erase()
     err = log_info_storage_erase(LOG_FLASH_STORE_KEY);
     ESP_ERROR_RETURN(err != ESP_OK, err, "log_info_storage_erase");
 
-    err = esp_partition_erase_range(g_log_part, CONFIG_DEBUG_LOG_PARTITION_OFFSET, LOG_FLASH_FILE_MAX_SIZE);
+    err = esp_partition_erase_range(g_log_part, CONFIG_ESPNOW_DEBUG_LOG_PARTITION_OFFSET, LOG_FLASH_FILE_MAX_SIZE);
     ESP_ERROR_RETURN(err != ESP_OK, err, "esp_partition_erase_range");
 
     return ESP_OK;

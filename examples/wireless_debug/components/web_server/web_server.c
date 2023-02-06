@@ -310,7 +310,7 @@ static void ota_send_task(void *arg)
 
     for (const char *tmp = (char *)arg;; tmp++) {
         if (*tmp == ',' || *tmp == ' ' || *tmp == '|' || *tmp == '.' || *tmp == '\0') {
-            mac_str2hex(tmp - 17, addrs_list[addrs_num]);
+            espnow_mac_str2hex(tmp - 17, addrs_list[addrs_num]);
             addrs_num++;
 
             if (*tmp == '\0' || *(tmp + 1) == '\0') {

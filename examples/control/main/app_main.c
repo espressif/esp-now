@@ -15,10 +15,9 @@
 #include "esp_mac.h"
 #endif
 
-#include "esp_utils.h"
-
 #include "espnow.h"
 #include "espnow_ctrl.h"
+#include "espnow_utils.h"
 
 #if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 0, 0)
 #include "driver/rmt.h"
@@ -242,7 +241,7 @@ static void app_espnow_event_handler(void *handler_args, esp_event_base_t base, 
 
 void app_main(void)
 {
-    esp_storage_init();
+    espnow_storage_init();
 
     app_wifi_init();
     app_driver_init();

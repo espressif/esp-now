@@ -28,7 +28,8 @@
 #endif
 
 #include "esp_wifi.h"
-#include "esp_utils.h"
+
+#include "espnow_utils.h"
 
 #include "nvs_flash.h"
 #include "argtable3/argtable3.h"
@@ -73,7 +74,7 @@ static esp_err_t wifi_scan_func(int argc, char **argv)
     }
 
     if (wifi_scan_args.bssid->count) {
-        ESP_ERROR_RETURN(!mac_str2hex(wifi_scan_args.bssid->sval[0], bssid), ESP_ERR_INVALID_ARG,
+        ESP_ERROR_RETURN(!espnow_mac_str2hex(wifi_scan_args.bssid->sval[0], bssid), ESP_ERR_INVALID_ARG,
                          "The format of the address is incorrect. Please enter the format as xx:xx:xx:xx:xx:xx");
         scan_config.bssid = bssid;
     }
@@ -177,7 +178,7 @@ static int wifi_config_func(int argc, char **argv)
     }
 
     if (wifi_config_args.bssid->count) {
-        ESP_ERROR_RETURN(!mac_str2hex(wifi_config_args.bssid->sval[0], wifi_config.sta.bssid), ESP_ERR_INVALID_ARG,
+        ESP_ERROR_RETURN(!espnow_mac_str2hex(wifi_config_args.bssid->sval[0], wifi_config.sta.bssid), ESP_ERR_INVALID_ARG,
                          "The format of the address is incorrect. Please enter the format as xx:xx:xx:xx:xx:xx");
     }
 

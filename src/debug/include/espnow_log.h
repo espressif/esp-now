@@ -25,18 +25,18 @@ extern "C" {
 
 #include "esp_log.h"
 
-#include "esp_utils.h"
-#include "esp_mem.h"
+#include "espnow_mem.h"
+#include "espnow_utils.h"
 
 /**
  *@brief Configuration of debug log stored in flash.
  *       Whether to output information according to the client needs.
- *       Please assign CONFIG_DEBUG_LOG_PRINTF_ENABLE a value.
+ *       Please assign CONFIG_ESPNOW_DEBUG_LOG_PRINTF_ENABLE a value.
  *
- * @note CONFIG_DEBUG_LOG_PRINTF_ENABLE = 1  enable
- *       CONFIG_DEBUG_LOG_PRINTF_ENABLE = 0  disable
+ * @note CONFIG_ESPNOW_DEBUG_LOG_PRINTF_ENABLE = 1  enable
+ *       CONFIG_ESPNOW_DEBUG_LOG_PRINTF_ENABLE = 0  disable
  */
-#ifdef CONFIG_DEBUG_LOG_PRINTF_ENABLE
+#ifdef CONFIG_ESPNOW_DEBUG_LOG_PRINTF_ENABLE
 #define DEBUG_LOG_PRINTF(fmt, ...) printf("D [%s, %d]: " fmt, TAG, __LINE__, __VA_ARGS__)
 #else
 #define DEBUG_LOG_PRINTF(fmt, ...)

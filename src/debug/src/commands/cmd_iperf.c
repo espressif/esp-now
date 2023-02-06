@@ -18,7 +18,6 @@
 #include "argtable3/argtable3.h"
 
 #include "esp_wifi.h"
-#include "esp_utils.h"
 
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(4, 4, 0)
 #include "esp_mac.h"
@@ -27,13 +26,12 @@
 #include "esp_timer.h"
 
 #include "espnow.h"
-
 #include "espnow_console.h"
+#include "espnow_ctrl.h"
 #include "espnow_log.h"
-
 #include "espnow_ota.h"
 #include "espnow_prov.h"
-#include "espnow_ctrl.h"
+#include "espnow_utils.h"
 
 #include <esp_https_ota.h>
 #include <esp_log.h>
@@ -156,7 +154,7 @@ struct espnow_iperf_cfg {
     uint16_t transmit_time;
     uint32_t ping_count;
     uint16_t report_interval;
-    espnow_type_t type;
+    espnow_data_type_t type;
     espnow_frame_head_t frame_head;
     uint8_t addr[6];
     int gpio_num;
@@ -167,7 +165,7 @@ struct espnow_iperf_cfg {
     .report_interval = 3,
     .ping_count      = 64,
     .frame_head.group     = false,
-    .type            = ESPNOW_TYPE_RESERVED,
+    .type            = ESPNOW_DATA_TYPE_RESERVED,
 };
 
 typedef enum {
@@ -306,7 +304,7 @@ static void espnow_iperf_initiator_task(void *arg)
     ESP_FREE(iperf_data);
     g_iperf_cfg.finish = true;
 
-    espnow_set_type(ESPNOW_TYPE_RESERVED, 0, NULL);
+    espnow_set_config_for_data_type(ESPNOW_DATA_TYPE_RESERVED, 0, NULL);
     if (g_iperf_queue) {
         iperf_recv_data_t tmp_data =  { 0 };
 
@@ -414,7 +412,7 @@ static esp_err_t espnow_iperf_responder(uint8_t *src_addr, void *data,
 
 static void espnow_iperf_responder_start(void)
 {
-    espnow_set_type(ESPNOW_TYPE_RESERVED, 1, espnow_iperf_responder);
+    espnow_set_config_for_data_type(ESPNOW_DATA_TYPE_RESERVED, 1, espnow_iperf_responder);
     ESP_LOGI(TAG, "[  Initiator MAC  ] Interval       Transfer     Bandwidth   RSSI");
 }
 
@@ -502,7 +500,7 @@ static void espnow_iperf_ping_task(void *arg)
         espnow_del_peer(g_iperf_cfg.addr);
     }
 
-    espnow_set_type(ESPNOW_TYPE_RESERVED, 0, NULL);
+    espnow_set_config_for_data_type(ESPNOW_DATA_TYPE_RESERVED, 0, NULL);
     if (g_iperf_queue) {
         iperf_recv_data_t tmp_data =  { 0 };
 
@@ -622,7 +620,7 @@ static esp_err_t espnow_iperf_func(int argc, char **argv)
     // esp_wifi_config_espnow_rate(ESP_IF_WIFI_STA, WIFI_PHY_RATE_MCS7_SGI);
 
     if (espnow_iperf_args.initiator->count) {
-        ESP_ERROR_RETURN(!mac_str2hex(espnow_iperf_args.initiator->sval[0], g_iperf_cfg.addr), ESP_ERR_INVALID_ARG,
+        ESP_ERROR_RETURN(!espnow_mac_str2hex(espnow_iperf_args.initiator->sval[0], g_iperf_cfg.addr), ESP_ERR_INVALID_ARG,
                          "The format of the address is incorrect. Please enter the format as xx:xx:xx:xx:xx:xx");
 
         ESP_LOGI(TAG, "------------------------------------------------------------");
@@ -634,7 +632,7 @@ static esp_err_t espnow_iperf_func(int argc, char **argv)
 
         g_iperf_queue = xQueueCreate(IPERF_QUEUE_SIZE, sizeof(iperf_recv_data_t));
         ESP_ERROR_RETURN(!g_iperf_queue, ESP_FAIL, "Create espnow recv queue fail");
-        espnow_set_type(ESPNOW_TYPE_RESERVED, 1, espnow_iperf_initiator_recv);
+        espnow_set_config_for_data_type(ESPNOW_DATA_TYPE_RESERVED, 1, espnow_iperf_initiator_recv);
 
         if (espnow_iperf_args.ping->count) {
             xTaskCreate(espnow_iperf_ping_task, "espnow_iperf_ping", 4 * 1024,

@@ -21,18 +21,18 @@
 #include <esp_err.h>
 #include "esp_log.h"
 
-#include "esp_mem.h"
-#include "esp_storage.h"
+#include "espnow_mem.h"
+#include "espnow_storage.h"
 
 #ifdef __cplusplus
 extern "C"
 {
 #endif
 
-typedef struct esp_time_config {
+typedef struct espnow_time_config {
     /** If not specified, then 'CONFIG_ESP_SNTP_SERVER_NAME' is used as the SNTP server. */
     char *sntp_server_name;
-} esp_time_config_t;
+} espnow_time_config_t;
 
 /**
  * Macro which can be used to check the error code,
@@ -114,7 +114,7 @@ typedef struct esp_time_config {
  *    - ESP_OK
  *    - ESP_FAIL
  */
-esp_err_t esp_reboot(TickType_t wait_ticks);
+esp_err_t espnow_reboot(TickType_t wait_ticks);
 
 /**
  * @brief Get the number of consecutive restarts
@@ -122,7 +122,7 @@ esp_err_t esp_reboot(TickType_t wait_ticks);
  * @return
  *     - count
  */
-int esp_reboot_unbroken_count(void);
+int espnow_reboot_unbroken_count(void);
 
 /**
  * @brief Get the number of restarts
@@ -130,7 +130,7 @@ int esp_reboot_unbroken_count(void);
  * @return
  *     - count
  */
-int esp_reboot_total_count(void);
+int espnow_reboot_total_count(void);
 
 /**
  * @brief Determine if the restart is caused by an exception.
@@ -141,7 +141,7 @@ int esp_reboot_total_count(void);
  *     - true
  *     - false
  */
-bool esp_reboot_is_exception(bool erase_coredump);
+bool espnow_reboot_is_exception(bool erase_coredump);
 
 /**
  * @brief Initialize time synchronization
@@ -152,7 +152,7 @@ bool esp_reboot_is_exception(bool erase_coredump);
  *  - ESP_OK
  *  - ESP_FAIL
  */
-esp_err_t esp_timesync_start(void);
+esp_err_t espnow_timesync_start(void);
 
 /**
  * @brief Check if current time is updated
@@ -163,7 +163,7 @@ esp_err_t esp_timesync_start(void);
  *      - true if time is updated
  *      - false if time is not updated
  */
-bool esp_timesync_check(void);
+bool espnow_timesync_check(void);
 
 /**
  * @brief Wait for time synchronization
@@ -176,7 +176,7 @@ bool esp_timesync_check(void);
  * @return
  *      - ESP_OK
  */
-esp_err_t esp_timesync_wait(uint32_t wait_ms);
+esp_err_t espnow_timesync_wait(uint32_t wait_ms);
 
 /**
  * @brief Interval printing system information
@@ -184,7 +184,7 @@ esp_err_t esp_timesync_wait(uint32_t wait_ms);
  * @param[in]  interval_ms  interval of printing system log information
  *
  */
-void esp_print_system_info(uint32_t interval_ms);
+void espnow_print_system_info(uint32_t interval_ms);
 
 /**
  * @brief Convert MAC from string to hex
@@ -196,7 +196,7 @@ void esp_print_system_info(uint32_t interval_ms);
  *      - NULL: fail
  *      - mac_hex: success
  */
-uint8_t *mac_str2hex(const char *mac_str, uint8_t *mac_hex);
+uint8_t *espnow_mac_str2hex(const char *mac_str, uint8_t *mac_hex);
 
 #ifdef __cplusplus
 }

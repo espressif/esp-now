@@ -251,7 +251,7 @@ esp_err_t espnow_console_init(const espnow_console_config_t *config)
     }
 
     if (config->monitor_command.espnow) {
-        espnow_set_type(ESPNOW_TYPE_DEBUG_COMMAND, 1, console_espnow_handle);
+        espnow_set_config_for_data_type(ESPNOW_DATA_TYPE_DEBUG_COMMAND, 1, console_espnow_handle);
     }
 
     return ESP_OK;
@@ -261,7 +261,7 @@ esp_err_t espnow_console_deinit()
 {
     esp_err_t ret = ESP_OK;
     g_running_flag = false;
-    espnow_set_type(ESPNOW_TYPE_DEBUG_COMMAND, 0, NULL);
+    espnow_set_config_for_data_type(ESPNOW_DATA_TYPE_DEBUG_COMMAND, 0, NULL);
 
     ret = esp_console_deinit();
     ESP_ERROR_RETURN(ret != ESP_OK, ret, "de-initialize console module");
