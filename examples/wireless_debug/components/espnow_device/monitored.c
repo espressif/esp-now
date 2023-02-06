@@ -7,43 +7,32 @@
    CONDITIONS OF ANY KIND, either express or implied.
 */
 
-#include "sdkconfig.h"
-
-#if CONFIG_ESPNOW_DEBUG_MONITORED
-
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <esp_log.h>
-#include <sys/param.h>
-
 #include "freertos/FreeRTOS.h"
-#include "freertos/queue.h"
-#include "freertos/task.h"
 #include "freertos/event_groups.h"
+#include "freertos/task.h"
+
 #include "esp_http_client.h"
 
-#include "esp_system.h"
 #include "esp_log.h"
-#include "esp_wifi.h"
 #include "esp_netif.h"
+#include "esp_system.h"
+#include "esp_wifi.h"
 
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(4, 4, 0)
 #include "esp_mac.h"
 #endif
 
-#include "nvs_flash.h"
-#include "nvs.h"
-
 #include "esp_utils.h"
 #include "esp_storage.h"
+
 #include "espnow.h"
 #include "espnow_log.h"
 #include "espnow_console.h"
 
-static const char *TAG = "app_main";
+static const char *TAG = "monitored";
 
 #define EXAMPLE_ESP_MAXIMUM_RETRY  5
+
 /* FreeRTOS event group to signal when we are connected*/
 static EventGroupHandle_t s_wifi_event_group;
 static int s_retry_num = 0;
@@ -54,8 +43,8 @@ static int s_retry_num = 0;
 #define WIFI_CONNECTED_BIT BIT0
 #define WIFI_FAIL_BIT      BIT1
 
-static void event_handler(void* arg, esp_event_base_t event_base,
-                                int32_t event_id, void* event_data)
+static void app_wifi_event_handler(void *arg, esp_event_base_t event_base,
+                          int32_t event_id, void *event_data)
 {
     if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED) {
         if (s_retry_num < EXAMPLE_ESP_MAXIMUM_RETRY) {
@@ -65,16 +54,16 @@ static void event_handler(void* arg, esp_event_base_t event_base,
         } else {
             xEventGroupSetBits(s_wifi_event_group, WIFI_FAIL_BIT);
         }
-        ESP_LOGI(TAG,"connect to the AP fail");
+        ESP_LOGI(TAG, "connect to the AP fail");
     } else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
-        ip_event_got_ip_t* event = (ip_event_got_ip_t*) event_data;
+        ip_event_got_ip_t *event = (ip_event_got_ip_t *) event_data;
         ESP_LOGI(TAG, "got ip:" IPSTR, IP2STR(&event->ip_info.ip));
         s_retry_num = 0;
         xEventGroupSetBits(s_wifi_event_group, WIFI_CONNECTED_BIT);
     }
 }
 
-static void wifi_init()
+static void app_wifi_init()
 {
     s_wifi_event_group = xEventGroupCreate();
 
@@ -86,8 +75,8 @@ static void wifi_init()
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
     ESP_ERROR_CHECK(esp_wifi_init(&cfg));
 
-    esp_event_handler_register(WIFI_EVENT, ESP_EVENT_ANY_ID, event_handler, NULL);
-    esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, event_handler, NULL);
+    esp_event_handler_register(WIFI_EVENT, ESP_EVENT_ANY_ID, app_wifi_event_handler, NULL);
+    esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, app_wifi_event_handler, NULL);
 
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
     ESP_ERROR_CHECK(esp_wifi_set_storage(WIFI_STORAGE_RAM));
@@ -95,21 +84,21 @@ static void wifi_init()
     ESP_ERROR_CHECK(esp_wifi_start());
 }
 
-#ifdef CONFIG_POST_LOG_TO_HTTP_SERVER
+#ifdef CONFIG_APP_POST_LOG_TO_HTTP_SERVER
 /**
  * @brief http_client task creation
  *      You can modify the http address according to your needs,
  *      parameters CONFIG_FLASH_LOG_POST_URL if change.and parameters
  *      transport_type if change.
  */
-static void log_read_task(void *arg)
+static void app_log_read_task(void *arg)
 {
     esp_err_t ret   = ESP_OK;
     char *log_data  = ESP_MALLOC(ESPNOW_DATA_LEN);
     size_t log_size = 0;
     esp_http_client_handle_t client  = NULL;
     esp_http_client_config_t config  = {
-        .url            = CONFIG_FLASH_LOG_POST_URL,
+        .url            = CONFIG_APP_FLASH_LOG_POST_URL,
         .transport_type = HTTP_TRANSPORT_UNKNOWN,
     };
 
@@ -122,10 +111,10 @@ static void log_read_task(void *arg)
         /* Waiting until either the connection is established (WIFI_CONNECTED_BIT) or connection failed for the maximum
         * number of re-tries (WIFI_FAIL_BIT). The bits are set by event_handler() (see above) */
         EventBits_t bits = xEventGroupWaitBits(s_wifi_event_group,
-                WIFI_CONNECTED_BIT | WIFI_FAIL_BIT,
-                pdFALSE,
-                pdFALSE,
-                portMAX_DELAY);
+                                               WIFI_CONNECTED_BIT | WIFI_FAIL_BIT,
+                                               pdFALSE,
+                                               pdFALSE,
+                                               portMAX_DELAY);
 
         /* xEventGroupWaitBits() returns the bits before the call returned, hence we can test which event actually
         * happened. */
@@ -174,16 +163,16 @@ static void log_read_task(void *arg)
 static struct {
     struct arg_lit *info;
     struct arg_end *end;
-} console_system_info_args;
+} app_console_system_info_args;
 
-static int console_system_info(int argc, char **argv)
+static int app_console_system_info(int argc, char **argv)
 {
-    if (arg_parse(argc, argv, (void **) &console_system_info_args) != ESP_OK) {
-        arg_print_errors(stderr, console_system_info_args.end, argv[0]);
+    if (arg_parse(argc, argv, (void **) &app_console_system_info_args) != ESP_OK) {
+        arg_print_errors(stderr, app_console_system_info_args.end, argv[0]);
         return ESP_FAIL;
     }
 
-    if (console_system_info_args.info->count) {
+    if (app_console_system_info_args.info->count) {
         uint8_t primary    = 0;
         uint8_t sta_mac[6] = {0};
         wifi_second_chan_t second = 0;
@@ -198,39 +187,39 @@ static int console_system_info(int argc, char **argv)
     return ESP_OK;
 }
 
-static void console_register_system_info()
+static void app_console_register_system_info()
 {
-    console_system_info_args.info = arg_lit0("i", "info", "Print the system information");
-    console_system_info_args.end  = arg_end(1);
+    app_console_system_info_args.info = arg_lit0("i", "info", "Print the system information");
+    app_console_system_info_args.end  = arg_end(1);
 
     const esp_console_cmd_t cmd = {
         .command = "system_info",
         .help = "Print the system information",
         .hint = NULL,
-        .func = console_system_info,
-        .argtable = &console_system_info_args,
+        .func = app_console_system_info,
+        .argtable = &app_console_system_info_args,
     };
 
     ESP_ERROR_CHECK(esp_console_cmd_register(&cmd));
 }
 
-static void espnow_event_handler(void* handler_args, esp_event_base_t base, int32_t id, void* event_data)
+static void app_espnow_event_handler(void *handler_args, esp_event_base_t base, int32_t id, void *event_data)
 {
     switch (id) {
-        case ESP_EVENT_ESPNOW_LOG_FLASH_FULL: {
-            ESP_LOGI(TAG, "The flash partition that stores the log is full, size: %d", espnow_log_flash_size());
-            break;
-        }
+    case ESP_EVENT_ESPNOW_LOG_FLASH_FULL: {
+        ESP_LOGI(TAG, "The flash partition that stores the log is full, size: %d", espnow_log_flash_size());
+        break;
+    }
 
-        default:
-            break;
+    default:
+        break;
     }
 }
 
-void monitored_device()
+void app_espnow_monitored_device_start()
 {
     esp_storage_init();
-    wifi_init();
+    app_wifi_init();
 
     /**< Initialize time synchronization */
     esp_timesync_start();
@@ -240,7 +229,7 @@ void monitored_device()
      */
     espnow_config_t espnow_config = ESPNOW_INIT_CONFIG_DEFAULT();
     espnow_init(&espnow_config);
-    esp_event_handler_register(ESP_EVENT_ESPNOW, ESP_EVENT_ANY_ID, espnow_event_handler, NULL);
+    esp_event_handler_register(ESP_EVENT_ESPNOW, ESP_EVENT_ANY_ID, app_espnow_event_handler, NULL);
 
     /**
      * @brief Debug
@@ -264,7 +253,7 @@ void monitored_device()
     /**
      * @brief Register a console command that outputs system information
      */
-    console_register_system_info();
+    app_console_register_system_info();
 
     ESP_LOGI(TAG, " ==================================================");
     ESP_LOGI(TAG, " |             Steps to test ESP-info             |");
@@ -276,8 +265,7 @@ void monitored_device()
     ESP_LOGI(TAG, " |                                                |");
     ESP_LOGI(TAG, " ==================================================\n");
 
-#ifdef CONFIG_POST_LOG_TO_HTTP_SERVER
-    xTaskCreate(log_read_task, "log_read_task", 4 * 1024, NULL, tskIDLE_PRIORITY + 1, NULL);
+#ifdef CONFIG_APP_POST_LOG_TO_HTTP_SERVER
+    xTaskCreate(app_log_read_task, "log_read_task", 4 * 1024, NULL, tskIDLE_PRIORITY + 1, NULL);
 #endif
 }
-#endif

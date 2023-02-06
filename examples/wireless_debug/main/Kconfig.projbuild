@@ -1,65 +1,65 @@
 menu "Example Configuration"
 
-    choice ESPNOW_DEBUG_MODE
+    choice APP_ESPNOW_DEBUG_MODE
         bool "ESP-NOW Debug Mode"
-        default ESPNOW_DEBUG_MONITORED
+        default APP_ESPNOW_DEBUG_MONITORED
         help
             Select the ESP-NOW Debug Mode.
 
-        config ESPNOW_DEBUG_MONITOR
-            bool "ESP-NOW debug monitor Mode"
+        config APP_ESPNOW_DEBUG_MONITOR
+            bool "Monitor Mode"
             help
-                Select the ESP-NOW debug monitor Mode.
+                Select the ESP-NOW debug as monitor Mode.
 
-        config ESPNOW_DEBUG_MONITORED
-            bool "ESP-NOW debug monitored Mode"
+        config APP_ESPNOW_DEBUG_MONITORED
+            bool "Monitored Mode"
             help
-                Select the ESP-NOW debug monitored Mode.
+                Select the ESP-NOW debug as monitored Mode.
 
     endchoice
 
-    config EXAMPLE_WEB_SERVER
-        bool "Enable WebServer debugging"
+    config APP_WEB_SERVER
+        bool "Enable WebServer for ESP-NOW debug"
         default n
-        depends on ESPNOW_DEBUG_MONITOR
+        depends on APP_ESPNOW_DEBUG_MONITOR
         help
             Enable WebServer debugging
 
-    config EXAMPLE_MDNS_HOST_NAME
+    config APP_MDNS_HOST_NAME
         string "mDNS Host Name"
-        depends on EXAMPLE_WEB_SERVER && ESPNOW_DEBUG_MONITOR
+        depends on APP_WEB_SERVER && APP_ESPNOW_DEBUG_MONITOR
         default "espnow-webserver"
         help
             Specify the domain name used in the mDNS service.
             Note that webpage also take it as a part of URL where it will send GET/POST requests to.
 
 
-    config EXAMPLE_WIFI_SOFTAP_SSID
-        string "Wi-Fi SoftAP SSID"
-        depends on EXAMPLE_WEB_SERVER && ESPNOW_DEBUG_MONITOR
+    config APP_WIFI_SOFTAP_SSID
+        string "WiFi SoftAP SSID"
+        depends on APP_WEB_SERVER && APP_ESPNOW_DEBUG_MONITOR
         default "espnow-webserver"
         help
             SoftAP SSID (network name) for the example to connect to.
 
-    config EXAMPLE_WEB_MOUNT_POINT
+    config APP_WEB_MOUNT_POINT
         string "Website mount point in VFS"
-        depends on EXAMPLE_WEB_SERVER && ESPNOW_DEBUG_MONITOR
+        depends on APP_WEB_SERVER && APP_ESPNOW_DEBUG_MONITOR
         default "/www"
         help
             Specify the mount point in VFS.
 
-    config POST_LOG_TO_HTTP_SERVER
-        bool "Post flash log to http server"
+    config APP_POST_LOG_TO_HTTP_SERVER
+        bool "Post flash log to HTTP server"
         default n
-        depends on ESPNOW_DEBUG_MONITORED
+        depends on APP_ESPNOW_DEBUG_MONITORED
         help
-            Post flash log to http server.
+            Post flash log to HTTP server.
 
-    config FLASH_LOG_POST_URL
-        string "Flash log url endpoint"
+    config APP_FLASH_LOG_POST_URL
+        string "Flash log URL endpoint"
         default "http://192.168.0.3:8070/flash_log"
-        depends on POST_LOG_TO_HTTP_SERVER
+        depends on APP_POST_LOG_TO_HTTP_SERVER
         help
-            Flash log url endpoint.
+            Flash log URL endpoint.
 
 endmenu

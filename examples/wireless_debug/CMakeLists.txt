@@ -6,8 +6,6 @@ if(NOT DEFINED IDF_TARGET)
     set(IDF_TARGET "esp32")
 endif()
 
-set(EXTRA_COMPONENT_DIRS components)
-
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 
 string(REGEX REPLACE ".*/\(.*\)" "\\1" CURDIR ${CMAKE_CURRENT_SOURCE_DIR})

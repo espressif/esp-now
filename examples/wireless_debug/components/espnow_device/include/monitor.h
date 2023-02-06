@@ -13,8 +13,8 @@
 extern "C" {
 #endif
 
-void monitor();
-void monitored_device();
+void app_espnow_monitor_device_start();
+void app_espnow_monitored_device_start();
 
 #ifdef __cplusplus
 }

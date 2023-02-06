@@ -7,67 +7,53 @@
    CONDITIONS OF ANY KIND, either express or implied.
 */
 
-#include "sdkconfig.h"
-
-#if CONFIG_ESPNOW_DEBUG_MONITOR
-
-#include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
-
-#include "freertos/FreeRTOS.h"
-#include "freertos/queue.h"
-#include "freertos/task.h"
-#include "freertos/event_groups.h"
-
-#include "esp_system.h"
 #include "esp_log.h"
-#include "esp_wifi.h"
 #include "esp_netif.h"
-
-#include "esp_utils.h"
-#include "esp_storage.h"
+#include "esp_spiffs.h"
+#include "esp_system.h"
+#include "esp_wifi.h"
 
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(4, 4, 0)
 #include "esp_mac.h"
 #include "esp_random.h"
 #endif
 
+#include "esp_utils.h"
+#include "esp_storage.h"
+
 #include "espnow.h"
-#include "espnow_console.h"
-#include "espnow_log.h"
-
 #include "espnow_cmd.h"
-#include "sdcard.h"
-
+#include "espnow_console.h"
+#include "espnow_ctrl.h"
+#include "espnow_log.h"
 #include "espnow_ota.h"
 #include "espnow_prov.h"
-#include "espnow_ctrl.h"
 
-#include "esp_spiffs.h"
+#include "sdcard.h"
 
 #include "mdns.h"
 #include "lwip/apps/netbiosns.h"
 
 #include "web_server.h"
 
-static const char *TAG = "app_main";
+static const char *TAG = "monitor";
 
-static void wifi_init()
+static void app_wifi_init()
 {
     ESP_ERROR_CHECK(esp_netif_init());
     ESP_ERROR_CHECK(esp_event_loop_create_default());
     esp_netif_create_default_wifi_sta();
 
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
+
     ESP_ERROR_CHECK(esp_wifi_init(&cfg));
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
     ESP_ERROR_CHECK(esp_wifi_set_ps(WIFI_PS_NONE));
     ESP_ERROR_CHECK(esp_wifi_start());
 }
 
-static esp_err_t espnow_debug_recv_process(uint8_t *src_addr, void *data,
-                      size_t size, wifi_pkt_rx_ctrl_t *rx_ctrl)
+static esp_err_t app_espnow_debug_recv_process(uint8_t *src_addr, void *data,
+        size_t size, wifi_pkt_rx_ctrl_t *rx_ctrl)
 {
     ESP_PARAM_CHECK(src_addr);
     ESP_PARAM_CHECK(data);
@@ -91,12 +77,14 @@ static esp_err_t espnow_debug_recv_process(uint8_t *src_addr, void *data,
     return ESP_OK;
 }
 
-#if CONFIG_EXAMPLE_WEB_SERVER
+#if CONFIG_APP_WEB_SERVER
 
 #define MDNS_SERVICE_NAME "espnow-webserver"
+
 static int device_channel = 0;
-static esp_err_t espnow_debug_recv_beacon(uint8_t *src_addr, void *data,
-                      size_t size, wifi_pkt_rx_ctrl_t *rx_ctrl)
+
+static esp_err_t app_espnow_debug_recv_beacon(uint8_t *src_addr, void *data,
+        size_t size, wifi_pkt_rx_ctrl_t *rx_ctrl)
 {
     ESP_PARAM_CHECK(src_addr);
     ESP_PARAM_CHECK(data);
@@ -113,7 +101,7 @@ static esp_err_t espnow_debug_recv_beacon(uint8_t *src_addr, void *data,
     return ESP_OK;
 }
 
-static uint8_t find_device_channel(const uint8_t addr[ESPNOW_ADDR_LEN])
+static uint8_t app_find_device_channel(const uint8_t addr[ESPNOW_ADDR_LEN])
 {
     esp_err_t ret = ESP_OK;
     char *data = "beacon";
@@ -127,7 +115,7 @@ static uint8_t find_device_channel(const uint8_t addr[ESPNOW_ADDR_LEN])
     };
 
     esp_wifi_get_country(&country);
-    espnow_set_type(ESPNOW_TYPE_DEBUG_LOG, 1, espnow_debug_recv_beacon);
+    espnow_set_type(ESPNOW_TYPE_DEBUG_LOG, 1, app_espnow_debug_recv_beacon);
     device_channel = 0;
 
     for (int i = 0; i < country.nchan; ++i) {
@@ -149,7 +137,7 @@ static uint8_t find_device_channel(const uint8_t addr[ESPNOW_ADDR_LEN])
     return device_channel;
 }
 
-static void wifi_event_handler(void *arg, esp_event_base_t event_base,
+static void app_wifi_event_handler(void *arg, esp_event_base_t event_base,
                                int32_t event_id, void *event_data)
 {
     if (event_id == WIFI_EVENT_AP_STACONNECTED) {
@@ -161,32 +149,32 @@ static void wifi_event_handler(void *arg, esp_event_base_t event_base,
     }
 }
 
-static void wifi_init_softap(uint8_t channel)
+static void app_wifi_init_softap(uint8_t channel)
 {
     wifi_config_t wifi_config = {
         .ap = {
-            .ssid = CONFIG_EXAMPLE_WIFI_SOFTAP_SSID,
-            .ssid_len = strlen(CONFIG_EXAMPLE_WIFI_SOFTAP_SSID),
+            .ssid = CONFIG_APP_WIFI_SOFTAP_SSID,
+            .ssid_len = strlen(CONFIG_APP_WIFI_SOFTAP_SSID),
             .channel = channel,
             .max_connection = 2,
         },
     };
 
-    ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT, ESP_EVENT_ANY_ID, &wifi_event_handler, NULL));
+    ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT, ESP_EVENT_ANY_ID, &app_wifi_event_handler, NULL));
     
     esp_netif_create_default_wifi_ap();
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_APSTA));
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_AP, &wifi_config));
 
     ESP_LOGI(TAG, "\n========== Web Server Config ==========");
-    ESP_LOGI(TAG, "SoftAP: ssid: %s", CONFIG_EXAMPLE_WIFI_SOFTAP_SSID);
-    ESP_LOGI(TAG, "Link: http://%s\n", CONFIG_EXAMPLE_MDNS_HOST_NAME);
+    ESP_LOGI(TAG, "SoftAP: ssid: %s", CONFIG_APP_WIFI_SOFTAP_SSID);
+    ESP_LOGI(TAG, "Link: http://%s\n", CONFIG_APP_MDNS_HOST_NAME);
 }
 
-static esp_err_t init_fs(void)
+static esp_err_t app_init_fs(void)
 {
     esp_vfs_spiffs_conf_t conf = {
-        .base_path = CONFIG_EXAMPLE_WEB_MOUNT_POINT,
+        .base_path = CONFIG_APP_WEB_MOUNT_POINT,
         .partition_label = "www",
         .max_files = 5,
         .format_if_mount_failed = false
@@ -214,19 +202,19 @@ static esp_err_t init_fs(void)
     return ESP_OK;
 }
 
-static esp_err_t web_command()
+static esp_err_t app_web_command()
 {
     uint8_t channel = 0;
 
     do {
-        channel = find_device_channel(ESPNOW_ADDR_BROADCAST);
+        channel = app_find_device_channel(ESPNOW_ADDR_BROADCAST);
 
         if(!channel) {
             ESP_LOGW(TAG, "No esp-now device found");
         }
     } while (channel == 0);
 
-    wifi_init_softap(channel);
+    app_wifi_init_softap(channel);
 
     mdns_txt_item_t serviceTxtData[] = {
         {"board", "wireless_debug"},
@@ -234,21 +222,21 @@ static esp_err_t web_command()
     };
 
     mdns_init();
-    mdns_hostname_set(CONFIG_EXAMPLE_MDNS_HOST_NAME);
+    mdns_hostname_set(CONFIG_APP_MDNS_HOST_NAME);
     mdns_instance_name_set("Wireless ESP-NOW Debug WebServer");
     ESP_ERROR_CHECK(mdns_service_add("ESPNOW-WebServer", "_http", "_tcp", 80, serviceTxtData,
                                      sizeof(serviceTxtData) / sizeof(serviceTxtData[0])));
     netbiosns_init();
 
-    ESP_ERROR_CHECK(init_fs());
-    ESP_ERROR_CHECK(web_server_start(CONFIG_EXAMPLE_WEB_MOUNT_POINT));
+    ESP_ERROR_CHECK(app_init_fs());
+    ESP_ERROR_CHECK(web_server_start(CONFIG_APP_WEB_MOUNT_POINT));
 
     return ESP_OK;
 }
 
-#endif  /**< CONFIG_EXAMPLE_WEB_SERVER */
+#endif  /**< CONFIG_APP_WEB_SERVER */
 
-void monitor()
+void app_espnow_monitor_device_start()
 {
     /**
      * @brief Set the log level for serial port printing.
@@ -258,7 +246,8 @@ void monitor()
     esp_log_level_set("httpd_uri", ESP_LOG_ERROR);
 
     esp_storage_init();
-    wifi_init();
+
+    app_wifi_init();
 
     espnow_config_t espnow_config = ESPNOW_INIT_CONFIG_DEFAULT();
     espnow_config.qsize = 128;
@@ -280,11 +269,10 @@ void monitor()
     espnow_console_init(&console_config);
     espnow_console_commands_register();
 
-#if CONFIG_EXAMPLE_WEB_SERVER
-    web_command();
-#endif /**< CONFIG_EXAMPLE_WEB_SERVER */
+#if CONFIG_APP_WEB_SERVER
+    app_web_command();
+#endif /**< CONFIG_APP_WEB_SERVER */
 
     /** Receive esp-now data from other device */
-    espnow_set_type(ESPNOW_TYPE_DEBUG_LOG, 1, espnow_debug_recv_process);
+    espnow_set_type(ESPNOW_TYPE_DEBUG_LOG, 1, app_espnow_debug_recv_process);
 }
-#endif
