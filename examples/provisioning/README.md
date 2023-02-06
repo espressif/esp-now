@@ -1,37 +1,46 @@
 ## Provisioning Example
 
-This example demonstrates how to use `ESP-NOW` to provisioning devices.
+This example demonstrates how to use ESP-NOW provisioning feature to do WiFi provisioning for other devices.
 
 ## Hardware Required
 
-This example can be executed on any platform board and at least two development boards are required.
+This example can run on any ESP32 series development board and at least two development boards are required.
 
 ## How to Use the Example
 
 ### Configure the devices
 
-Navigate to the debug example directory, and type `idf.py menuconfig` to configure the debug example. 
+Navigate to the provisioning example directory, and type `idf.py menuconfig` to configure the provisioning example.
 
-Set following parameter under `Example Configuration` Options:
-* Set ESP-NOW provisioning mode
-* Set `WiFi SSID` of the Router (Access-Point) in responder mode.
-* Set `WiFi Password` of the Router (Access-Point) in responder mode.
+At least 2 boards are needed. You need to set the corresponding options and to program firmware to the different boards.
+
+For board 1, it will work as the initiator device. Set following configurations under `Example Configuration` Options:
+* Set `ESP-NOW provisioning Mode` as `Initiator Mode`
+
+For board 2, it will work as the responder device. Set following configurations under `Example Configuration` Options:
+* Set `ESP-NOW provisioning Mode` as `Responder Mode`
+* Set `WiFi SSID` of the Router (Access-Point)
+* Set `WiFi Password` of the Router (Access-Point)
 
 ### Operating procedures
 
-When the example on the initiator device starts up, it will:
-1. Keep scanning the provision beacon until received it.
-2. Send device type provision frame to request wifi configuration.
-3. If receives WiFi type provision frame, get wifi configuration from the frame and connect to the Router.
+When this example on the initiator device starts up, it will:
 
-When the example on the responder device starts up, it will:
-1. Broadcast provision beacon every 100 ms in 30 seconds.
-2. If receives device type provision frame, response with the WiFi type provision frame containing wifi configuration.
+1. Keep scanning the provision beacon until receive it.
+2. Send device type provision frame to request WiFi credential which resides in the responder device.
+3. If receive WiFi type provision frame, get WiFi credential from the frame and connect to the Router.
+
+When this example on the responder device starts up, it will:
+
+1. Broadcast provision beacons every 100 ms in 30 seconds.
+2. If receive device type provision frame, response with the WiFi type provision frame which contains WiFi credential.
+
 > Authenticating the device through the information of the initiator is not presented in the example.
 
 ## Example Output
 
-Console output of the initiator:
+Console output of the initiator device:
+
 ```
 I (575) ESPNOW: espnow [version: 1.0] init
 I (339495) app_main: MAC: 7c:df:a1:86:d8:24, Channel: 1, RSSI: -35, Product_id: responder_test, Device Name: 
@@ -50,7 +59,8 @@ I (339605) wifi:BcnInt:102400, DTIM:1
 I (340345) esp_netif_handlers: sta ip: 192.168.1.100, mask: 255.255.255.0, gw: 192.168.1.253
 ```
 
-Console output of the responder:
+Console output of the responder device:
+
 ```
 I (578) ESPNOW: espnow [version: 1.0] init
 I (588) espnow_prov: Responder beacon start, timer: 30s

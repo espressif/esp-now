@@ -253,7 +253,7 @@ static void responder_beacon_timercb(TimerHandle_t timer)
     };
 
     espnow_send(ESPNOW_TYPE_PROV, ESPNOW_ADDR_BROADCAST, g_beacon_prov_data, 
-                sizeof(espnow_prov_responder_t) + 1, &frame_head, 0);
+                sizeof(espnow_prov_responder_t) + 1, &frame_head, portMAX_DELAY);
 }
 
 esp_err_t espnow_prov_responder_start(const espnow_prov_responder_t *responder_info, TickType_t wait_ticks, 
