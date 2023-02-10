@@ -10,6 +10,58 @@ menu "ESP-NOW Configuration"
 
     endmenu
 
+    menu "ESP-NOW Light Sleep Configuration"
+
+    config ESPNOW_LIGHT_SLEEP
+        bool "Enter light sleep before sending ESP-NOW package"
+        default n
+        help
+            Since sending an ESP-NOW package needs a lot of power, if the coin cell solution is used, it needs some time to charge the electric capacity, so let device enter light sleep to wait some time.
+
+    config ESPNOW_LIGHT_SLEEP_DURATION
+        int "Light sleep duration"
+        range 15 120
+        depends on ESPNOW_LIGHT_SLEEP
+        default 30
+        help
+            Set the duration of light sleep, make it enough to charge the electric capacity.
+
+    endmenu
+
+    menu "ESP-NOW Control Configuration"
+
+    config ESPNOW_CONTROL_AUTO_CHANNEL_SENDING
+        bool "Auto control the channel of ESP-NOW package sending"
+        default n
+        help
+            The channel sequence used for ESP-NOW package sending is [1, 6, 11, 1, 6, 11, 2, 3, 4, 5, 7, 8, 9, 10, 12, 13] by default.
+
+    config ESPNOW_CONTROL_RETRANSMISSION_TIMES
+        int "Retransmission times when sending an ESP-NOW package from the saved channel"
+        range 1 15
+        depends on ESPNOW_CONTROL_AUTO_CHANNEL_SENDING
+        default 5
+        help
+            The ESP-NOW package will be sent on the saved channel for this retransmission times, then try the auto channel sending.
+
+    config ESPNOW_CONTROL_FORWARD_TTL
+        int "The max number of hops when forward data"
+        range 1 31
+        depends on ESPNOW_CONTROL_AUTO_CHANNEL_SENDING
+        default 10
+        help
+            The ESP-NOW package will be forward when the number of hops in data transfer is not zero.
+
+    config ESPNOW_CONTROL_FORWARD_RSSI
+        int "The worst signal of the hop when forward data"
+        range -70 -30
+        depends on ESPNOW_CONTROL_AUTO_CHANNEL_SENDING
+        default -55
+        help
+            The ESP-NOW package will not be forward when the data packet signal received by the receiving device is lower than the value.
+
+    endmenu
+
     menu "ESP-NOW Utils Configuration"
     choice ESPNOW_MEM_ALLOCATION_LOCATION
         prompt "The memory location allocated by MALLOC, CALLOC and REALLOC"
