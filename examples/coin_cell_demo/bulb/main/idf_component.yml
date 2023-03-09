@@ -1,0 +1,16 @@
+## IDF Component Manager Manifest File
+dependencies:
+  espressif/led_strip:
+    version: "==1.1.0-alpha"
+    rules:
+      - if: "idf_version <5.0"
+  led_strip:
+    version: "2.*"
+    rules:
+      - if: "idf_version >=5.0"
+  ## Required IDF version
+  idf:
+    version: ">=4.3"
+  esp-now:
+    version: "2.*"
+    override_path: "../../../.."
