@@ -1,0 +1,9 @@
+menu "Example Configuration"
+
+    config EXAMPLE_USE_COIN_CELL_BUTTON
+        bool "Use coin cell button"
+        default y
+        help
+            By default, this demo uses the coin cell button to control the bulb, but if you don't have such button, you can use other ESP32 series DevKit to simulate, if so, please set this option to N.
+
+endmenu

@@ -1,5 +1,15 @@
-version: "2.0.0"
-description: This package provides enhanced ESP-NOW functions which will be easy to integrated into product.
+version: "2.1.0"
+description: This package provides enhanced ESP-NOW functions which will be easy to integrate into product.
 url: https://github.com/espressif/esp-now
+issues: https://github.com/espressif/esp-now/issues
 dependencies:
   idf: ">=4.3"
+  cmake_utilities: "0.*"
+examples:
+  - path: examples/coin_cell_demo
+  - path: examples/control
+  - path: examples/get-started
+  - path: examples/ota
+  - path: examples/security
+  - path: examples/solution
+  - path: examples/wireless_debug

@@ -6,54 +6,51 @@
 
 esp-now supports one-to-many and many-to-many device connection and control which can be used for the mass data transmission, like network config, firmware upgrade and debugging etc.
 
+### Add component to your project
+
+Please use the component manager command `add-dependency` to add the `esp-now` to your project's dependency, during the `CMake` step the component will be downloaded automatically.
+
+```
+idf.py add-dependency "espressif/esp-now=*"
+```
+
 ## Example
 
-- [examples/control]https://github.com/espressif/esp-now/tree/master/examples/control): The device based on the ESP-NOW control can control lights on responder devices through button on initiator device.
-
-You can create a project from this example by the following command:
+Please use the component manager command `create-project-from-example` to create the project from example template.
 
 ```
-idf.py create-project-from-example "espressif/esp-now^2.0.0:control"
+idf.py create-project-from-example "espressif/esp-now=*:coin_cell_demo"
 ```
 
-- [examples/ota]https://github.com/espressif/esp-now/tree/master/examples/ota): The device based on the ESP-NOW ota can upgrade multiple responder devices at same time.
+Then the example will be downloaded in current folder, you can check into it for build and flash.
 
-You can create a project from this example by the following command:
+> You can use this command to download other examples. Or you can download examples from esp-now repository: 
+1. [coin_cell_demo](https://github.com/espressif/esp-now/tree/master/examples/coin_cell_demo)
+2. [control](https://github.com/espressif/esp-now/tree/master/examples/control)
+3. [get-started](https://github.com/espressif/esp-now/tree/master/examples/get-started)
+4. [ota](https://github.com/espressif/esp-now/tree/master/examples/ota)
+5. [security](https://github.com/espressif/esp-now/tree/master/examples/security)
+6. [solution](https://github.com/espressif/esp-now/tree/master/examples/solution)
+7. [wireless_debug](https://github.com/espressif/esp-now/tree/master/examples/wireless_debug)
 
-```
-idf.py create-project-from-example "espressif/esp-now^2.0.0:ota"
-```
+### Q&A
 
-- [examples/provisioning]https://github.com/espressif/esp-now/tree/master/examples/provisioning): The device based on the ESP-NOW provisioning can provision WiFi on initiator device through APP and then configure multiple responders WiFi network at same time.
-
-You can create a project from this example by the following command:
-
-```
-idf.py create-project-from-example "espressif/esp-now^2.0.0:provisioning"
-```
-
-- [examples/security]https://github.com/espressif/esp-now/tree/master/examples/security): The device based on the ESP-NOW security can encrypt the communication data with ECDH and AES128-CCM.
-
-You can create a project from this example by the following command:
+Q1. I encountered the following problems when using the package manager
 
 ```
-idf.py create-project-from-example "espressif/esp-now^2.0.0:security"
+  HINT: Please check manifest file of the following component(s): main
+
+  ERROR: Because project depends on esp-now (2.*) which doesn't match any
+  versions, version solving failed.
 ```
 
-- [examples/solution](https://github.com/espressif/esp-now/tree/master/examples/solution): The device based on the ESP-NOW solution can provision WiFi on initiator device through APP and then configure responders WiFi network, control lights on responder devices through button on initiator device, upgrade responder devices etc.
+A1. For the examples downloaded by using this command, you need to comment out the override_path line in the main/idf_component.yml of each example.
 
-You can create a project from this example by the following command:
-
-```
-idf.py create-project-from-example "espressif/esp-now^2.0.0:solution"
-```
-
-- [examples/wireless_debug]https://github.com/espressif/esp-now/tree/master/examples/wireless_debug): The device based on the ESP-NOW wireless_debug can debug the ESP-NOW devices.
-
-You can create a project from this example by the following command:
+Q2. I encountered the following problems when using the package manager
 
 ```
-idf.py create-project-from-example "espressif/esp-now^2.0.0:wireless_debug"
+Executing action: create-project-from-example
+CMakeLists.txt not found in project directory /home/username
 ```
 
-> Note: For the examples downloaded by using this command, you need to comment out the override_path line in the main/idf_component.yml.
+A2. This is because an older version packege manager was used, please run `pip install -U idf-component-manager` in ESP-IDF environment to update.

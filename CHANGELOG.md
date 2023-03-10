@@ -1,3 +1,12 @@
+# v2.1.0
+
+Features:
+- Add light sleep configuration for the low power application.
+- Add auto control the channel of ESP-NOW package sending, so application data transmission will have less time.
+
+Examples:
+- coin_cell_demo: Provides a low power solution to achieve wireless control between `SWITCH` and `BULB`.
+
 # v2.0.0
 
 This is the first release version for ESP-NOW component in Espressif Component Registry, more detailed descriptions about the project, please refer to [User_Guide](https://github.com/espressif/esp-now/tree/master/User_Guide.md).
