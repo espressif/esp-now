@@ -1,13 +1,15 @@
 # ESP-NOW
 This project provides examples to simplify the use of ESP-NOW.  
 
-ESP-NOW is a kind of connectionless Wi-Fi communication protocol that is defined by Espressif. Different from traditional Wi-Fi protocols, the first five upper layers in OSI are simplified to one layer in ESP-NOW, so the data doesn't need to be transmitted through the network layer, the transport layer, the session layer, the presentation layer, and the application layer, which reduces the delay caused by packet loss under congested network, and leads to quickly response time.
+[ESP-NOW](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/network/esp_now.html) is a kind of connectionless Wi-Fi communication protocol that is defined by Espressif. Different from traditional Wi-Fi protocols, the first five upper layers in OSI are simplified to one layer in ESP-NOW, so the data doesn't need to be transmitted through the network layer, the transport layer, the session layer, the presentation layer, and the application layer, which reduces the delay caused by packet loss under congested network, and leads to quickly response time.
 
 <img src="docs/_static/en/protocol_stack.png" width="800">
 
 ## Introduction
 
-ESP-NOW occupies less CPU and flash resource. It can work with Wi-Fi and Bluetooth LE, and supports the series of ESP8266、ESP32、ESP32-S and ESP32-C. The data transmission mode of ESP-NOW is flexible including unicast and broadcast, and supports one-to-many and many-to-many device connection and control. ESP-NOW can be also used as an independent auxiliary module to help network configuration, debugging and firmware upgrades.
+The [ESP-NOW](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/network/esp_now.html) provided by [ESP-IDF](https://github.com/espressif/esp-idf) is the ESP-NOW protocol, this component provides some high-level functionalities to simplify the use of ESP-NOW protocol, you can understand this component as an application-level ESP-NOW, which provides some enhanced features, including pairing, control, provisioning, debug, OTA, security, etc.
+
+ESP-NOW occupies less CPU and flash resource. It can work with Wi-Fi and Bluetooth LE, and supports the series of ESP8266、ESP32、ESP32-S and ESP32-C. The data transmission mode of ESP-NOW is flexible including unicast and broadcast, and supports one-to-many and many-to-many device connection and control.
 
 <img src="docs/_static/en/function_list.png" width="800">
 
@@ -32,6 +34,7 @@ End of Life IDF branches are marked as not supported, such as ESP-IDF Release/v4
 |                       | ESP-IDF <br> Release/v4.1| ESP-IDF <br> Release/v4.2| ESP-IDF <br> Release/v4.3| ESP-IDF <br> Release/v4.4 | ESP-IDF <br> Release/v5.0 | ESP-IDF <br> Master |
 |:----------- | :---------------------:|:---------------------: | :---------------------:| :---------------------:| :---------------------:| :---------------------:|
 | esp-now <br> Master  | ![alt text](docs/_static/no-icon.png "not supported") | ![alt text](docs/_static/no-icon.png "not supported") | ![alt text](docs/_static/yes-checkm.png "supported") | ![alt text](docs/_static/yes-checkm.png "supported") | ![alt text](docs/_static/yes-checkm.png "supported") |![alt text](docs/_static/yes-checkm.png "supported") |
+| esp-now <br> v2.x.x  | ![alt text](docs/_static/no-icon.png "not supported") | ![alt text](docs/_static/no-icon.png "not supported") | ![alt text](docs/_static/yes-checkm.png "supported") | ![alt text](docs/_static/yes-checkm.png "supported") | ![alt text](docs/_static/yes-checkm.png "supported") |![alt text](docs/_static/yes-checkm.png "supported") |
 | esp-now <br> v1.0  | ![alt text](docs/_static/yes-checkm.png "supported") | ![alt text](docs/_static/yes-checkm.png "supported") | ![alt text](docs/_static/yes-checkm.png "supported") | ![alt text](docs/_static/yes-checkm.png "supported") <sup> **1** </sup> | ![alt text](docs/_static/no-icon.png "not supported")  | ![alt text](docs/_static/no-icon.png "not supported")  |
 
 

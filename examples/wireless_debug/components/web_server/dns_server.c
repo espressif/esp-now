@@ -197,7 +197,11 @@ static void udp_recv_proc(void *arg, struct udp_pcb *upcb, struct pbuf *p, const
     answer->Class = htons(1);
     answer->ttl = htonl(32);
     answer->len = htons(4);
+#if CONFIG_LWIP_IPV6
     answer->addr = host_addr.u_addr.ip4.addr;
+#else
+    answer->addr = host_addr.addr;
+#endif
 
     udp_sendto(upcb, out, addr, port);
     pbuf_free(out);

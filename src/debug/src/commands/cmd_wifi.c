@@ -318,8 +318,10 @@ static void cmd_ping_on_ping_end(esp_ping_handle_t hdl, void *args)
     uint32_t loss = (uint32_t)((1 - ((float)received) / transmitted) * 100);
     if (IP_IS_V4(&target_addr)) {
         ESP_LOGI(TAG, "\n--- %s ping statistics ---", inet_ntoa(*ip_2_ip4(&target_addr)));
+#if CONFIG_LWIP_IPV6
     } else {
         ESP_LOGI(TAG, "\n--- %s ping statistics ---", inet6_ntoa(*ip_2_ip6(&target_addr)));
+#endif
     }
     ESP_LOGI(TAG, "%d packets transmitted, %d received, %d%% packet loss, time %dms",
            transmitted, received, loss, total_time_ms);
@@ -370,14 +372,18 @@ static int do_ping_cmd(int argc, char **argv)
     }
 
     // parse IP address
-    struct sockaddr_in6 sock_addr6;
     ip_addr_t target_addr;
     memset(&target_addr, 0, sizeof(target_addr));
 
+#if CONFIG_LWIP_IPV6
+    struct sockaddr_in6 sock_addr6;
     if (inet_pton(AF_INET6, ping_args.host->sval[0], &sock_addr6.sin6_addr) == 1) {
         /* convert ip6 string to ip6 address */
         ipaddr_aton(ping_args.host->sval[0], &target_addr);
     } else {
+#else
+    {
+#endif
         struct addrinfo hint;
         struct addrinfo *res = NULL;
         memset(&hint, 0, sizeof(hint));
@@ -389,9 +395,11 @@ static int do_ping_cmd(int argc, char **argv)
         if (res->ai_family == AF_INET) {
             struct in_addr addr4 = ((struct sockaddr_in *) (res->ai_addr))->sin_addr;
             inet_addr_to_ip4addr(ip_2_ip4(&target_addr), &addr4);
+#if CONFIG_LWIP_IPV6
         } else {
             struct in6_addr addr6 = ((struct sockaddr_in6 *) (res->ai_addr))->sin6_addr;
             inet6_addr_to_ip6addr(ip_2_ip6(&target_addr), &addr6);
+#endif
         }
         freeaddrinfo(res);
     }

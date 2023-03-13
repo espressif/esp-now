@@ -431,7 +431,11 @@ static bool dns_query_proc(const char *name, ip_addr_t *addr)
     /**
      * captive: enerate_204, cp.a, hotspot-detect.html
      */
+#if CONFIG_LWIP_IPV6
     ESP_LOGD(TAG, "name: %s, ip_addr: " IPSTR, name, IP2STR(&addr->u_addr.ip4));
+#else
+    ESP_LOGD(TAG, "name: %s, ip_addr: " IPSTR, name, IP2STR(addr));
+#endif
 
     *addr = ipaddr;
     return true;
