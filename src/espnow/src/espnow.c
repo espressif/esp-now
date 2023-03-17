@@ -988,9 +988,9 @@ esp_err_t espnow_init(const espnow_config_t *config)
         espnow_sec_init(g_espnow_sec);
     }
 
-    bool *enable = (bool *)&config->receive_enable;
+    uint32_t *enable = (uint32_t *)&config->receive_enable;
     for (int i = 0; i < ESPNOW_DATA_TYPE_MAX; ++i) {
-        g_recv_handle[i].enable = enable[i];
+        g_recv_handle[i].enable = (*enable) & BIT(i);
     }
 
     /**< Initialize ESPNOW function */
