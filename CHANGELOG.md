@@ -1,3 +1,8 @@
+# v2.1.1
+
+Fix:
+- Fix a bug of compile fail when use component registry
+
 # v2.1.0
 
 Features:
