@@ -218,12 +218,15 @@ static esp_err_t espnow_ctrl_responder_bind_process(uint8_t *src_addr, void *dat
 
                 g_bindlist.size--;
 
-                if (g_bindlist.size > 0) {
-                    g_bindlist.data[g_bindlist.size].initiator_attribute = ctrl_data->initiator_attribute;
-                    memcpy(g_bindlist.data[g_bindlist.size].mac, src_addr, 6);
+                for (int j = i; j < g_bindlist.size; j++) {
+                    g_bindlist.data[j].initiator_attribute = g_bindlist.data[j + 1].initiator_attribute;
+                    memcpy(g_bindlist.data[j].mac, g_bindlist.data[j + 1].mac, 6);
                 }
+                g_bindlist.data[g_bindlist.size].initiator_attribute = 0;
+                memset(g_bindlist.data[g_bindlist.size].mac, 0, 6);
 
                 espnow_storage_set("bindlist", &g_bindlist, sizeof(g_bindlist));
+                break;
             }
         }
     }
