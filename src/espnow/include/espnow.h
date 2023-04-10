@@ -103,9 +103,10 @@ typedef struct {
     .forward_enable = 1, \
     .forward_switch_channel = 0, \
     .sec_enable = 0, \
+    .reverse = 0,   \
+    .qsize = 32, \
     .send_retry_num = 10, \
     .send_max_timeout = pdMS_TO_TICKS(3000),\
-    .qsize = 32, \
     .receive_enable = { \
                 .ack           = 1, \
                 .forward       = 1, \
