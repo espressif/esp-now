@@ -502,7 +502,7 @@ esp_err_t espnow_send(espnow_data_type_t type, const espnow_addr_t dest_addr, co
     espnow_data_t *espnow_data = NULL;
     bool enc = false;
 
-    if (g_espnow_config->sec_enable
+    if (g_espnow_config->sec_enable && data_head->security
         && type != ESPNOW_DATA_TYPE_ACK && type != ESPNOW_DATA_TYPE_FORWARD
         && type != ESPNOW_DATA_TYPE_SECURITY_STATUS && type != ESPNOW_DATA_TYPE_SECURITY) {
         ESP_ERROR_RETURN(!(g_espnow_sec && g_espnow_sec->state == ESPNOW_SEC_OVER), ESP_FAIL, "Security key is not set");
