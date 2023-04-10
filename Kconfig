@@ -44,6 +44,13 @@ menu "ESP-NOW Configuration"
         help
             The ESP-NOW package will be sent on the saved channel for this retransmission times, then try the auto channel sending.
 
+    config ESPNOW_CONTROL_AUTO_CHANNEL_FORWARD
+        bool "Auto control ESP-NOW package forwarding on different channels"
+        depends on ESPNOW_CONTROL_AUTO_CHANNEL_SENDING
+        default n
+        help
+            The ESP-NOW package will be forwarded on different channels.
+
     config ESPNOW_CONTROL_FORWARD_TTL
         int "The max number of hops when forward data"
         range 1 31
