@@ -178,11 +178,14 @@ void espnow_recv_cb(const uint8_t *addr, const uint8_t *data, int size)
 #endif
 {
     espnow_data_t *espnow_data = (espnow_data_t *)data;
-    wifi_promiscuous_pkt_t *promiscuous_pkt = (wifi_promiscuous_pkt_t *)(data - sizeof(wifi_pkt_rx_ctrl_t) - sizeof(espnow_frame_format_t));
-    wifi_pkt_rx_ctrl_t *rx_ctrl = &promiscuous_pkt->rx_ctrl;
+    wifi_pkt_rx_ctrl_t *rx_ctrl = NULL;
 
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 1)
     uint8_t * addr = recv_info->src_addr;
+    rx_ctrl = recv_info->rx_ctrl;
+#else
+    wifi_promiscuous_pkt_t *promiscuous_pkt = (wifi_promiscuous_pkt_t *)(data - sizeof(wifi_pkt_rx_ctrl_t) - sizeof(espnow_frame_format_t));
+    rx_ctrl = &promiscuous_pkt->rx_ctrl;
 #endif
 
     ESP_LOG_BUFFER_HEXDUMP(TAG, data, size, ESP_LOG_DEBUG);
@@ -502,7 +505,7 @@ esp_err_t espnow_send(espnow_data_type_t type, const espnow_addr_t dest_addr, co
     espnow_data_t *espnow_data = NULL;
     bool enc = false;
 
-    if (g_espnow_config->sec_enable && data_head->security
+    if (g_espnow_config->sec_enable && (data_head ? data_head->security : g_espnow_frame_head_default.security)
         && type != ESPNOW_DATA_TYPE_ACK && type != ESPNOW_DATA_TYPE_FORWARD
         && type != ESPNOW_DATA_TYPE_SECURITY_STATUS && type != ESPNOW_DATA_TYPE_SECURITY) {
         ESP_ERROR_RETURN(!(g_espnow_sec && g_espnow_sec->state == ESPNOW_SEC_OVER), ESP_FAIL, "Security key is not set");
