@@ -175,10 +175,10 @@ void espnow_mem_print_task(void);
  */
 #define ESP_FREE(ptr) do { \
         if(ptr) { \
-            free(ptr); \
             if (ESP_MEM_DEBUG) { \
                 espnow_mem_remove_record(ptr, TAG, __LINE__); \
             } \
+            free(ptr); \
             ptr = NULL; \
         } \
     } while(0)
