@@ -31,7 +31,7 @@ list(APPEND include_dirs "src/espnow/include")
 list(APPEND srcs         "src/ota/espnow_ota_initiator.c")
 list(APPEND srcs         "src/ota/espnow_ota_responder.c")
 list(APPEND include_dirs "src/ota/include")
-list(APPEND requires "app_update" "esp_http_client" "esp_https_ota")
+list(APPEND requires "app_update" "esp_http_client" "esp_https_ota" "efuse")
 
 list(APPEND srcs         "src/provisioning/src/espnow_prov.c")
 list(APPEND include_dirs "src/provisioning/include")

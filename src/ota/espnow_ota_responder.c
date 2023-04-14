@@ -21,6 +21,10 @@
 #include "esp_mac.h"
 #endif
 
+#ifdef CONFIG_BOOTLOADER_APP_ANTI_ROLLBACK
+#include "esp_efuse.h"
+#endif
+
 #include "espnow.h"
 #include "espnow_ota.h"
 #include "espnow_utils.h"
