@@ -58,7 +58,7 @@ static esp_err_t log_info_storage_init()
 static void *log_info_storage_get(const char *key)
 {
     esp_err_t err = ESP_FAIL;
-    nvs_handle handle = 0;
+    nvs_handle_t handle = 0;
     void *value = NULL;
     size_t required_size = 0;
 
@@ -83,7 +83,7 @@ static void *log_info_storage_get(const char *key)
 
 static esp_err_t log_info_storage_set(const char *key, void *data, size_t len)
 {
-    nvs_handle handle;
+    nvs_handle_t handle;
     esp_err_t err;
 
     if ((err = nvs_open_from_partition(CONFIG_ESPNOW_DEBUG_LOG_PARTITION_LABEL_NVS, LOG_FLASH_STORE_NAMESPACE,
@@ -105,7 +105,7 @@ static esp_err_t log_info_storage_set(const char *key, void *data, size_t len)
 
 static esp_err_t log_info_storage_erase(const char *key)
 {
-    nvs_handle handle;
+    nvs_handle_t handle;
     esp_err_t err;
 
     if ((err = nvs_open_from_partition(CONFIG_ESPNOW_DEBUG_LOG_PARTITION_LABEL_NVS, LOG_FLASH_STORE_NAMESPACE,
