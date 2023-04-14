@@ -135,7 +135,7 @@ esp_err_t espnow_ctrl_responder_remove_bindlist(const espnow_ctrl_bind_info_t *i
     return ESP_OK;
 }
 
-#ifdef CONFIG_ESPNOW_CONTROL_AUTO_CHANNEL_SENDING
+#ifdef CONFIG_ESPNOW_CONTROL_AUTO_CHANNEL_FORWARD
 static esp_err_t espnow_ctrl_responder_forward(uint8_t type, uint8_t *src_addr, const void *data, size_t size, wifi_pkt_rx_ctrl_t *rx_ctrl)
 {
     uint8_t primary           = 0;
@@ -231,7 +231,7 @@ static esp_err_t espnow_ctrl_responder_bind_process(uint8_t *src_addr, void *dat
         }
     }
 
-#ifdef CONFIG_ESPNOW_CONTROL_AUTO_CHANNEL_SENDING
+#ifdef CONFIG_ESPNOW_CONTROL_AUTO_CHANNEL_FORWARD
     espnow_ctrl_responder_forward(ESPNOW_DATA_TYPE_CONTROL_BIND, src_addr, data, size, rx_ctrl);
 #endif
 
@@ -278,7 +278,7 @@ static esp_err_t espnow_ctrl_responder_data_process(uint8_t *src_addr, void *dat
             g_bindlist.data_raw_cb(src_addr, ctrl_data, rx_ctrl);
         }
 
-#ifdef CONFIG_ESPNOW_CONTROL_AUTO_CHANNEL_SENDING
+#ifdef CONFIG_ESPNOW_CONTROL_AUTO_CHANNEL_FORWARD
         espnow_ctrl_responder_forward(ESPNOW_DATA_TYPE_CONTROL_DATA, src_addr, data, size, rx_ctrl);
 #endif
     }
