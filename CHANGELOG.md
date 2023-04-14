@@ -1,3 +1,14 @@
+# v2.2.0
+
+Features:
+- Add an option to enable/disable responder forwarding.
+
+Fixed:
+- Fix the bug with bindlist cleanup when unbinding.
+- Fix compile issue when enbale Anti-rollback option.
+- Fix the bug that prevents sending clear data when security is enabled. [#63](https://github.com/espressif/esp-now/issues/63)
+- Fix the bug where ESPNOW_INIT_CONFIG_DEFAULT does not match its declaration in C++. [#65](https://github.com/espressif/esp-now/issues/65)
+
 # v2.1.1
 
 Fix:
