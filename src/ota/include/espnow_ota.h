@@ -139,6 +139,14 @@ typedef struct {
     espnow_addr_t *requested_addr;  /**< MAC address of devices that not completed to upgrade */
 } espnow_ota_result_t;
 
+#ifdef CONFIG_ESPNOW_ALL_SECURITY
+#define CONFIG_ESPNOW_OTA_SECURITY 1
+#else
+#ifndef CONFIG_ESPNOW_OTA_SECURITY
+#define CONFIG_ESPNOW_OTA_SECURITY 0
+#endif
+#endif
+
 /**
  * @brief  The upgrade data callback function
  *         Read firmware data from flash to send to unfinished device.
