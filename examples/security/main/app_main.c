@@ -49,6 +49,7 @@ static void app_uart_read_task(void *arg)
     espnow_frame_head_t frame_head = {
         .retransmit_count = CONFIG_APP_ESPNOW_RETRY_NUM,
         .broadcast        = true,
+        .security         = CONFIG_APP_ESPNOW_SEC_OPTION
     };
 
     for (;;) {

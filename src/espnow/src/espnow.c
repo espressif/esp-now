@@ -510,11 +510,26 @@ esp_err_t espnow_send(espnow_data_type_t type, const espnow_addr_t dest_addr, co
         && type != ESPNOW_DATA_TYPE_SECURITY_STATUS && type != ESPNOW_DATA_TYPE_SECURITY) {
         ESP_ERROR_RETURN(!(g_espnow_sec && g_espnow_sec->state == ESPNOW_SEC_OVER), ESP_FAIL, "Security key is not set");
         size_t enc_len = 0;
-        espnow_data = ESP_MALLOC(sizeof(espnow_data_t) + size + g_espnow_sec->tag_len);
+        espnow_data = ESP_MALLOC(sizeof(espnow_data_t) + size + g_espnow_sec->tag_len + IV_LEN);
+        uint8_t key_info[APP_KEY_LEN];
+        uint8_t iv_info[IV_LEN];
+
+        ret = espnow_get_key(key_info);
+        if (ret) {
+            ESP_FREE(espnow_data);
+            ESP_LOGE(TAG, "Get security key fail for encrypt, err_name: %s", esp_err_to_name(ret));
+            return ret;
+        }
+
+        esp_fill_random(iv_info, IV_LEN);
+        memcpy(key_info + KEY_LEN, iv_info, IV_LEN);
+        espnow_set_key(key_info);
+
         ret = espnow_sec_auth_encrypt(g_espnow_sec, data, size, espnow_data->payload, size + g_espnow_sec->tag_len, &enc_len, g_espnow_sec->tag_len);
-        espnow_data->size = enc_len;
+        espnow_data->size = enc_len + IV_LEN;
         if (ret == ESP_OK) {
             enc = 1;
+            memcpy(espnow_data->payload + enc_len, iv_info, IV_LEN);
         } else {
             ESP_FREE(espnow_data);
             ESP_LOGE(TAG, "Security encrypt return error");
@@ -761,7 +776,17 @@ static esp_err_t espnow_recv_process(espnow_pkt_t *q_data)
         if (frame_head->security) {
             if (g_espnow_config->sec_enable) {
                 if (g_espnow_sec && g_espnow_sec->state == ESPNOW_SEC_OVER) {
-                    ret = espnow_sec_auth_decrypt(g_espnow_sec, espnow_data->payload, espnow_data->size, data, ESPNOW_PAYLOAD_LEN, &size, g_espnow_sec->tag_len);
+                    uint8_t key_info[APP_KEY_LEN];
+
+                    ret = espnow_get_key(key_info);
+                    if (ret) {
+                        ESP_LOGE(TAG, "Get security key fail for decrypt, err_name: %s", esp_err_to_name(ret));
+                        goto EXIT;
+                    }
+                    memcpy(key_info + KEY_LEN, espnow_data->payload + (espnow_data->size - IV_LEN), IV_LEN);
+                    espnow_set_key(key_info);
+
+                    ret = espnow_sec_auth_decrypt(g_espnow_sec, espnow_data->payload, (espnow_data->size - IV_LEN), data, ESPNOW_PAYLOAD_LEN, &size, g_espnow_sec->tag_len);
                     ESP_ERROR_GOTO(ret != ESP_OK, EXIT, "espnow_sec_auth_decrypt, err_name: %s", esp_err_to_name(ret));
                 } else {
                     ESP_LOGE(TAG, "Security key is not set");
@@ -1083,6 +1108,7 @@ esp_err_t espnow_set_key(uint8_t key_info[APP_KEY_LEN])
     ESP_PARAM_CHECK(g_espnow_sec);
     ESP_PARAM_CHECK(key_info);
 
+    ESP_LOG_BUFFER_HEX_LEVEL(TAG, key_info, APP_KEY_LEN, ESP_LOG_DEBUG);
     int ret = espnow_sec_setkey(g_espnow_sec, key_info);
     ESP_ERROR_RETURN(ret != ESP_OK, ret, "espnow_sec_setkey %x", ret);
     ret = espnow_storage_set("key_info", key_info, APP_KEY_LEN);

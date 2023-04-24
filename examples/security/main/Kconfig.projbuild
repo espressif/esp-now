@@ -12,6 +12,12 @@ menu "Example Configuration"
         help
             Proof of Possession (PoP) string used to authorize session and derive shared key.
 
+    config APP_ESPNOW_SEC_OPTION
+        bool "The payload data is ciphertext or plaintext when enable security"
+        default y
+        help
+            Send ciphertext or plaintext when enable security.
+
     choice APP_ESPNOW_SEC_MODE
         bool "ESP-NOW Mode"
         default APP_ESPNOW_SEC_INITIATOR

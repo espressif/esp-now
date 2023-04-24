@@ -28,7 +28,7 @@ extern "C" {
 #define KEY_LEN                             16      /**< Secret key length */
 #define IV_LEN                              8       /**< The initialization vector (nonce) length */
 #define TAG_LEN                             4       /**< The length of the authentication field */
-#define ESPNOW_SEC_PACKET_MAX_SIZE          (ESPNOW_PAYLOAD_LEN - TAG_LEN)  /**< Maximum length of a single encrypted packet transmitted */
+#define ESPNOW_SEC_PACKET_MAX_SIZE          (ESPNOW_PAYLOAD_LEN - TAG_LEN - IV_LEN)  /**< Maximum length of a single encrypted packet transmitted */
 
 /**
  * @brief State of security
