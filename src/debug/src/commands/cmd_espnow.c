@@ -70,6 +70,7 @@ static int command_func(int argc, char **argv)
 
     espnow_frame_head_t frame_head = {
         .filter_adjacent_channel = true,
+        .security                = CONFIG_ESPNOW_DEBUG_SECURITY,
     };
 
     esp_err_t ret = ESP_OK;
@@ -181,6 +182,7 @@ static int scan_func(int argc, char **argv)
         .broadcast = true,
         .magic     = esp_random(),
         .filter_adjacent_channel = true,
+        .security                = CONFIG_ESPNOW_DEBUG_SECURITY,
     };
 
     if (scan_args.rssi->count) {
@@ -811,6 +813,8 @@ static int beacon_func(int argc, char **argv)
     const esp_app_desc_t *app_desc = esp_ota_get_app_description();
 #endif
     size_t beacon_data_len = 0;
+    espnow_frame_head_t frame_head = ESPNOW_FRAME_CONFIG_DEFAULT();
+    frame_head.security = CONFIG_ESPNOW_DEBUG_SECURITY;
 
     espnow_add_peer(g_src_addr, NULL);
 
@@ -826,7 +830,7 @@ static int beacon_func(int argc, char **argv)
     for (size_t size = MIN(beacon_data_len, ESPNOW_DATA_LEN);
             size > 0; data += size, beacon_data_len -= size, size = MIN(beacon_data_len, ESPNOW_DATA_LEN)) {
         ret = espnow_send(ESPNOW_DATA_TYPE_DEBUG_LOG, g_src_addr,
-                        data, size, NULL, portMAX_DELAY);
+                        data, size, &frame_head, portMAX_DELAY);
     }
 
     espnow_del_peer(g_src_addr);
@@ -864,6 +868,8 @@ static int log_func(int argc, char **argv)
 {
     const char *level_str[6] = {"NONE", "ERR", "WARN", "INFO", "DEBUG", "VER"};
     espnow_log_config_t log_config = {0};
+    espnow_frame_head_t frame_head = ESPNOW_FRAME_CONFIG_DEFAULT();
+    frame_head.security = CONFIG_ESPNOW_DEBUG_SECURITY;
 
     if (arg_parse(argc, argv, (void **)&log_args) != ESP_OK) {
         arg_print_errors(stderr, log_args.end, argv[0]);
@@ -929,7 +935,7 @@ static int log_func(int argc, char **argv)
                 }
 
                 espnow_send(ESPNOW_DATA_TYPE_DEBUG_LOG, ESPNOW_ADDR_BROADCAST,
-                            log_data, size, NULL, portMAX_DELAY);
+                            log_data, size, &frame_head, portMAX_DELAY);
             }
 
             ESP_FREE(log_data);

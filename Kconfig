@@ -8,6 +8,41 @@ menu "ESP-NOW Configuration"
         help
             Enable to secure the application level data.
 
+    config ESPNOW_ALL_SECURITY
+        bool "Secure all data"
+        default n
+        depends on ESPNOW_APP_SECURITY
+        help
+            Enable to secure all application data.
+
+    config ESPNOW_CONTROL_SECURITY
+        bool "Secure control data"
+        default n
+        depends on ESPNOW_APP_SECURITY && !ESPNOW_ALL_SECURITY
+        help
+            Enable to secure the control data.
+
+    config ESPNOW_DEBUG_SECURITY
+        bool "Secure debug data"
+        default n
+        depends on ESPNOW_APP_SECURITY && !ESPNOW_ALL_SECURITY
+        help
+            Enable to secure the debug data.
+
+    config ESPNOW_OTA_SECURITY
+        bool "Secure OTA data"
+        default n
+        depends on ESPNOW_APP_SECURITY && !ESPNOW_ALL_SECURITY
+        help
+            Enable to secure the OTA data.
+
+    config ESPNOW_PROV_SECURITY
+        bool "Secure provisioning data"
+        default n
+        depends on ESPNOW_APP_SECURITY && !ESPNOW_ALL_SECURITY
+        help
+            Enable to secure the provisioning data.
+
     endmenu
 
     menu "ESP-NOW Light Sleep Configuration"

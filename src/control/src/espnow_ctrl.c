@@ -48,6 +48,14 @@ typedef struct {
 static const char *TAG = "espnow_ctrl";
 static espnow_bindlist_t g_bindlist = {0};
 
+#ifdef CONFIG_ESPNOW_ALL_SECURITY
+#define CONFIG_ESPNOW_CONTROL_SECURITY 1
+#else
+#ifndef CONFIG_ESPNOW_CONTROL_SECURITY
+#define CONFIG_ESPNOW_CONTROL_SECURITY 0
+#endif
+#endif
+
 #ifdef CONFIG_ESPNOW_CONTROL_AUTO_CHANNEL_SENDING
 #define ESPNOW_CHANNEL_KEY       "ch_key"
 #define RESEND_SCAN_COUNT_MAX (sizeof(scan_channel_sequence) * 2)
@@ -78,6 +86,7 @@ static const espnow_frame_head_t g_initiator_frame = {
     .channel          = ESPNOW_CHANNEL_ALL,
     .forward_ttl      = 10,
     .forward_rssi     = -25,
+    .security         = CONFIG_ESPNOW_CONTROL_SECURITY,
 };
 #endif
 
@@ -333,7 +342,8 @@ static esp_err_t espnow_ctrl_initiator_handle(espnow_data_type_t type, espnow_at
             .forward_rssi     = CONFIG_ESPNOW_CONTROL_FORWARD_RSSI,
             .magic            = esp_random(),
             .ack              = true,
-            .channel          = channel
+            .channel          = channel,
+            .security         = CONFIG_ESPNOW_CONTROL_SECURITY,
         },
         .initiator_attribute = initiator_attribute,
         .responder_attribute = responder_attribute,

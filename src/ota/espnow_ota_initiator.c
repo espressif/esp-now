@@ -189,6 +189,7 @@ esp_err_t espnow_ota_initiator_scan(espnow_ota_responder_t **info_list, size_t *
         .filter_adjacent_channel = true,
         .forward_ttl      = CONFIG_ESPNOW_OTA_SEND_FORWARD_TTL,
         .forward_rssi     = CONFIG_ESPNOW_OTA_SEND_FORWARD_RSSI,
+        .security         = CONFIG_ESPNOW_OTA_SECURITY,
     };
 
     espnow_ota_initiator_scan_result_free();
@@ -276,6 +277,7 @@ static esp_err_t espnow_ota_request_status(uint8_t (*progress_array)[ESPNOW_OTA_
         .filter_adjacent_channel = true,
         .forward_ttl      = CONFIG_ESPNOW_OTA_SEND_FORWARD_TTL,
         .forward_rssi     = CONFIG_ESPNOW_OTA_SEND_FORWARD_RSSI,
+        .security         = CONFIG_ESPNOW_OTA_SECURITY,
     };
 
     for (int i = 0, wait_ticks = pdMS_TO_TICKS(500); i < 3 && response_num > 0; ++i, wait_ticks = pdMS_TO_TICKS(100)) {
@@ -402,6 +404,7 @@ esp_err_t espnow_ota_initiator_send(const uint8_t addrs_list[][6], size_t addrs_
         .group            = true,
         .forward_ttl      = CONFIG_ESPNOW_OTA_SEND_FORWARD_TTL,
         .forward_rssi     = CONFIG_ESPNOW_OTA_SEND_FORWARD_RSSI,
+        .security         = CONFIG_ESPNOW_OTA_SECURITY,
     };
 
     if (addrs_num == 1 && ESPNOW_ADDR_IS_BROADCAST(addrs_list[0])) {

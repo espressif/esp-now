@@ -42,7 +42,7 @@ typedef struct {
 static const char *TAG = "espnow_ota_responder";
 static ota_config_t *g_ota_config = NULL;
 static bool g_ota_finished_flag        = false;
-static espnow_frame_head_t g_frame_config = { 0 };
+static espnow_frame_head_t g_frame_config = { .security = CONFIG_ESPNOW_OTA_SECURITY };
 static espnow_ota_config_t *g_espnow_ota_config = NULL;
 
 static esp_err_t validate_image_header(const esp_partition_t *update)
@@ -206,13 +206,15 @@ EXIT:
             && g_ota_config->status.written_size != g_ota_config->status.total_size) {
         espnow_ota_status_t *tmp_status = ESP_MALLOC(sizeof(espnow_ota_status_t) + ESPNOW_OTA_PROGRESS_MAX_SIZE);
         memcpy(tmp_status, &g_ota_config->status, sizeof(espnow_ota_status_t));
+        espnow_frame_head_t frame_head = ESPNOW_FRAME_CONFIG_DEFAULT();
+        frame_head.security = CONFIG_ESPNOW_OTA_SECURITY;
 
         for (int seq = 0; seq < tmp_status->packet_num; ++seq) {
             if (!ESPNOW_OTA_GET_BITS(g_ota_config->status.progress_array, seq)) {
                 tmp_status->progress_index = seq / (ESPNOW_OTA_PROGRESS_MAX_SIZE * 8);
                 memcpy(tmp_status->progress_array[0], g_ota_config->status.progress_array[tmp_status->progress_index], ESPNOW_OTA_PROGRESS_MAX_SIZE);
                 ret = espnow_send(ESPNOW_DATA_TYPE_OTA_STATUS, src_addr, tmp_status,
-                                  sizeof(espnow_ota_status_t) + ESPNOW_OTA_PROGRESS_MAX_SIZE, NULL, portMAX_DELAY);
+                                  sizeof(espnow_ota_status_t) + ESPNOW_OTA_PROGRESS_MAX_SIZE, &frame_head, portMAX_DELAY);
                 ESP_LOG_BUFFER_HEXDUMP(TAG, tmp_status->progress_array, ESPNOW_OTA_PROGRESS_MAX_SIZE, ESP_LOG_DEBUG);
                 ESP_ERROR_BREAK(ret != ESP_OK, "espnow_send");
 
@@ -383,9 +385,11 @@ esp_err_t espnow_ota_responder_stop()
     g_ota_config->status.written_size = 0;
     memset(g_ota_config->status.progress_array, 0, g_ota_config->status.packet_num / 8 + 1);
     espnow_storage_erase(ESPNOW_OTA_STORE_CONFIG_KEY);
+    espnow_frame_head_t frame_head = ESPNOW_FRAME_CONFIG_DEFAULT();
+    frame_head.security = CONFIG_ESPNOW_OTA_SECURITY;
 
     ret = espnow_send(ESPNOW_DATA_TYPE_OTA_STATUS, ESPNOW_ADDR_BROADCAST,
-                      &g_ota_config->status, sizeof(espnow_ota_status_t), NULL, portMAX_DELAY);
+                      &g_ota_config->status, sizeof(espnow_ota_status_t), &frame_head, portMAX_DELAY);
     ESP_ERROR_RETURN(ret != ESP_OK, ret, "espnow_write");
 
     return ESP_OK;

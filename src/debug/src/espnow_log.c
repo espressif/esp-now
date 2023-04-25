@@ -65,6 +65,8 @@ esp_err_t espnow_log_set_config(const espnow_log_config_t *config)
 static void espnow_log_send_task(void *arg)
 {
     log_info_t *log_info = NULL;
+    espnow_frame_head_t frame_head = ESPNOW_FRAME_CONFIG_DEFAULT();
+    frame_head.security = CONFIG_ESPNOW_DEBUG_SECURITY;
 
     for (; g_log_config;) {
         if (xQueueReceive(g_log_queue, &log_info, pdMS_TO_TICKS(DEBUG_LOG_TIMEOUT_MS)) != pdPASS) {
@@ -78,7 +80,7 @@ static void espnow_log_send_task(void *arg)
         if (strcasecmp(log_info->tag, "espnow") && log_info->level <= g_log_config->log_level_espnow) {
             log_info->size = MIN(ESPNOW_DATA_LEN - 1, log_info->size) + 1;
             log_info->data[log_info->size - 1] = '\0';
-            espnow_send(ESPNOW_DATA_TYPE_DEBUG_LOG, ESPNOW_ADDR_BROADCAST, log_info->data, log_info->size, NULL, portMAX_DELAY);
+            espnow_send(ESPNOW_DATA_TYPE_DEBUG_LOG, ESPNOW_ADDR_BROADCAST, log_info->data, log_info->size, &frame_head, portMAX_DELAY);
         }
 
         if (log_info->level <= g_log_config->log_level_custom) {

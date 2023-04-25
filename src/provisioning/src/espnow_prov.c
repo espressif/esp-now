@@ -48,6 +48,14 @@ typedef struct {
 
 #define ESPNOW_PROV_BEACON_INTERVAL 100
 
+#ifdef CONFIG_ESPNOW_ALL_SECURITY
+#define CONFIG_ESPNOW_PROV_SECURITY 1
+#else
+#ifndef CONFIG_ESPNOW_PROV_SECURITY
+#define CONFIG_ESPNOW_PROV_SECURITY 0
+#endif
+#endif
+
 static const char *TAG = "espnow_prov";
 
 typedef struct {
@@ -190,6 +198,7 @@ esp_err_t espnow_prov_initiator_send(const espnow_addr_t responder_addr, const e
     memcpy(&prov_data->initiator_info, initiator_info, sizeof(espnow_prov_initiator_t));
     espnow_frame_head_t frame_head = {
         .filter_adjacent_channel = true,
+        .security                = CONFIG_ESPNOW_PROV_SECURITY,
     };
     uint32_t start_ticks = xTaskGetTickCount();
 
@@ -250,6 +259,7 @@ static void responder_beacon_timercb(TimerHandle_t timer)
         .broadcast = true,
         .magic     = esp_random(),
         .filter_adjacent_channel = true,
+        .security                = CONFIG_ESPNOW_PROV_SECURITY,
     };
 
     espnow_send(ESPNOW_DATA_TYPE_PROV, ESPNOW_ADDR_BROADCAST, g_beacon_prov_data, 
@@ -314,6 +324,7 @@ static esp_err_t espnow_prov_responder_send(const espnow_addr_t *initiator_addr_
     espnow_frame_head_t frame_head = {
         .retransmit_count = 10,
         .broadcast = true,
+        .security  = CONFIG_ESPNOW_PROV_SECURITY,
     };
 
     ESP_LOGD(TAG, MACSTR ", num: %d", MAC2STR(initiator_addr_list[0]), initiator_addr_num);
