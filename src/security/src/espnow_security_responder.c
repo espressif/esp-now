@@ -18,6 +18,7 @@
 #include <esp_err.h>
 #include <esp_log.h>
 #include "esp_system.h"
+#include "esp_event.h"
 
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(4, 4, 0)
 #include "esp_mac.h"
@@ -99,6 +100,7 @@ static esp_err_t espnow_sec_handle(const char *ep_name, uint8_t resp_type, const
     ret = protocomm_req_handle(pc, ep_name, session_id, req_data->data, req_data->size, &outbuf, &outlen);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "espnow-session handler failed");
+        esp_event_post(ESP_EVENT_ESPNOW, ESP_EVENT_ESPNOW_SEC_FAIL, NULL, 0, 0);
         memset(g_sec_info.client_mac, 0, 6);
         protocomm_close_session(pc, session_id);
     } else {
@@ -188,7 +190,11 @@ static esp_err_t espnow_config_data_handler(uint32_t session_id, const uint8_t *
 
     ESP_LOGI(TAG, "Get APP key");
 
-    return espnow_set_key(app_key);
+    esp_err_t ret = espnow_set_key(app_key);
+
+    esp_event_post(ESP_EVENT_ESPNOW, ret ? ESP_EVENT_ESPNOW_SEC_FAIL : ESP_EVENT_ESPNOW_SEC_OK, NULL, 0, 0);
+
+    return ret;
 }
 
 static esp_err_t protocomm_espnow_responder_stop()

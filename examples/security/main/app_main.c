@@ -36,6 +36,31 @@ const char *pop_data = CONFIG_APP_ESPNOW_SESSION_POP;
 #define UART_RX_IO     UART_PIN_NO_CHANGE
 
 static const char *TAG = "app_main";
+static bool s_sec_flag = false;
+
+#ifdef CONFIG_APP_ESPNOW_SEC_RESPONDER
+static void app_espnow_event_handler(void *handler_args, esp_event_base_t base, int32_t id, void *event_data)
+{
+    if (base != ESP_EVENT_ESPNOW) {
+        return;
+    }
+
+    switch (id) {
+    case ESP_EVENT_ESPNOW_SEC_OK:
+        ESP_LOGI(TAG, "ESP_EVENT_ESPNOW_SEC_OK");
+        s_sec_flag = true;
+        break;
+
+    case ESP_EVENT_ESPNOW_SEC_FAIL:
+        ESP_LOGI(TAG, "ESP_EVENT_ESPNOW_SEC_FAIL");
+        s_sec_flag = false;
+        break;
+
+    default:
+        break;
+    }
+}
+#endif
 
 static void app_uart_read_task(void *arg)
 {
@@ -56,10 +81,11 @@ static void app_uart_read_task(void *arg)
         size = uart_read_bytes(UART_PORT_NUM, data, ESPNOW_SEC_PACKET_MAX_SIZE, pdMS_TO_TICKS(10));
         ESP_ERROR_CONTINUE(size <= 0, "");
 
+        frame_head.security = s_sec_flag;
         ret = espnow_send(ESPNOW_DATA_TYPE_DATA, ESPNOW_ADDR_BROADCAST, data, size, &frame_head, portMAX_DELAY);
         ESP_ERROR_CONTINUE(ret != ESP_OK, "<%s> espnow_send", esp_err_to_name(ret));
 
-        ESP_LOGI(TAG, "espnow_send, count: %" PRIu32 ", size: %u, data: %s", count++, size, data);
+        ESP_LOGI(TAG, "espnow_send, count: %" PRIu32 ", size: %u, %s data: %s", count++, size, s_sec_flag ? "plaintext" : "ciphertext", data);
         memset(data, 0, ESPNOW_DATA_LEN);
     }
 
@@ -164,6 +190,7 @@ void app_main()
     uint32_t start_time2 = xTaskGetTickCount();
     esp_err_t ret = espnow_sec_initiator_start(key_info, pop_data, dest_addr_list, num, &espnow_sec_result);
     ESP_ERROR_GOTO(ret != ESP_OK, EXIT, "<%s> espnow_sec_initiator_start", esp_err_to_name(ret));
+    s_sec_flag = true;
 
     ESP_LOGI(TAG, "App key is sent to the device to complete, Spend time: %" PRId32 "ms, Scan time: %" PRId32 "ms",
              (xTaskGetTickCount() - start_time1) * portTICK_PERIOD_MS,
@@ -183,6 +210,7 @@ EXIT:
     }
 
     /* If responder handshake with initiator succeed, espnow_set_key will be executed again. */
+    esp_event_handler_register(ESP_EVENT_ESPNOW, ESP_EVENT_ANY_ID, app_espnow_event_handler, NULL);
     espnow_sec_responder_start(pop_data);
 #endif
 }
