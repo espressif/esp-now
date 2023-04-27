@@ -44,7 +44,7 @@ esp_err_t espnow_timesync_start()
     return ESP_OK;
 }
 
-bool esp_timesync_check(void)
+bool espnow_timesync_check(void)
 {
     time_t now;
     time(&now);
@@ -56,7 +56,7 @@ bool esp_timesync_check(void)
     return false;
 }
 
-esp_err_t esp_timesync_wait(TickType_t ticks_to_wait)
+esp_err_t espnow_timesync_wait(TickType_t ticks_to_wait)
 {
     if (!g_init_done) {
         ESP_LOGW(TAG, "Time sync not initialised using 'espnow_timesync_start'");
@@ -67,7 +67,7 @@ esp_err_t esp_timesync_wait(TickType_t ticks_to_wait)
     uint32_t ticks = DEFAULT_TICKS;
 
     while (ticks_remaining > 0) {
-        if (esp_timesync_check() == true) {
+        if (espnow_timesync_check() == true) {
             break;
         }
 
@@ -78,7 +78,7 @@ esp_err_t esp_timesync_wait(TickType_t ticks_to_wait)
     }
 
     /* Check if ticks_to_wait expired and time is not synchronized yet. */
-    if (esp_timesync_check() == false) {
+    if (espnow_timesync_check() == false) {
         ESP_LOGE(TAG, "Time not synchronized within the provided ticks: %u", ticks_to_wait);
         return ESP_FAIL;
     }
