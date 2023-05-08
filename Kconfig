@@ -71,6 +71,21 @@ menu "ESP-NOW Configuration"
         help
             The channel sequence used for ESP-NOW package sending is [1, 6, 11, 1, 6, 11, 2, 3, 4, 5, 7, 8, 9, 10, 12, 13] by default.
 
+    config ESPNOW_CONTROL_WAIT_ACK_DURATION
+        int "Duration to wait for ACK"
+        range 15 100
+        depends on ESPNOW_CONTROL_AUTO_CHANNEL_SENDING
+        default 40
+        help
+            Set the duration to wait for ACK. Use a value big enough to avoid retransmissions.
+
+    config ESPNOW_CONTROL_UNICAST_METHOD
+        bool "Method to responde for ACK"
+        depends on ESPNOW_CONTROL_AUTO_CHANNEL_SENDING
+        default n
+        help
+            Set the method to responde for ACK. The ESP-NOW package will be responde on unicast or broadcast.
+
     config ESPNOW_CONTROL_RETRANSMISSION_TIMES
         int "Retransmission times when sending an ESP-NOW package from the saved channel"
         range 1 15

@@ -635,9 +635,11 @@ esp_err_t espnow_send(espnow_data_type_t type, const espnow_addr_t dest_addr, co
 
 EXIT:
 
+#ifndef CONFIG_ESPNOW_LIGHT_SLEEP
     if (g_set_channel_flag && frame_head->channel != primary) {
         esp_wifi_set_channel(primary, second);
     }
+#endif
 
     xSemaphoreGive(g_send_lock);
 
