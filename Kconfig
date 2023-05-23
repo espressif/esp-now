@@ -79,13 +79,6 @@ menu "ESP-NOW Configuration"
         help
             Set the duration to wait for ACK. Use a value big enough to avoid retransmissions.
 
-    config ESPNOW_CONTROL_UNICAST_METHOD
-        bool "Method to responde for ACK"
-        depends on ESPNOW_CONTROL_AUTO_CHANNEL_SENDING
-        default n
-        help
-            Set the method to responde for ACK. The ESP-NOW package will be responde on unicast or broadcast.
-
     config ESPNOW_CONTROL_RETRANSMISSION_TIMES
         int "Retransmission times when sending an ESP-NOW package from the saved channel"
         range 1 15
@@ -118,6 +111,18 @@ menu "ESP-NOW Configuration"
             The ESP-NOW package will not be forward when the data packet signal received by the receiving device is lower than the value.
 
     endmenu
+
+    config ESPNOW_AUTO_RESTORE_CHANNEL
+        bool "Restore primary channel at the end of ESP-NOW package sending"
+        default n
+        help
+            If the primary channel has changed during package sending, restore the primary channel at the end of sending.
+
+    config ESPNOW_DATA_FAST_ACK
+        bool "Call the ack handler immediately in the data receive callback"
+        default n
+        help
+            Select whether to call the ack handler immediately in the data receive callback, or queue it and call it when idle.
 
     menu "ESP-NOW Utils Configuration"
     choice ESPNOW_MEM_ALLOCATION_LOCATION

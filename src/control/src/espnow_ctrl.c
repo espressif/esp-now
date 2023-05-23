@@ -172,22 +172,6 @@ static esp_err_t espnow_ctrl_responder_forward(uint8_t type, uint8_t *src_addr, 
 }
 #endif
 
-#ifdef CONFIG_ESPNOW_CONTROL_UNICAST_METHOD
-static esp_err_t espnow_ctrl_responder_unicast(espnow_data_type_t type, const espnow_addr_t dest_addr, const void *data,
-                      size_t size, const espnow_frame_head_t *data_head)
-{
-    espnow_add_peer(dest_addr, NULL);
-    espnow_frame_head_t frame_head;
-    memcpy(&frame_head, data_head, sizeof(espnow_frame_head_t));
-    frame_head.broadcast = false;
-    frame_head.ack = false;
-    espnow_send(type, dest_addr, data, size, &frame_head, pdMS_TO_TICKS(100));
-    espnow_del_peer(dest_addr);
-
-    return ESP_OK;
-}
-#endif
-
 static esp_err_t espnow_ctrl_responder_bind_process(uint8_t *src_addr, void *data,
                       size_t size, wifi_pkt_rx_ctrl_t *rx_ctrl)
 {
@@ -200,11 +184,7 @@ static esp_err_t espnow_ctrl_responder_bind_process(uint8_t *src_addr, void *dat
 
 #ifdef CONFIG_ESPNOW_CONTROL_AUTO_CHANNEL_SENDING
         if (ctrl_data->frame_head.ack) {
-#ifdef CONFIG_ESPNOW_CONTROL_UNICAST_METHOD
-            espnow_ctrl_responder_unicast(ESPNOW_DATA_TYPE_CONTROL_BIND, src_addr, &ctrl_data->frame_head, sizeof(ctrl_data->frame_head), &ctrl_data->frame_head);
-#else
             espnow_send(ESPNOW_DATA_TYPE_ACK, ESPNOW_ADDR_BROADCAST, &ctrl_data->frame_head, sizeof(ctrl_data->frame_head), &ctrl_data->frame_head, pdMS_TO_TICKS(100));
-#endif
         }
 #endif
 
@@ -294,11 +274,7 @@ static esp_err_t espnow_ctrl_responder_data_process(uint8_t *src_addr, void *dat
 
 #ifdef CONFIG_ESPNOW_CONTROL_AUTO_CHANNEL_SENDING
     if (ctrl_data->frame_head.ack) {
-#ifdef CONFIG_ESPNOW_CONTROL_UNICAST_METHOD
-        espnow_ctrl_responder_unicast(ESPNOW_DATA_TYPE_CONTROL_DATA, src_addr, &ctrl_data->frame_head, sizeof(ctrl_data->frame_head), &ctrl_data->frame_head);
-#else
         espnow_send(ESPNOW_DATA_TYPE_ACK, ESPNOW_ADDR_BROADCAST, &ctrl_data->frame_head, sizeof(ctrl_data->frame_head), &ctrl_data->frame_head, pdMS_TO_TICKS(100));
-#endif
     }
 #endif
 
@@ -374,12 +350,11 @@ static esp_err_t espnow_ctrl_initiator_handle(espnow_data_type_t type, espnow_at
         .responder_value_i   = responder_value
     };
     espnow_set_config_for_data_type(ESPNOW_DATA_TYPE_ACK, true, espnow_ctrl_initiator_ack);
-    espnow_set_config_for_data_type(ESPNOW_DATA_TYPE_CONTROL_BIND, true, espnow_ctrl_initiator_ack);
-    espnow_set_config_for_data_type(ESPNOW_DATA_TYPE_CONTROL_DATA, true, espnow_ctrl_initiator_ack);
 
     do {
         espnow_send(type, ESPNOW_ADDR_BROADCAST, &data, sizeof(espnow_ctrl_data_t), &data.frame_head, portMAX_DELAY);
         bind_sem_ret = xSemaphoreTake(g_bind_sem, pdMS_TO_TICKS(CONFIG_ESPNOW_CONTROL_WAIT_ACK_DURATION));
+
 #ifdef CONFIG_ESPNOW_LIGHT_SLEEP
         esp_sleep_enable_timer_wakeup(CONFIG_ESPNOW_LIGHT_SLEEP_DURATION * 1000);
         esp_light_sleep_start();
@@ -392,6 +367,7 @@ static esp_err_t espnow_ctrl_initiator_handle(espnow_data_type_t type, espnow_at
             data.frame_head.channel = scan_channel_sequence[(retransmit_count ++) % (sizeof(scan_channel_sequence))];
             espnow_send(type, ESPNOW_ADDR_BROADCAST, &data, sizeof(espnow_ctrl_data_t), &data.frame_head, portMAX_DELAY);
             bind_sem_ret = xSemaphoreTake(g_bind_sem, pdMS_TO_TICKS(CONFIG_ESPNOW_CONTROL_WAIT_ACK_DURATION));
+
 #ifdef CONFIG_ESPNOW_LIGHT_SLEEP
             esp_sleep_enable_timer_wakeup(CONFIG_ESPNOW_LIGHT_SLEEP_DURATION * 1000);
             esp_light_sleep_start();
