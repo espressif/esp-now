@@ -353,7 +353,8 @@ static esp_err_t espnow_ctrl_initiator_handle(espnow_data_type_t type, espnow_at
 
     do {
         espnow_send(type, ESPNOW_ADDR_BROADCAST, &data, sizeof(espnow_ctrl_data_t), &data.frame_head, portMAX_DELAY);
-        bind_sem_ret = xSemaphoreTake(g_bind_sem, pdMS_TO_TICKS(40));
+        bind_sem_ret = xSemaphoreTake(g_bind_sem, pdMS_TO_TICKS(CONFIG_ESPNOW_CONTROL_WAIT_ACK_DURATION));
+
 #ifdef CONFIG_ESPNOW_LIGHT_SLEEP
         esp_sleep_enable_timer_wakeup(CONFIG_ESPNOW_LIGHT_SLEEP_DURATION * 1000);
         esp_light_sleep_start();
@@ -365,7 +366,8 @@ static esp_err_t espnow_ctrl_initiator_handle(espnow_data_type_t type, espnow_at
         while (retransmit_count < RESEND_SCAN_COUNT_MAX) {
             data.frame_head.channel = scan_channel_sequence[(retransmit_count ++) % (sizeof(scan_channel_sequence))];
             espnow_send(type, ESPNOW_ADDR_BROADCAST, &data, sizeof(espnow_ctrl_data_t), &data.frame_head, portMAX_DELAY);
-            bind_sem_ret = xSemaphoreTake(g_bind_sem, pdMS_TO_TICKS(40));
+            bind_sem_ret = xSemaphoreTake(g_bind_sem, pdMS_TO_TICKS(CONFIG_ESPNOW_CONTROL_WAIT_ACK_DURATION));
+
 #ifdef CONFIG_ESPNOW_LIGHT_SLEEP
             esp_sleep_enable_timer_wakeup(CONFIG_ESPNOW_LIGHT_SLEEP_DURATION * 1000);
             esp_light_sleep_start();

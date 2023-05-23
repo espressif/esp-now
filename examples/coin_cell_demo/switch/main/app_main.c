@@ -41,7 +41,7 @@ static void app_wifi_init()
 
 #ifdef CONFIG_EXAMPLE_USE_COIN_CELL_BUTTON
 #define SEND_GAP_TIME         30
-#define LONG_PRESS_SLEEP_TIME 3000
+#define LONG_PRESS_SLEEP_TIME 2000
 
 typedef enum {
     ESPNOW_TASK_STATE_SEND_RECORD,

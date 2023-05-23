@@ -269,6 +269,11 @@ void espnow_recv_cb(const uint8_t *addr, const uint8_t *data, int size)
 
     if (espnow_data->type == ESPNOW_DATA_TYPE_ACK) {
         if (!ESPNOW_ADDR_IS_SELF(espnow_data->dest_addr)) {
+#ifdef CONFIG_ESPNOW_DATA_FAST_ACK
+            if (g_recv_handle[ESPNOW_DATA_TYPE_ACK].handle) {
+                g_recv_handle[ESPNOW_DATA_TYPE_ACK].handle(espnow_data->src_addr, (void *)frame_head, sizeof(espnow_frame_head_t), NULL);
+            }
+#endif
             goto FORWARD_DATA;
         }
 
@@ -635,9 +640,11 @@ esp_err_t espnow_send(espnow_data_type_t type, const espnow_addr_t dest_addr, co
 
 EXIT:
 
+#ifdef CONFIG_ESPNOW_AUTO_RESTORE_CHANNEL
     if (g_set_channel_flag && frame_head->channel != primary) {
         esp_wifi_set_channel(primary, second);
     }
+#endif
 
     xSemaphoreGive(g_send_lock);
 
@@ -830,9 +837,11 @@ static esp_err_t espnow_send_forward(espnow_data_t *espnow_data)
     espnow_frame_head_t *frame_head = &espnow_data->frame_head;
     const uint8_t *dest_addr = (frame_head->broadcast) ? ESPNOW_ADDR_BROADCAST : espnow_data->dest_addr;
 
+#ifndef CONFIG_ESPNOW_DATA_FAST_ACK
     if (espnow_data->type == ESPNOW_DATA_TYPE_ACK && g_recv_handle[ESPNOW_DATA_TYPE_ACK].handle) {
         g_recv_handle[ESPNOW_DATA_TYPE_ACK].handle(espnow_data->src_addr, (void *)frame_head, sizeof(espnow_frame_head_t), NULL);
     }
+#endif
 
     /**< Wait for other tasks to be sent before send ESP-NOW data */
     if (xSemaphoreTake(g_send_lock, g_espnow_config->send_max_timeout) != pdPASS) {
