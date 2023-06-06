@@ -73,7 +73,7 @@ menu "ESP-NOW Configuration"
 
     config ESPNOW_CONTROL_WAIT_ACK_DURATION
         int "Duration to wait for ACK"
-        range 15 100
+        range 3 100
         depends on ESPNOW_CONTROL_AUTO_CHANNEL_SENDING
         default 40
         help
