@@ -1,3 +1,16 @@
+# v2.3.0
+
+Features:
+- Increase wait ack config range and reduce wait ack duration for button.
+- Use random IV at the end of the payload for gain a lot of security. [#40](https://github.com/espressif/esp-now/issues/40)
+- Add option for enable/disable security on all components. [#71](https://github.com/espressif/esp-now/issues/71)
+- Add sec event for application to get the result. [#73](https://github.com/espressif/esp-now/issues/73)
+
+Fixed:
+- Fix an issue for light sleep after backup the channel
+- Fix an issue of missnamed. [#72](https://github.com/espressif/esp-now/issues/72)
+- Update readme of miss actual path. [#76](https://github.com/espressif/esp-now/issues/76)
+
 # v2.2.0
 
 Features:
