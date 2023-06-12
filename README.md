@@ -19,19 +19,20 @@ idf.py add-dependency "espressif/esp-now=*"
 Please use the component manager command `create-project-from-example` to create the project from example template.
 
 ```
-idf.py create-project-from-example "espressif/esp-now=*:coin_cell_demo"
+idf.py create-project-from-example "espressif/esp-now=*:coin_cell_demo/bulb"
 ```
 
 Then the example will be downloaded in current folder, you can check into it for build and flash.
 
 > You can use this command to download other examples. Or you can download examples from esp-now repository: 
-1. [coin_cell_demo](https://github.com/espressif/esp-now/tree/master/examples/coin_cell_demo)
-2. [control](https://github.com/espressif/esp-now/tree/master/examples/control)
-3. [get-started](https://github.com/espressif/esp-now/tree/master/examples/get-started)
-4. [ota](https://github.com/espressif/esp-now/tree/master/examples/ota)
-5. [security](https://github.com/espressif/esp-now/tree/master/examples/security)
-6. [solution](https://github.com/espressif/esp-now/tree/master/examples/solution)
-7. [wireless_debug](https://github.com/espressif/esp-now/tree/master/examples/wireless_debug)
+1. [coin_cell_demo/bulb](https://github.com/espressif/esp-now/tree/master/examples/coin_cell_demo/bulb)
+2. [coin_cell_demo/switch](https://github.com/espressif/esp-now/tree/master/examples/coin_cell_demo/switch)
+3. [control](https://github.com/espressif/esp-now/tree/master/examples/control)
+4. [get-started](https://github.com/espressif/esp-now/tree/master/examples/get-started)
+5. [ota](https://github.com/espressif/esp-now/tree/master/examples/ota)
+6. [security](https://github.com/espressif/esp-now/tree/master/examples/security)
+7. [solution](https://github.com/espressif/esp-now/tree/master/examples/solution)
+8. [wireless_debug](https://github.com/espressif/esp-now/tree/master/examples/wireless_debug)
 
 ### Q&A
 
