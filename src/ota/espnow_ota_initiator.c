@@ -280,7 +280,7 @@ static esp_err_t espnow_ota_request_status(uint8_t (*progress_array)[ESPNOW_OTA_
         .security         = CONFIG_ESPNOW_OTA_SECURITY,
     };
 
-    for (int i = 0, wait_ticks = pdMS_TO_TICKS(500); i < 3 && response_num > 0; ++i, wait_ticks = pdMS_TO_TICKS(100)) {
+    for (int i = 0, wait_ticks = pdMS_TO_TICKS(1000); i < 3 && response_num > 0; ++i, wait_ticks = pdMS_TO_TICKS(500)) {
         if (espnow_send(ESPNOW_DATA_TYPE_OTA_DATA, ESPNOW_ADDR_GROUP_OTA, status,
                         sizeof(espnow_ota_status_t), &status_frame, portMAX_DELAY) != ESP_OK) {
             ESP_LOGW(TAG, "Request devices upgrade status");
