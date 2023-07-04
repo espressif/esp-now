@@ -197,6 +197,10 @@ static esp_err_t espnow_ctrl_responder_bind_process(uint8_t *src_addr, void *dat
         if (g_bindlist.cb) {
             bind_cb_flag = g_bindlist.cb(ctrl_data->initiator_attribute, src_addr, rx_ctrl->rssi);
         }
+	else
+	{
+	    bind_cb_flag = true;
+	}
 
         if (bind_cb_flag && esp_log_timestamp() < g_bindlist.timestamp && rx_ctrl->rssi > g_bindlist.rssi) {
             ESP_LOGI("control_func", "addr: "MACSTR", initiator_type: %d, initiator_value: %d",
