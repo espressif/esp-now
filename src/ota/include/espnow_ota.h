@@ -56,7 +56,7 @@ extern "C" {
  * @brief Firmware subcontract upgrade
  */
 #define ESPNOW_OTA_PROGRESS_MAX_SIZE           (ESPNOW_DATA_LEN - 30)  /**< Maximum length of the array which indicates the packet processed */
-#define ESPNOW_OTA_PACKET_MAX_SIZE             (ESPNOW_DATA_LEN - 4)  /**< Maximum length of a single packet transmitted */
+#define ESPNOW_OTA_PACKET_MAX_SIZE             ((ESPNOW_DATA_LEN - 4) - (ESPNOW_DATA_LEN -4) % 16)  /**< Maximum length of a single packet transmitted */
 #define ESPNOW_OTA_PACKET_MAX_NUM              (4 * 1024 * 1024/ ESPNOW_OTA_PACKET_MAX_SIZE) /**< The maximum number of packets */
 
 /**

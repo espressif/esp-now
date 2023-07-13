@@ -283,7 +283,7 @@ void espnow_recv_cb(const uint8_t *addr, const uint8_t *data, int size)
         uint32_t *magic = ESP_MALLOC(sizeof(uint32_t));
         *magic = frame_head->magic;
 
-        if (!g_ack_queue || queue_over_write(ESPNOW_EVENT_RECV_ACK, magic, sizeof(uint32_t), NULL, 0) != pdPASS) {
+        if (!g_ack_queue || queue_over_write(ESPNOW_EVENT_RECV_ACK, magic, sizeof(uint32_t), NULL, g_espnow_config->send_max_timeout) != pdPASS) {
             ESP_LOGW(TAG, "[%s, %d] Send event queue failed", __func__, __LINE__);
             ESP_FREE(magic);
             return ;
@@ -335,7 +335,7 @@ void espnow_recv_cb(const uint8_t *addr, const uint8_t *data, int size)
             q_data->rx_ctrl.channel = frame_head->channel;
         }
 
-        if (queue_over_write(ESPNOW_EVENT_RECEIVE, q_data, sizeof(espnow_pkt_t) + espnow_data->size, NULL, 0) != pdPASS) {
+        if (queue_over_write(ESPNOW_EVENT_RECEIVE, q_data, sizeof(espnow_pkt_t) + espnow_data->size, NULL, g_espnow_config->send_max_timeout) != pdPASS) {
             ESP_LOGW(TAG, "[%s, %d] Send event queue failed", __func__, __LINE__);
             ESP_FREE(q_data);
             return ;
@@ -359,7 +359,7 @@ FORWARD_DATA:
             q_data->frame_head.forward_ttl--;
         }
 
-        if (!g_espnow_queue || queue_over_write(ESPNOW_EVENT_FORWARD, q_data, size, NULL, 0) != pdPASS) {
+        if (!g_espnow_queue || queue_over_write(ESPNOW_EVENT_FORWARD, q_data, size, NULL, g_espnow_config->send_max_timeout) != pdPASS) {
             ESP_LOGW(TAG, "[%s, %d] Send event queue failed", __func__, __LINE__);
             ESP_FREE(q_data);
             return ;
