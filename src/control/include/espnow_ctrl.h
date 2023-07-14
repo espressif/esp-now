@@ -22,49 +22,60 @@ extern "C" {
 #define ESP_EVENT_ESPNOW_CTRL_UNBIND    (ESP_EVENT_ESPNOW_CTRL_BASE + 1)
 
 /**
+ * @brief Maximum number of device in bind list
+ */
+#define ESPNOW_BIND_LIST_MAX_SIZE  32
+
+/**
  * @brief Control attribute.
  * The high byte is device type, the low byte is device attribute.
  */
 typedef enum {
-    ESPNOW_ATTRIBUTE_BASE           = 0x0000,
-    ESPNOW_ATTRIBUTE_POWER          = 0x0001,
-    ESPNOW_ATTRIBUTE_POWER_ADD      = 0x0002,
+    ESPNOW_ATTRIBUTE_BASE              = 0x0000,
+    ESPNOW_ATTRIBUTE_POWER              = 0x0001,
+    ESPNOW_ATTRIBUTE_POWER_ADD          = 0x0002,
 
-    ESPNOW_ATTRIBUTE_ATTRIBUTE      = 0x0003,
+    ESPNOW_ATTRIBUTE_ATTRIBUTE          = 0x0003,
 
     /**< light */
-    ESPNOW_ATTRIBUTE_LIGHT_BASE     = 0x0100,
-    ESPNOW_ATTRIBUTE_BRIGHTNESS     = 0x0101,
-    ESPNOW_ATTRIBUTE_BRIGHTNESS_ADD = 0x0102,
-    ESPNOW_ATTRIBUTE_HUE            = 0x0103,
-    ESPNOW_ATTRIBUTE_HUE_ADD        = 0x0104,
-    ESPNOW_ATTRIBUTE_SATURATION     = 0x0105,
-    ESPNOW_ATTRIBUTE_SATURATION_ADD = 0x0106,
-    ESPNOW_ATTRIBUTE_WARM           = 0x0107,
-    ESPNOW_ATTRIBUTE_WARM_ADD       = 0x0108,
-    ESPNOW_ATTRIBUTE_COLD           = 0x0109,
-    ESPNOW_ATTRIBUTE_COLD_ADD       = 0x010a,
-    ESPNOW_ATTRIBUTE_RED            = 0x010b,
-    ESPNOW_ATTRIBUTE_RED_ADD        = 0x010c,
-    ESPNOW_ATTRIBUTE_GREEN          = 0x010d,
-    ESPNOW_ATTRIBUTE_GREEN_ADD      = 0x010e,
-    ESPNOW_ATTRIBUTE_BLUE           = 0x010f,
-    ESPNOW_ATTRIBUTE_BLUE_ADD       = 0x0110,
-    ESPNOW_ATTRIBUTE_MODE           = 0x0111,
-    ESPNOW_ATTRIBUTE_MODE_ADD       = 0x0112,
+    ESPNOW_ATTRIBUTE_LIGHT_BASE         = 0x0100,
+    ESPNOW_ATTRIBUTE_BRIGHTNESS         = 0x0101,
+    ESPNOW_ATTRIBUTE_BRIGHTNESS_ADD     = 0x0102,
+    ESPNOW_ATTRIBUTE_HUE                = 0x0103,
+    ESPNOW_ATTRIBUTE_HUE_ADD            = 0x0104,
+    ESPNOW_ATTRIBUTE_SATURATION         = 0x0105,
+    ESPNOW_ATTRIBUTE_SATURATION_ADD     = 0x0106,
+    ESPNOW_ATTRIBUTE_WARM               = 0x0107,
+    ESPNOW_ATTRIBUTE_WARM_ADD           = 0x0108,
+    ESPNOW_ATTRIBUTE_COLD               = 0x0109,
+    ESPNOW_ATTRIBUTE_COLD_ADD           = 0x010a,
+    ESPNOW_ATTRIBUTE_RED                = 0x010b,
+    ESPNOW_ATTRIBUTE_RED_ADD            = 0x010c,
+    ESPNOW_ATTRIBUTE_GREEN              = 0x010d,
+    ESPNOW_ATTRIBUTE_GREEN_ADD          = 0x010e,
+    ESPNOW_ATTRIBUTE_BLUE               = 0x010f,
+    ESPNOW_ATTRIBUTE_BLUE_ADD           = 0x0110,
+    ESPNOW_ATTRIBUTE_MODE               = 0x0111,
+    ESPNOW_ATTRIBUTE_MODE_ADD           = 0x0112,
 
     /**< button */
-    ESPNOW_ATTRIBUTE_BUTTON_BASE    = 0x0200,
-    ESPNOW_ATTRIBUTE_KEY_1          = 0x0201,
-    ESPNOW_ATTRIBUTE_KEY_2          = 0x0202,
-    ESPNOW_ATTRIBUTE_KEY_3          = 0x0203,
-    ESPNOW_ATTRIBUTE_KEY_4          = 0x0204,
-    ESPNOW_ATTRIBUTE_KEY_5          = 0x0205,
-    ESPNOW_ATTRIBUTE_KEY_6          = 0x0206,
-    ESPNOW_ATTRIBUTE_KEY_7          = 0x0207,
-    ESPNOW_ATTRIBUTE_KEY_8          = 0x0208,
-    ESPNOW_ATTRIBUTE_KEY_9          = 0x0209,
-    ESPNOW_ATTRIBUTE_KEY_10         = 0x0210,
+    ESPNOW_ATTRIBUTE_BUTTON_BASE        = 0x0200,
+    ESPNOW_ATTRIBUTE_KEY_1              = 0x0201,
+    ESPNOW_ATTRIBUTE_KEY_2              = 0x0202,
+    ESPNOW_ATTRIBUTE_KEY_3              = 0x0203,
+    ESPNOW_ATTRIBUTE_KEY_4              = 0x0204,
+    ESPNOW_ATTRIBUTE_KEY_5              = 0x0205,
+    ESPNOW_ATTRIBUTE_KEY_6              = 0x0206,
+    ESPNOW_ATTRIBUTE_KEY_7              = 0x0207,
+    ESPNOW_ATTRIBUTE_KEY_8              = 0x0208,
+    ESPNOW_ATTRIBUTE_KEY_9              = 0x0209,
+    ESPNOW_ATTRIBUTE_KEY_10             = 0x0210,
+
+    /**< battery */
+    ESPNOW_ATTRIBUTE_BATTERY_BASE       = 0x0300,
+    ESPNOW_ATTRIBUTE_STATUS_LOW_BATTERY = 0x0301,
+    ESPNOW_ATTRIBUTE_BATTERY_LEVEL      = 0x0302,
+    ESPNOW_ATTRIBUTE_CHARGING_STATE     = 0x0303,
 } espnow_attribute_t;
 
 /**
@@ -225,6 +236,15 @@ esp_err_t espnow_ctrl_responder_set_bindlist(const espnow_ctrl_bind_info_t *info
  *    - others: fail
  */
 esp_err_t espnow_ctrl_responder_remove_bindlist(const espnow_ctrl_bind_info_t *info);
+
+/**
+ * @brief Remove all bound devices from bindlist
+ *
+ * @return
+ *    - ESP_OK: succeed
+ *    - others: fail
+ */
+esp_err_t espnow_ctrl_responder_clear_bindlist(void);
 
 /**
  * @brief  Send control data frame
