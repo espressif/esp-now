@@ -14,13 +14,17 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <fcntl.h>
 
 #include "esp_system.h"
 #include "esp_log.h"
 #include "esp_console.h"
 #include "esp_vfs_dev.h"
 #include "esp_vfs_fat.h"
+#include "esp_vfs_cdcacm.h"
+#include "esp_vfs_usb_serial_jtag.h"
 #include "driver/uart.h"
+#include "driver/usb_serial_jtag.h"
 
 #include "linenoise/linenoise.h"
 #include "argtable3/argtable3.h"
@@ -199,6 +203,7 @@ esp_err_t espnow_console_init(const espnow_console_config_t *config)
         fflush(stdout);
         fsync(fileno(stdout));
 
+#if CONFIG_ESP_CONSOLE_UART
         /* Disable buffering on stdin */
         setvbuf(stdin, NULL, _IONBF, 0);
 
@@ -228,6 +233,41 @@ esp_err_t espnow_console_init(const espnow_console_config_t *config)
 
         /* Tell VFS to use UART driver */
         esp_vfs_dev_uart_use_driver(CONFIG_ESP_CONSOLE_UART_NUM);
+
+#elif CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG
+    /* Disable buffering on stdin */
+    setvbuf(stdin, NULL, _IONBF, 0);
+
+    /* Minicom, screen, idf_monitor send CR when ENTER key is pressed */
+    esp_vfs_dev_usb_serial_jtag_set_rx_line_endings(ESP_LINE_ENDINGS_CR);
+    /* Move the caret to the beginning of the next line on '\n' */
+    esp_vfs_dev_usb_serial_jtag_set_tx_line_endings(ESP_LINE_ENDINGS_CRLF);
+
+    /* Enable non-blocking mode on stdin and stdout */
+    fcntl(fileno(stdout), F_SETFL, 0);
+    fcntl(fileno(stdin), F_SETFL, 0);
+
+    usb_serial_jtag_driver_config_t usb_serial_jtag_config = USB_SERIAL_JTAG_DRIVER_CONFIG_DEFAULT();
+
+    /* Install USB-SERIAL-JTAG driver for interrupt-driven reads and writes */
+    ESP_ERROR_CHECK(usb_serial_jtag_driver_install(&usb_serial_jtag_config));
+
+    /* Tell vfs to use usb-serial-jtag driver */
+    esp_vfs_usb_serial_jtag_use_driver();
+
+#elif CONFIG_ESP_CONSOLE_USB_CDC
+    /* Minicom, screen, idf_monitor send CR when ENTER key is pressed */
+    esp_vfs_dev_cdcacm_set_rx_line_endings(ESP_LINE_ENDINGS_CR);
+    /* Move the caret to the beginning of the next line on '\n' */
+    esp_vfs_dev_cdcacm_set_tx_line_endings(ESP_LINE_ENDINGS_CRLF);
+
+    /* Enable non-blocking mode on stdin and stdout */
+    fcntl(fileno(stdout), F_SETFL, 0);
+    fcntl(fileno(stdin), F_SETFL, 0);
+#else
+    #error "Unknown/unsupported console type"
+#endif
+
     }
 
     initialize_console();
