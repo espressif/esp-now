@@ -29,9 +29,12 @@ This example can run on any ESP32 series boards and at least two development boa
 
 ### coin cell button
 
-Switch example can run on coin cell button which uses ESP32C2 chip. You can reference the schematic as follows:
+Switch example can run on coin cell button which uses ESP32C2 chip. The images below show the front and back view of the coin cell button.
+![button front view](switch/docs/img/coin_cell_button_front.png)
+![button back view](switch/docs/img/coin_cell_button_back.png)
 
-<img src="https://github.com/espressif/esp-now/tree/master/examples/coin_cell_demo/switch/docs/coin_cell_schematic.png" width="800">
+You can reference the schematic as follows:
+![button schematic](switch/docs/img/coin_cell_schematic.png)
 
 ## How to Use the Example
 
@@ -46,9 +49,9 @@ Switch example can run on coin cell button which uses ESP32C2 chip. You can refe
 - Open the project and compile the firmware as default config.
 - Connect the [ESP-Prog](https://espressif-docs.readthedocs-hosted.com/projects/esp-dev-kits/en/latest/other/esp-prog/index.html#) board and button use 2*3-PIN 1.27 mm male shrouded box header.
 - Download the firmware by the command `idf.py -p /dev/ttyUSB1 flash` on Ubuntu or [Flash Download Tools](https://www.espressif.com/sites/default/files/tools/flash_download_tool_3.9.4.zip) on windows.
-- Press and hold the key on the device for more than 3s, it will send the binding command.
+- Press and hold the key on the device for more than 2s, it will send the binding command.
 - Click the key on the device, it will send the control command.
-- Press and hold the key on the device for more than 6s, it will send the unbinding command.
+- Press and hold the key on the device for more than 4s, it will send the unbinding command.
 
 Output sample from the switch:
 
@@ -86,3 +89,7 @@ app_bulb: app_bulb_ctrl_data_cb, initiator_attribute: 513, responder_attribute: 
 ```
 app_bulb: unbind, uuid: 10:97:bd:f2:50:08, initiator_type: 513
 ```
+
+## Other Applications
+
+For application using the coin cell button to work with a [ESP-NOW Matter bridge](https://github.com/espressif/esp-matter/tree/main/examples/esp-now_bridge_light), refer to this [Application Note](switch/docs/button_in_matter_bridging.md).
