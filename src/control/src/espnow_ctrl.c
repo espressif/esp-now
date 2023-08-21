@@ -35,6 +35,7 @@
 
 #define ESPNOW_BIND_LIST_MAX_SIZE  32
 
+extern wifi_country_t g_self_country;
 typedef struct {
     int8_t rssi;
     uint32_t timestamp;
@@ -66,7 +67,6 @@ static espnow_bindlist_t g_bindlist = {0};
 #define ESPNOW_VERSION                  CONFIG_ESPNOW_VERSION
 #endif
 
-static const uint8_t scan_channel_sequence[] = {1, 6, 11, 1, 6, 11, 2, 3, 4, 5, 7, 8, 9, 10, 12, 13};
 static SemaphoreHandle_t g_bind_sem = NULL;
 
 typedef struct {
@@ -162,9 +162,10 @@ static esp_err_t espnow_ctrl_responder_forward(uint8_t type, uint8_t *src_addr, 
     memcpy(espnow_data->payload, data, size);
 
     esp_wifi_get_channel(&primary, &second);
-    while (retransmit_count < RESEND_SCAN_COUNT_MAX) {
-        esp_wifi_set_channel(scan_channel_sequence[(retransmit_count ++) % (sizeof(scan_channel_sequence))], WIFI_SECOND_CHAN_NONE);
+    while (retransmit_count < g_self_country.nchan) {
+        esp_wifi_set_channel(g_self_country.schan + retransmit_count, WIFI_SECOND_CHAN_NONE);
         esp_now_send(ESPNOW_ADDR_BROADCAST, (uint8_t *)espnow_data, espnow_data->size + sizeof(espnow_forward_data_t));
+        retransmit_count++;
     }
     esp_wifi_set_channel(primary, second);
 
@@ -197,10 +198,10 @@ static esp_err_t espnow_ctrl_responder_bind_process(uint8_t *src_addr, void *dat
         if (g_bindlist.cb) {
             bind_cb_flag = g_bindlist.cb(ctrl_data->initiator_attribute, src_addr, rx_ctrl->rssi);
         }
-	else
-	{
-	    bind_cb_flag = true;
-	}
+        else
+        {
+            bind_cb_flag = true;
+        }
 
         if (bind_cb_flag && esp_log_timestamp() < g_bindlist.timestamp && rx_ctrl->rssi > g_bindlist.rssi) {
             ESP_LOGI("control_func", "addr: "MACSTR", initiator_type: %d, initiator_value: %d",
@@ -359,28 +360,42 @@ static esp_err_t espnow_ctrl_initiator_handle(espnow_data_type_t type, espnow_at
         espnow_send(type, ESPNOW_ADDR_BROADCAST, &data, sizeof(espnow_ctrl_data_t), &data.frame_head, portMAX_DELAY);
         bind_sem_ret = xSemaphoreTake(g_bind_sem, pdMS_TO_TICKS(CONFIG_ESPNOW_CONTROL_WAIT_ACK_DURATION));
 
+        if (bind_sem_ret == pdPASS) {
+            break;
+        }
 #ifdef CONFIG_ESPNOW_LIGHT_SLEEP
         esp_sleep_enable_timer_wakeup(CONFIG_ESPNOW_LIGHT_SLEEP_DURATION * 1000);
         esp_light_sleep_start();
 #endif
-    } while (retransmit_count ++ < CONFIG_ESPNOW_CONTROL_RETRANSMISSION_TIMES && bind_sem_ret != pdPASS);
+    } while (retransmit_count ++ < CONFIG_ESPNOW_CONTROL_RETRANSMISSION_TIMES);
 
     if (bind_sem_ret != pdPASS) {
-        retransmit_count = 0;
-        while (retransmit_count < RESEND_SCAN_COUNT_MAX) {
-            data.frame_head.channel = scan_channel_sequence[(retransmit_count ++) % (sizeof(scan_channel_sequence))];
-            espnow_send(type, ESPNOW_ADDR_BROADCAST, &data, sizeof(espnow_ctrl_data_t), &data.frame_head, portMAX_DELAY);
-            bind_sem_ret = xSemaphoreTake(g_bind_sem, pdMS_TO_TICKS(CONFIG_ESPNOW_CONTROL_WAIT_ACK_DURATION));
-
+        for (int i = 0; i < g_self_country.nchan; i++) {
+            if (g_self_country.schan + i == channel) {
+                continue;
+            }
+            data.frame_head.channel = g_self_country.schan + i;
+            retransmit_count = 0;
+            do {
+                espnow_send(type, ESPNOW_ADDR_BROADCAST, &data, sizeof(espnow_ctrl_data_t), &data.frame_head, portMAX_DELAY);
+                bind_sem_ret = xSemaphoreTake(g_bind_sem, pdMS_TO_TICKS(CONFIG_ESPNOW_CONTROL_WAIT_ACK_DURATION));
+                if (bind_sem_ret == pdPASS) {
+                    ret = ESP_OK;
+                    break;
+                } else {
+                    ret = ESP_FAIL;
+                }
 #ifdef CONFIG_ESPNOW_LIGHT_SLEEP
-            esp_sleep_enable_timer_wakeup(CONFIG_ESPNOW_LIGHT_SLEEP_DURATION * 1000);
-            esp_light_sleep_start();
+                if (retransmit_count < CONFIG_ESPNOW_CONTROL_RETRANSMISSION_TIMES || (i < g_self_country.nchan - 1 &&
+                    // !(Second last channel, however last channel is the saved channel)
+                    !(i == g_self_country.nchan - 2 && g_self_country.schan + i + 1 == channel))) {
+                    esp_sleep_enable_timer_wakeup(CONFIG_ESPNOW_LIGHT_SLEEP_DURATION * 1000);
+                    esp_light_sleep_start();
+                }
 #endif
-            if (bind_sem_ret == pdPASS) {
-                ret = ESP_OK;
+            } while (retransmit_count ++ < CONFIG_ESPNOW_CONTROL_RETRANSMISSION_TIMES);
+            if (ret == ESP_OK) {
                 break;
-            } else {
-                ret = ESP_FAIL;
             }
         }
     }

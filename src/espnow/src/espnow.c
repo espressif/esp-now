@@ -135,7 +135,7 @@ const espnow_group_t ESPNOW_ADDR_GROUP_SEC = {'S', 'E', 'C', 0x0, 0x0, 0x0};
 static uint8_t g_msg_magic_cache_next = 0;
 static espnow_frame_head_t g_espnow_frame_head_default = ESPNOW_FRAME_CONFIG_DEFAULT();
 
-static wifi_country_t g_self_country = {0};
+wifi_country_t g_self_country = {0};
 static SemaphoreHandle_t g_send_lock = NULL;
 
 typedef struct espnow_recv_handle {
@@ -592,6 +592,9 @@ esp_err_t espnow_send(espnow_data_type_t type, const espnow_addr_t dest_addr, co
         frame_head->channel = primary;
     } else if (frame_head->channel > 0 && frame_head->channel < ESPNOW_CHANNEL_ALL && frame_head->channel != primary) {
         if (g_set_channel_flag) {
+            ESP_ERROR_GOTO(frame_head->channel >= g_self_country.schan + g_self_country.nchan, EXIT,
+                "Can't set channel %d, not allowed in country %c%c%c.",
+                frame_head->channel, g_self_country.cc[0], g_self_country.cc[1], g_self_country.cc[2]);
             ret = esp_wifi_set_channel(frame_head->channel, WIFI_SECOND_CHAN_NONE);
             ESP_ERROR_GOTO(ret != ESP_OK, EXIT, "esp_wifi_set_channel, err_name: %s", esp_err_to_name(ret));
         } else {
