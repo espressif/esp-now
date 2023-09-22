@@ -1,3 +1,15 @@
+# v2.4.0
+
+Features:
+- Update readme for using the coin cell button to work with a ESP-NOW Matter bridge.
+- Update coin cell switch default config to work with responder in power save.
+
+Fixed:
+- Fix ota spi write error when device encryption is enabled. [#80](https://github.com/espressif/esp-now/pull/80)
+- Fix incorrect condition check for accepting bind request. [#81](https://github.com/espressif/esp-now/pull/81)
+- Fix return type warning when compile use ESP-IDF master branch.
+- Fix transmit on the default allowed channels unless a specific country is set.
+
 # v2.3.0
 
 Features:
