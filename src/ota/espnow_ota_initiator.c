@@ -183,7 +183,7 @@ esp_err_t espnow_ota_initiator_scan(espnow_ota_responder_t **info_list, size_t *
     espnow_ota_info_t request_ota_info = {.type = ESPNOW_OTA_TYPE_REQUEST};
 
     espnow_frame_head_t frame_head = {
-        .retransmit_count = 10,
+        .retransmit_count = CONFIG_ESPNOW_OTA_RETRANSMISSION_TIMES,
         .broadcast        = true,
         .magic            = esp_random(),
         .filter_adjacent_channel = true,
@@ -272,7 +272,7 @@ static esp_err_t espnow_ota_request_status(uint8_t (*progress_array)[ESPNOW_OTA_
     espnow_frame_head_t status_frame = {
         .group = true,
         .broadcast = true,
-        .retransmit_count = 10,
+        .retransmit_count = CONFIG_ESPNOW_OTA_RETRANSMISSION_TIMES,
         .magic    = esp_random(),
         .filter_adjacent_channel = true,
         .forward_ttl      = CONFIG_ESPNOW_OTA_SEND_FORWARD_TTL,
@@ -400,7 +400,7 @@ esp_err_t espnow_ota_initiator_send(const uint8_t addrs_list[][6], size_t addrs_
 
     espnow_frame_head_t frame_head = {
         .broadcast        = true,
-        .retransmit_count = CONFIG_ESPNOW_OTA_SEND_RETRY_NUM,
+        .retransmit_count = CONFIG_ESPNOW_OTA_RETRANSMISSION_TIMES,
         .group            = true,
         .forward_ttl      = CONFIG_ESPNOW_OTA_SEND_FORWARD_TTL,
         .forward_rssi     = CONFIG_ESPNOW_OTA_SEND_FORWARD_RSSI,
