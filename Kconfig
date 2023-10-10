@@ -112,6 +112,43 @@ menu "ESP-NOW Configuration"
 
     endmenu
 
+    menu "ESP-NOW OTA configuration"
+    
+    config ESPNOW_OTA_RETRANSMISSION_TIMES
+        int "Retransmission times when sending an ESP-NOW OTA package from the saved channel"
+        range 1 15
+        default 10
+        help
+            The ESP-NOW package will be sent on the saved channel for this retransmission times
+
+    config ESPNOW_OTA_SEND_RETRY_COUNT
+        int "OTA send retry count"
+        default 50
+        help
+            Number of times initiator will try to update device
+    
+    config ESPNOW_OTA_SEND_FORWARD_TTL
+        int "The max number of hops when forward data"
+        range 1 31
+        default 0
+        help
+            The ESP-NOW OTA package will be forward when the number of hops in data transfer is not zero.
+    
+    config ESPNOW_OTA_SEND_FORWARD_RSSI
+        int "The worst signal of the hop when forward data"
+        range -70 -30
+        default -65
+        help
+            The ESP-NOW OTA package will not be forward when the data packet signal received by the receiving device is lower than the value.
+
+    config ESPNOW_OTA_WAIT_RESPONSE_TIMEOUT
+        int "Time to wait for responder to answer in ms"
+        default 10000
+        range 100 10000
+        help
+            The ESP-NOW OTA will wait for respond for maximum given time
+    endmenu
+
     config ESPNOW_AUTO_RESTORE_CHANNEL
         bool "Restore primary channel at the end of ESP-NOW package sending"
         default n

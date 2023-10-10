@@ -42,7 +42,8 @@ typedef struct {
 static const char *TAG = "espnow_ota_responder";
 static ota_config_t *g_ota_config = NULL;
 static bool g_ota_finished_flag        = false;
-static espnow_frame_head_t g_frame_config = { .security = CONFIG_ESPNOW_OTA_SECURITY };
+static espnow_frame_head_t g_frame_config = { .security = CONFIG_ESPNOW_OTA_SECURITY,
+                                              .retransmit_count = CONFIG_ESPNOW_OTA_RETRANSMISSION_TIMES};
 static espnow_ota_config_t *g_espnow_ota_config = NULL;
 
 static esp_err_t validate_image_header(const esp_partition_t *update)
