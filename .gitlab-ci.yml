@@ -66,13 +66,13 @@ build_idf_v5.1:
   extends: .build_template
   image: espressif/idf:release-v5.1
   variables:
-    TARGETS: "esp32 esp32s2 esp32s3 esp32c2 esp32c3"
+    TARGETS: "esp32 esp32s2 esp32s3 esp32c2 esp32c3 esp32c6"
 
 build_idf_master:
   extends: .build_template
   image: espressif/idf:latest
   variables:
-    TARGETS: "esp32 esp32s2 esp32s3 esp32c2 esp32c3"
+    TARGETS: "esp32 esp32s2 esp32s3 esp32c2 esp32c3 esp32c6"
 
 push_master_to_github:
   stage: deploy

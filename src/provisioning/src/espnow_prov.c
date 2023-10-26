@@ -242,6 +242,7 @@ static espnow_prov_data_t *g_beacon_prov_data = NULL;
 static void responder_beacon_timercb(TimerHandle_t timer)
 {
     if (g_beacon_stop_tick < xTaskGetTickCount()) {
+        vTimerSetReloadMode(timer, pdFALSE);
         xTimerStop(timer, 0);
         xTimerDelete(timer, 0);
         ESP_FREE(g_beacon_prov_data);

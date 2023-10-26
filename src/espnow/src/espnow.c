@@ -257,11 +257,17 @@ void espnow_recv_cb(const uint8_t *addr, const uint8_t *data, int size)
             return ;
         }
     }
-
+#if CONFIG_IDF_TARGET_ESP32C6
+    ESP_LOGD(TAG, "[%s, %d]: " MACSTR ", rssi: %d, channel: %d/%d, size: %d, %s, magic: 0x%x, ack: %d",
+             __func__, __LINE__, MAC2STR(espnow_data->dest_addr), rx_ctrl->rssi, rx_ctrl->channel,
+             rx_ctrl->second, espnow_data->size, espnow_data->payload,
+             frame_head->magic, espnow_data->frame_head.ack);
+#else
     ESP_LOGD(TAG, "[%s, %d]: " MACSTR ", rssi: %d, channel: %d/%d, size: %d, %s, magic: 0x%x, ack: %d",
              __func__, __LINE__, MAC2STR(espnow_data->dest_addr), rx_ctrl->rssi, rx_ctrl->channel,
              rx_ctrl->secondary_channel, espnow_data->size, espnow_data->payload,
              frame_head->magic, espnow_data->frame_head.ack);
+#endif
 
     if (!g_recv_handle[espnow_data->type].enable) {
         goto FORWARD_DATA;

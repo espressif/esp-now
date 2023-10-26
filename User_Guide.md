@@ -42,7 +42,7 @@ End of Life IDF branches are marked as not supported, such as ESP-IDF Release/v4
 
 ## Quick Start
 ### Hardware Preparation
-Chips of ESP32、ESP32-C3、ESP32-S2、ESP32-S3、ESP32C2 are recommended.
+Chips of ESP32、ESP32-C3、ESP32-S2、ESP32-S3、ESP32C2、ESP32-C6 are recommended.
 
 ### Set up Development Environment
 Setting the environment and getting ESP-IDF (release/v4.4 or tag v4.4) follow the [Step](https://docs.espressif.com/projects/esp-idf/en/release-v4.4/esp32/index.html) .
