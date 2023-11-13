@@ -176,7 +176,7 @@ static int scan_func(int argc, char **argv)
 
     uint8_t addr[ESPNOW_ADDR_LEN] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
 
-    char *data = "beacon";
+    const char *data = "beacon";
     espnow_frame_head_t frame_head = {
         .retransmit_count = ESPNOW_RETRANSMIT_MAX_COUNT,
         .broadcast = true,
