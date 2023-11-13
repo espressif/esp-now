@@ -32,7 +32,7 @@ esp_err_t espnow_timesync_start()
         return ESP_OK;
     }
 
-    char *sntp_server_name = CONFIG_ESP_SNTP_SERVER_NAME;
+    const char *sntp_server_name = CONFIG_ESP_SNTP_SERVER_NAME;
 
     ESP_LOGI(TAG, "Initializing SNTP. Using the SNTP server: %s", sntp_server_name);
     sntp_setoperatingmode(SNTP_OPMODE_POLL);
