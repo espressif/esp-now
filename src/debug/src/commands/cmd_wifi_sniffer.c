@@ -53,7 +53,7 @@ typedef enum {
 } sniffer_wlan_filter_t;
 
 typedef struct {
-    char *filter_name;
+    const char *filter_name;
     uint32_t filter_val;
 } wlan_filter_table_t;
 
@@ -114,7 +114,7 @@ static uint32_t hash_func(const char *str, uint32_t max_num)
 
 static void create_wifi_filter_hashtable()
 {
-    char *wifi_filter_keys[SNIFFER_WLAN_FILTER_MAX] = {"mgmt", "data", "ctrl", "misc", "mpdu", "ampdu"};
+    const char *wifi_filter_keys[SNIFFER_WLAN_FILTER_MAX] = {"mgmt", "data", "ctrl", "misc", "mpdu", "ampdu"};
     uint32_t wifi_filter_values[SNIFFER_WLAN_FILTER_MAX] = { WIFI_PROMIS_FILTER_MASK_MGMT, WIFI_PROMIS_FILTER_MASK_DATA,
                                                              WIFI_PROMIS_FILTER_MASK_CTRL, WIFI_PROMIS_FILTER_MASK_MISC,
                                                              WIFI_PROMIS_FILTER_MASK_DATA_MPDU, WIFI_PROMIS_FILTER_MASK_DATA_AMPDU
