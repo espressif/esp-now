@@ -150,6 +150,8 @@ static void control_task(void *pvParameter)
 #define CONTROL_KEY_GPIO      GPIO_NUM_0
 #elif CONFIG_IDF_TARGET_ESP32S3
 #define CONTROL_KEY_GPIO      GPIO_NUM_0
+#elif CONFIG_IDF_TARGET_ESP32C6
+#define CONTROL_KEY_GPIO      GPIO_NUM_9
 #endif
 
 static void app_switch_send_press_cb(void *arg, void *usr_data)

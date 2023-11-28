@@ -46,6 +46,9 @@
 #define CONTROL_KEY_GPIO      GPIO_NUM_0
 // For old version board, the number is 48.
 #define LED_STRIP_GPIO        GPIO_NUM_38
+#elif CONFIG_IDF_TARGET_ESP32C6
+#define CONTROL_KEY_GPIO      GPIO_NUM_9
+#define LED_STRIP_GPIO        GPIO_NUM_8
 #endif
 
 static const char *TAG = "app_main";

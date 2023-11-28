@@ -61,6 +61,8 @@ static const char *TAG = "app";
 #elif CONFIG_IDF_TARGET_ESP32S3
 // For old version board, the number is 48.
 #define LED_STRIP_GPIO        GPIO_NUM_38
+#elif CONFIG_IDF_TARGET_ESP32C6
+#define LED_STRIP_GPIO        GPIO_NUM_8
 #endif
 
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
