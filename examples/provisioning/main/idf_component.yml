@@ -1,5 +1,5 @@
 dependencies:
-  idf: ">=4.3"
+  idf: ">=4.4"
   esp-now:
     version: "2.*"
     override_path: "../../.."

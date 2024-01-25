@@ -59,12 +59,6 @@ build_docs:
         - cd docs
         - build-docs -t esp32 esp32s2 esp32s3 esp32c2 esp32c3 esp32c6 -l en
 
-build_idf_v4.3:
-  extends: .build_template
-  image: espressif/idf:release-v4.3
-  variables:
-    TARGETS: "esp32 esp32s2 esp32c3"
-
 build_idf_v4.4:
   extends: .build_template
   image: espressif/idf:release-v4.4
@@ -80,6 +74,12 @@ build_idf_v5.0:
 build_idf_v5.1:
   extends: .build_template
   image: espressif/idf:release-v5.1
+  variables:
+    TARGETS: "esp32 esp32s2 esp32s3 esp32c2 esp32c3 esp32c6"
+
+build_idf_v5.2:
+  extends: .build_template
+  image: espressif/idf:release-v5.2
   variables:
     TARGETS: "esp32 esp32s2 esp32s3 esp32c2 esp32c3 esp32c6"
 

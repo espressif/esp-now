@@ -12,7 +12,7 @@ dependencies:
   qrcode: "^0.1.0"
   ## Required IDF version
   idf:
-    version: ">=4.3"
+    version: ">=4.4"
   esp-now:
     version: "2.*"
     override_path: "../../.."
