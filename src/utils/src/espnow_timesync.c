@@ -19,7 +19,9 @@
 
 #define REF_TIME        1577808000 /* 2020-01-01 00:00:00 */
 #define DEFAULT_TICKS   (2000 / portTICK_PERIOD_MS) /* 2 seconds in ticks */
+#ifndef CONFIG_ESP_SNTP_SERVER_NAME
 #define CONFIG_ESP_SNTP_SERVER_NAME "pool.ntp.org"
+#endif
 
 static bool g_init_done = false;
 static const char *TAG = "esp_timesync";
