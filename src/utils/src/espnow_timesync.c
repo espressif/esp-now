@@ -19,7 +19,9 @@
 
 #define REF_TIME        1577808000 /* 2020-01-01 00:00:00 */
 #define DEFAULT_TICKS   (2000 / portTICK_PERIOD_MS) /* 2 seconds in ticks */
+#ifndef CONFIG_ESP_SNTP_SERVER_NAME
 #define CONFIG_ESP_SNTP_SERVER_NAME "pool.ntp.org"
+#endif
 
 static bool g_init_done = false;
 static const char *TAG = "esp_timesync";
@@ -32,7 +34,7 @@ esp_err_t espnow_timesync_start()
         return ESP_OK;
     }
 
-    char *sntp_server_name = CONFIG_ESP_SNTP_SERVER_NAME;
+    const char *sntp_server_name = CONFIG_ESP_SNTP_SERVER_NAME;
 
     ESP_LOGI(TAG, "Initializing SNTP. Using the SNTP server: %s", sntp_server_name);
     sntp_setoperatingmode(SNTP_OPMODE_POLL);

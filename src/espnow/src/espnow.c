@@ -552,11 +552,6 @@ esp_err_t espnow_send(espnow_data_type_t type, const espnow_addr_t dest_addr, co
         memcpy(espnow_data->payload, data, size);
     }
 
-    espnow_data->version = ESPNOW_VERSION;
-    espnow_data->type = type;
-    memcpy(espnow_data->dest_addr, dest_addr, 6);
-    memcpy(espnow_data->src_addr, ESPNOW_ADDR_SELF, 6);
-
     if (data_head) {
         memcpy(&espnow_data->frame_head, data_head, sizeof(espnow_frame_head_t));
     } else {
@@ -580,6 +575,11 @@ esp_err_t espnow_send(espnow_data_type_t type, const espnow_addr_t dest_addr, co
     if (frame_head->retransmit_count == 0) {
         frame_head->retransmit_count = 1;
     }
+
+    espnow_data->version = ESPNOW_VERSION;
+    espnow_data->type = type;
+    memcpy(espnow_data->dest_addr, dest_addr, 6);
+    memcpy(espnow_data->src_addr, ESPNOW_ADDR_SELF, 6);
 
     ESP_LOGD(TAG, "[%s, %d] addr: " MACSTR", size: %d, count: %d, rssi: %d, data: %s, magic: 0x%x",
              __func__, __LINE__, MAC2STR(dest_addr), espnow_data->size, frame_head->retransmit_count,
