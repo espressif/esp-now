@@ -46,7 +46,7 @@ typedef struct {
     };
     uint8_t custom_size;
     uint8_t custom_data[0];
-} espnow_prov_initiator_t;
+} __attribute__((packed)) espnow_prov_initiator_t;
 
 /**
  * @brief Responder information
@@ -54,7 +54,7 @@ typedef struct {
 typedef struct {
     char product_id[16];
     char device_name[16];
-} espnow_prov_responder_t;
+} __attribute__((packed)) espnow_prov_responder_t;
 
 /**
  * @brief WiFi configuration
@@ -68,7 +68,7 @@ typedef struct {
     char token[32];            /**< Token of the WiFi configuration */
     uint8_t custom_size;       /**< Customer data size */
     uint8_t custom_data[0];    /**< Customer data */
-} espnow_prov_wifi_t;
+} __attribute__((packed)) espnow_prov_wifi_t;
 
 /**
  * @brief  The provision data callback function
