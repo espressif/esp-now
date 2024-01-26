@@ -77,7 +77,7 @@ typedef esp_err_t (*espnow_log_custom_write_cb)(const char *data, size_t size, c
 /**
  * @brief Log sending configuration
  */
-typedef struct {
+typedef struct espnow_log_config_s {
     esp_log_level_t log_level_uart;                 /**< Level of log printed from uart */
     esp_log_level_t log_level_flash;                /**< Level of log stored in flash */
     esp_log_level_t log_level_espnow;               /**< Level of log sent from espnow */

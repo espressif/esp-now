@@ -68,7 +68,7 @@ extern "C" {
 /**
  * @brief Firmware upgrade information
  */
-typedef struct {
+typedef struct espnow_ota_info_s {
     uint8_t type;               /**< Packet type */
     esp_app_desc_t app_desc;    /**< Description about application */
 } espnow_ota_info_t;
@@ -76,7 +76,7 @@ typedef struct {
 /**
  * @brief Responder upgrade information
  */
-typedef struct {
+typedef struct espnow_ota_responder_s {
     uint8_t mac[6];             /**< Mac address of responder */
     int8_t rssi;                /**< Packet rssi */
     uint8_t channel;            /**< Responder channel */
@@ -96,17 +96,17 @@ typedef enum {
 /**
  * @brief Firmware packet
  */
-typedef struct {
+typedef struct espnow_ota_packet_s {
     uint8_t type;                               /**< Type of packet, ESPNOW_OTA_TYPE_DATA */
     uint16_t seq;                               /**< Sequence */
     uint8_t size;                               /**< Size */
     uint8_t data[ESPNOW_OTA_PACKET_MAX_SIZE];   /**< Firmware */
-} __attribute__((packed)) espnow_ota_packet_t;
+} ESPNOW_PACKED_STRUCT espnow_ota_packet_t;
 
 /**
  * @brief Upgrade configuration
  */
-typedef struct {
+typedef struct espnow_ota_config_s {
     bool skip_version_check;          /**< Skip checking the running version with the upgrade version */
     uint8_t progress_report_interval; /**< Percentage interval to save OTA status and report ota status event */
 } espnow_ota_config_t;
@@ -114,7 +114,7 @@ typedef struct {
 /**
  * @brief Status packet
  */
-typedef struct {
+typedef struct espnow_ota_status_s {
     uint8_t type;                           /**< Type of packet, ESPNOW_OTA_TYPE_STATUS */
     uint8_t sha_256[ESPNOW_OTA_HASH_LEN];   /**< Unique identifier of the firmware */
     int16_t error_code;                     /**< Upgrade status */
@@ -123,12 +123,12 @@ typedef struct {
     uint32_t written_size;                  /**< The length of the flash has been written */
     uint8_t progress_index;                 /**< Identify if each packet of data has been written */
     uint8_t progress_array[0][ESPNOW_OTA_PROGRESS_MAX_SIZE]; /**< Identify if each packet of data has been written */
-} __attribute__((packed)) espnow_ota_status_t;
+} ESPNOW_PACKED_STRUCT espnow_ota_status_t;
 
 /**
  * @brief List of device status during the upgrade process
  */
-typedef struct {
+typedef struct espnow_ota_result_s {
     size_t unfinished_num;          /**< The number of devices to be upgraded */
     espnow_addr_t *unfinished_addr; /**< MAC address of devices to be upgraded */
 

@@ -49,7 +49,7 @@ typedef enum {
 /**
  * @brief Security information
  */
-typedef struct {
+typedef struct espnow_sec_info_s {
     uint8_t type;               /**< ESPNOW_SEC_TYPE_REQUEST or ESPNOW_SEC_TYPE_INFO */
     uint8_t sec_ver;            /**< Security version */
     uint8_t client_mac[6];      /**< Mac address of initiator */
@@ -58,7 +58,7 @@ typedef struct {
 /**
  * @brief Responder security information
  */
-typedef struct {
+typedef struct espnow_sec_responder_s {
     uint8_t mac[6];             /**< Mac address of responder */
     int8_t rssi;                /**< Packet rssi */
     uint8_t channel;            /**< The channel of responder */
@@ -68,16 +68,16 @@ typedef struct {
 /**
  * @brief Handshake packet
  */
-typedef struct {
+typedef struct espnow_sec_packet_s {
     uint8_t type;               /**< Type of packet, ESPNOW_SEC_TYPE_HANDSHAKE */
     uint8_t size;               /**< Size */
     uint8_t data[0];            /**< Message */
-} __attribute__((packed)) espnow_sec_packet_t;
+} ESPNOW_PACKED_STRUCT espnow_sec_packet_t;
 
 /**
  * @brief List of device status during the security process
  */
-typedef struct {
+typedef struct espnow_sec_result_s {
     size_t unfinished_num;          /**< The number of devices to be set key */
     espnow_addr_t *unfinished_addr; /**< MAC address of devices to be set key */
 
@@ -118,8 +118,8 @@ esp_err_t espnow_sec_initiator_scan_result_free(void);
  *
  * @param[in]  key_info  the security key info to sent to responder
  * @param[in]  pop_data  Proof of Possession (PoP) string
- * @param[in]  dest_addrs  destination nodes of mac
- * @param[in]  dest_addrs_num  number of destination nodes
+ * @param[in]  addrs_list  destination nodes of mac
+ * @param[in]  addrs_num  number of destination nodes
  * @param[out]  res  must call espnow_sec_initiator_result_free to free memory
  *
  * @return

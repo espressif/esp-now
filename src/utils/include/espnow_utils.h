@@ -29,7 +29,11 @@ extern "C"
 {
 #endif
 
-typedef struct espnow_time_config {
+/**
+ * @brief The SNTP server configuration.
+ *
+ */
+typedef struct espnow_time_config_s {
     /** If not specified, then 'CONFIG_ESP_SNTP_SERVER_NAME' is used as the SNTP server. */
     char *sntp_server_name;
 } espnow_time_config_t;

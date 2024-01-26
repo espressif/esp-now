@@ -81,7 +81,7 @@ typedef enum {
 /**
  * @brief Bind information from initiator
  */
-typedef struct {
+typedef struct espnow_ctrl_bind_info_s {
     uint8_t mac[6];                         /**< Initiator's MAC address */
     espnow_attribute_t initiator_attribute; /**< Initiator's attribute */
 } espnow_ctrl_bind_info_t;
@@ -89,7 +89,7 @@ typedef struct {
 /**
  * @brief Control data from initiator
  */
-typedef struct {
+typedef struct espnow_ctrl_data_s {
 #ifdef CONFIG_ESPNOW_CONTROL_AUTO_CHANNEL_SENDING
     espnow_frame_head_t frame_head;
 #endif
