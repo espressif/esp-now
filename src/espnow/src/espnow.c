@@ -643,7 +643,7 @@ esp_err_t espnow_send(espnow_data_type_t type, const espnow_addr_t dest_addr, co
             } while (frame_head->ack && ++count < frame_head->retransmit_count);
 
             ESP_ERROR_CONTINUE(ret != ESP_OK, "[%s, %d] <%s> esp_now_send, channel: %d",
-                               __func__, __LINE__, esp_err_to_name(ret), g_self_country.schan + i);
+                               __func__, __LINE__, esp_err_to_name(ret), frame_head->channel == ESPNOW_CHANNEL_ALL ? g_self_country.schan + i : primary);
         }
     }
 
