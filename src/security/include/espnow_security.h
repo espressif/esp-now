@@ -44,7 +44,7 @@ typedef enum {
 /**
  * @brief Struct of security
  */
-typedef struct {
+typedef struct espnow_sec_s {
     int state;                  /**< State defined by espnow_sec_state_t */
     uint8_t key[KEY_LEN];       /**< Secret key */
     uint8_t iv[IV_LEN];         /**< The initialization vector (nonce) */

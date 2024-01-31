@@ -24,7 +24,7 @@ extern "C" {
 /**
  * @brief Console configuration
  */
-typedef struct {
+typedef struct espnow_console_config_s {
     struct {
         bool uart;                  /**< Receiving command from uart */
         bool espnow;                /**< Receiving command from espnow */

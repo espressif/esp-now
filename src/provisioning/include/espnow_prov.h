@@ -15,6 +15,7 @@
 #pragma once
 
 #include "esp_system.h"
+#include "espnow.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -35,31 +36,31 @@ typedef enum {
 /**
  * @brief Initiator information
  */
-typedef struct {
-    char product_id[16];
-    char device_name[16];
-    espnow_prov_auth_mode_t auth_mode;
+typedef struct espnow_prov_initiator_s {
+    char product_id[16];                /**< Product ID */
+    char device_name[16];               /**< Device name */
+    espnow_prov_auth_mode_t auth_mode;  /**< Authentication mode of provisioning */
     union {
-        char device_secret[32];
-        char product_secret[32];
-        char cert_secret[32];
+        char device_secret[32];         /**< Device security key */
+        char product_secret[32];        /**< Product security key */
+        char cert_secret[32];           /**< Certify security key */
     };
-    uint8_t custom_size;
-    uint8_t custom_data[0];
-} __attribute__((packed)) espnow_prov_initiator_t;
+    uint8_t custom_size;                /**< Customer data size */
+    uint8_t custom_data[0];             /**< Customer data */
+} ESPNOW_PACKED_STRUCT espnow_prov_initiator_t;
 
 /**
  * @brief Responder information
  */
-typedef struct {
-    char product_id[16];
-    char device_name[16];
-} __attribute__((packed)) espnow_prov_responder_t;
+typedef struct espnow_prov_responder_s {
+    char product_id[16];                /**< Product ID */
+    char device_name[16];               /**< Device name */
+} ESPNOW_PACKED_STRUCT espnow_prov_responder_t;
 
 /**
  * @brief WiFi configuration
  */
-typedef struct {
+typedef struct espnow_prov_wifi_s {
     wifi_mode_t mode;          /**< WiFi mode */
     union {
         wifi_ap_config_t  ap;  /**< Configuration of AP */
@@ -68,7 +69,7 @@ typedef struct {
     char token[32];            /**< Token of the WiFi configuration */
     uint8_t custom_size;       /**< Customer data size */
     uint8_t custom_data[0];    /**< Customer data */
-} __attribute__((packed)) espnow_prov_wifi_t;
+} ESPNOW_PACKED_STRUCT espnow_prov_wifi_t;
 
 /**
  * @brief  The provision data callback function

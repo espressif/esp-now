@@ -23,6 +23,7 @@
 extern "C" {
 #endif /**< _cplusplus */
 
+#define ESPNOW_PACKED_STRUCT                __attribute__ ((packed))
 #define ESPNOW_PAYLOAD_LEN                  (230)
 
 #ifdef CONFIG_ESPNOW_APP_SECURITY
@@ -32,20 +33,19 @@ extern "C" {
 #endif
 
 #define ESPNOW_ADDR_LEN                     (6)
-#define ESPNOW_DECLARE_COMMON_ADDR(addr)    extern const uint8_t addr[6];
 #define ESPNOW_ADDR_IS_EMPTY(addr)          (((addr)[0] | (addr)[1] | (addr)[2] | (addr)[3] | (addr)[4] | (addr)[5]) == 0x0)
 #define ESPNOW_ADDR_IS_BROADCAST(addr)      (((addr)[0] & (addr)[1] & (addr)[2] & (addr)[3] & (addr)[4] & (addr)[5]) == 0xFF)
 #define ESPNOW_ADDR_IS_SELF(addr)           !memcmp(addr, ESPNOW_ADDR_SELF, 6)
 #define ESPNOW_ADDR_IS_EQUAL(addr1, addr2)  !memcmp(addr1, addr2, 6)
 
-typedef uint8_t (espnow_addr_t)[6];
-typedef uint8_t (espnow_group_t)[6];
+typedef uint8_t espnow_addr_t[6];
+typedef uint8_t espnow_group_t[6];
 
-ESPNOW_DECLARE_COMMON_ADDR(ESPNOW_ADDR_NONE);
-ESPNOW_DECLARE_COMMON_ADDR(ESPNOW_ADDR_BROADCAST);
-ESPNOW_DECLARE_COMMON_ADDR(ESPNOW_ADDR_GROUP_OTA);
-ESPNOW_DECLARE_COMMON_ADDR(ESPNOW_ADDR_GROUP_SEC);
-ESPNOW_DECLARE_COMMON_ADDR(ESPNOW_ADDR_GROUP_PROV);
+extern const uint8_t ESPNOW_ADDR_NONE[6];
+extern const uint8_t ESPNOW_ADDR_BROADCAST[6];
+extern const uint8_t ESPNOW_ADDR_GROUP_OTA[6];
+extern const uint8_t ESPNOW_ADDR_GROUP_SEC[6];
+extern const uint8_t ESPNOW_ADDR_GROUP_PROV[6];
 
 /**
  * @brief Declaration of the task events family
@@ -75,26 +75,26 @@ typedef struct {
     bool forward_enable             : 1;    /**< Forward when packets are received */
     bool forward_switch_channel     : 1;    /**< Forward data packet with exchange channel */
     bool sec_enable                 : 1;    /**< Encrypt ESP-NOW data payload when send and decrypt when receive */
-    uint8_t reverse                 : 5;
+    uint8_t reserved1               : 5;    /**< Reserved */
     uint8_t qsize;                          /**< Size of packet buffer queue */
     uint8_t send_retry_num;                 /**< Number of retransmissions */
     uint32_t send_max_timeout;              /**< Maximum timeout */
     struct {
-        bool ack                    : 1;
-        bool forward                : 1;
-        bool group                  : 1;
-        bool provisoning            : 1;
-        bool control_bind           : 1;
-        bool control_data           : 1;
-        bool ota_status             : 1;
-        bool ota_data               : 1;
-        bool debug_log              : 1;
-        bool debug_command          : 1;
-        bool data                   : 1;
-        bool sec_status             : 1;
-        bool sec                    : 1;
-        bool sec_data               : 1;
-        uint32_t reserved           : 18;
+        bool ack                    : 1;    /**< Enable or disable ACK */
+        bool forward                : 1;    /**< Enable or disable forword */
+        bool group                  : 1;    /**< Enable or disable group */
+        bool provisoning            : 1;    /**< Enable or disable provisoning */
+        bool control_bind           : 1;    /**< Enable or disable control bind */
+        bool control_data           : 1;    /**< Enable or disable control data */
+        bool ota_status             : 1;    /**< Enable or disable OTA status */
+        bool ota_data               : 1;    /**< Enable or disable OTA data */
+        bool debug_log              : 1;    /**< Enable or disable debug LOG */
+        bool debug_command          : 1;    /**< Enable or disable debug command */
+        bool data                   : 1;    /**< Enable or disable data */
+        bool sec_status             : 1;    /**< Enable or disable security status */
+        bool sec                    : 1;    /**< Enable or disable security */
+        bool sec_data               : 1;    /**< Enable or disable security data */
+        uint32_t reserved2          : 18;   /**< Reserved */
     } receive_enable;            /**< Set 1 to enable receiving the corresponding ESP-NOW data type */
 } espnow_config_t;
 
@@ -103,7 +103,7 @@ typedef struct {
     .forward_enable = 1, \
     .forward_switch_channel = 0, \
     .sec_enable = 0, \
-    .reverse = 0,   \
+    .reserved1 = 0,   \
     .qsize = 32, \
     .send_retry_num = 10, \
     .send_max_timeout = pdMS_TO_TICKS(3000),\
@@ -122,7 +122,7 @@ typedef struct {
                 .sec_status    = 0, \
                 .sec           = 0, \
                 .sec_data      = 0, \
-                .reserved      = 0, \
+                .reserved2     = 0, \
                 }, \
     }
 
@@ -151,7 +151,7 @@ typedef enum {
 /**
  * @brief Frame header of espnow
  */
-typedef struct {
+typedef struct espnow_frame_head_s {
     uint16_t magic;                    /**< Unique identifier of each packet. Packets with the same identifier will be filtered. 0: a random number */
     uint8_t channel              : 4;  /**< Set the channel where the packet is sent, ESPNOW_CHANNEL_CURRENT or ESPNOW_CHANNEL_ALL */
     bool filter_adjacent_channel : 1;  /**< Because ESP-NOW is sent through HT20, it can receive packets from adjacent channels */
@@ -169,7 +169,7 @@ typedef struct {
     uint8_t forward_ttl         : 5;  /**< Number of hops in data transfer */
     int8_t forward_rssi         : 8;  /**< When the data packet signal received by the receiving device is lower than forward_rssi, it will not be transferred,
                                            in order to avoid network congestion caused by packet transfer */
-} __attribute__((packed)) espnow_frame_head_t;
+} ESPNOW_PACKED_STRUCT espnow_frame_head_t;
 
 #define ESPNOW_FRAME_CONFIG_DEFAULT() \
     { \
@@ -189,7 +189,7 @@ esp_err_t espnow_add_peer(const espnow_addr_t addr, const uint8_t *lmk);
 /**
  * @brief When used for unicast, delete the target device
  *
- * @param[in]     peer MAC address
+ * @param[in]     addr MAC address
  *
  * @return
  *    - ESP_OK

@@ -44,6 +44,21 @@ before_script:
   script:
     - *build_all_examples_script
 
+build_docs:
+    stage: build
+    image: $CI_DOCKER_REGISTRY/esp-idf-doc-env-v5.3:1-1
+    variables:
+        ESP_DOCS_LATEST_BRANCH_NAME: "main"
+    artifacts:
+        when: always
+        paths:
+            - docs/_build/*/*/*.txt
+            - docs/_build/*/*/html/*
+        expire_in: 1 days
+    script:
+        - cd docs
+        - build-docs -t esp32 esp32s2 esp32s3 esp32c2 esp32c3 esp32c6 -l en
+
 build_idf_v4.3:
   extends: .build_template
   image: espressif/idf:release-v4.3
