@@ -522,6 +522,10 @@ esp_err_t espnow_send(espnow_data_type_t type, const espnow_addr_t dest_addr, co
         ESP_ERROR_RETURN(!(g_espnow_sec && g_espnow_sec->state == ESPNOW_SEC_OVER), ESP_FAIL, "Security key is not set");
         size_t enc_len = 0;
         espnow_data = ESP_MALLOC(sizeof(espnow_data_t) + size + g_espnow_sec->tag_len + IV_LEN);
+        if (!espnow_data) {
+            ESP_LOGE(TAG, "Not enough memory!");
+            return ret;
+        }
         uint8_t key_info[APP_KEY_LEN];
         uint8_t iv_info[IV_LEN];
 
@@ -548,6 +552,10 @@ esp_err_t espnow_send(espnow_data_type_t type, const espnow_addr_t dest_addr, co
         }
     } else {
         espnow_data = ESP_MALLOC(sizeof(espnow_data_t) + size);
+        if (!espnow_data) {
+            ESP_LOGE(TAG, "Not enough memory!");
+            return ret;
+        }
         espnow_data->size = size;
         memcpy(espnow_data->payload, data, size);
     }
@@ -578,8 +586,8 @@ esp_err_t espnow_send(espnow_data_type_t type, const espnow_addr_t dest_addr, co
 
     espnow_data->version = ESPNOW_VERSION;
     espnow_data->type = type;
-    memcpy(espnow_data->dest_addr, dest_addr, 6);
-    memcpy(espnow_data->src_addr, ESPNOW_ADDR_SELF, 6);
+    memcpy(espnow_data->dest_addr, dest_addr, sizeof(espnow_data->dest_addr));
+    memcpy(espnow_data->src_addr, ESPNOW_ADDR_SELF, sizeof(espnow_data->src_addr));
 
     ESP_LOGD(TAG, "[%s, %d] addr: " MACSTR", size: %d, count: %d, rssi: %d, data: %s, magic: 0x%x",
              __func__, __LINE__, MAC2STR(dest_addr), espnow_data->size, frame_head->retransmit_count,
