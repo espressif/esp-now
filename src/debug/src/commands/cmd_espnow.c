@@ -285,11 +285,13 @@ static esp_err_t initiator_recv_callback(uint8_t *src_addr, void *data,
     ESP_PARAM_CHECK(rx_ctrl);
 
     espnow_prov_wifi_t *wifi_config = (espnow_prov_wifi_t *)data;
+    wifi_config_t wifi_sta_config = { 0 };
+    memcpy(&wifi_sta_config, &wifi_config->sta, sizeof(wifi_config->sta));
     ESP_LOGI(TAG, "MAC: "MACSTR", Channel: %d, RSSI: %d, wifi_mode: %d, ssid: %s, password: %s, token: %s",
                 MAC2STR(src_addr), rx_ctrl->channel, rx_ctrl->rssi,
                 wifi_config->mode, wifi_config->sta.ssid, wifi_config->sta.password, wifi_config->token);
 
-    ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_STA, (wifi_config_t *)&wifi_config->sta));
+    ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_STA, &wifi_sta_config));
     ESP_ERROR_CHECK(esp_wifi_connect());
     return ESP_OK;
 }
