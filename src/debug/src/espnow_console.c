@@ -24,6 +24,9 @@
 #include "esp_vfs_cdcacm.h"
 #include "esp_vfs_usb_serial_jtag.h"
 #include "driver/uart.h"
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 3, 0)
+#include "driver/uart_vfs.h"
+#endif
 #include "driver/usb_serial_jtag.h"
 
 #include "linenoise/linenoise.h"
@@ -207,10 +210,17 @@ esp_err_t espnow_console_init(const espnow_console_config_t *config)
         /* Disable buffering on stdin */
         setvbuf(stdin, NULL, _IONBF, 0);
 
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 3, 0)
+        /* Minicom, screen, idf_monitor send CR when ENTER key is pressed */
+        uart_vfs_dev_port_set_rx_line_endings(CONFIG_ESP_CONSOLE_UART_NUM, ESP_LINE_ENDINGS_CR);
+        /* Move the caret to the beginning of the next line on '\n' */
+        uart_vfs_dev_port_set_tx_line_endings(CONFIG_ESP_CONSOLE_UART_NUM, ESP_LINE_ENDINGS_CRLF);
+#else
         /* Minicom, screen, idf_monitor send CR when ENTER key is pressed */
         esp_vfs_dev_uart_port_set_rx_line_endings(CONFIG_ESP_CONSOLE_UART_NUM, ESP_LINE_ENDINGS_CR);
         /* Move the caret to the beginning of the next line on '\n' */
         esp_vfs_dev_uart_port_set_tx_line_endings(CONFIG_ESP_CONSOLE_UART_NUM, ESP_LINE_ENDINGS_CRLF);
+#endif
 
         /* Configure UART. Note that REF_TICK is used so that the baud rate remains
         * correct while APB frequency is changing in light sleep mode.
@@ -231,8 +241,13 @@ esp_err_t espnow_console_init(const espnow_console_config_t *config)
                                             256, 0, 0, NULL, 0));
         ESP_ERROR_CHECK(uart_param_config(CONFIG_ESP_CONSOLE_UART_NUM, &uart_config));
 
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 3, 0)
+        /* Tell VFS to use UART driver */
+        uart_vfs_dev_use_driver(CONFIG_ESP_CONSOLE_UART_NUM);
+#else
         /* Tell VFS to use UART driver */
         esp_vfs_dev_uart_use_driver(CONFIG_ESP_CONSOLE_UART_NUM);
+#endif
 
 #elif CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG
     /* Disable buffering on stdin */

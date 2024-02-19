@@ -15,7 +15,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-#include <sys/param.h>
+#include <sys/queue.h>
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/event_groups.h"
