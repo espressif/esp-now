@@ -1,3 +1,22 @@
+# v2.5.0
+
+Features:
+- Control attribute is mostly meaningless. [#82](https://github.com/espressif/esp-now/issues/82)
+- Control functionality improvments. [#84](https://github.com/espressif/esp-now/issues/84)
+- Update document for match the components. [#85](https://github.com/espressif/esp-now/issues/85)
+- Support USB Serial JTAG and USB CDC console. [#86](https://github.com/espressif/esp-now/issues/86)
+- Add Kconfig options for esp-now OTA. [#94](https://github.com/espressif/esp-now/issues/94)
+- Add ESP32C6 supported. [#97](https://github.com/espressif/esp-now/issues/97)
+- Obtain vue project sources to web server of wireless_debug example.[#100](https://github.com/espressif/esp-now/issues/100)
+- Change ESP-IDF version to v4.4.x.
+
+Fixed:
+
+- Fix provisioning doesn't work when enable CONFIG_ESPNOW_APP_SECURITY.[#103](https://github.com/espressif/esp-now/issues/103)
+- Fix an issue of init error after deinit.[#104](https://github.com/espressif/esp-now/issues/104)
+- Fix Wrong channel logged on send error. [#106](https://github.com/espressif/esp-now/issues/106)
+- Fix Some API is deprecated which cause compile waring. [#111](https://github.com/espressif/esp-now/issues/111)
+
 # v2.4.0
 
 Features:
