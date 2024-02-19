@@ -108,11 +108,27 @@ static int espnow_config_func(int argc, char **argv)
         ESP_ERROR_CHECK(esp_wifi_set_channel(espnow_config_args.channel->ival[0], WIFI_SECOND_CHAN_NONE));
     }
 
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(4, 3, 0)
     if (espnow_config_args.rate->count) {
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 1, 0)
+        if (espnow_config_args.rate->count == 4) {
+            uint8_t peer[ESPNOW_ADDR_LEN] = {0};
+            esp_now_rate_config_t rate_config = {
+                .phymode = espnow_config_args.rate->ival[0],
+                .rate = espnow_config_args.rate->ival[1],
+                .ersu = espnow_config_args.rate->ival[2],
+                .dcm = espnow_config_args.rate->ival[3],
+            };
+            ESP_LOGI(TAG, "Set rate config: phymode %d, rate %d, ersu %d, dcm %d", rate_config.phymode, rate_config.rate, rate_config.ersu, rate_config.dcm);
+            ESP_ERROR_CHECK(esp_wifi_get_mac(ESP_IF_WIFI_STA, peer));
+            ESP_ERROR_CHECK(esp_now_set_peer_rate_config(peer, &rate_config));
+        } else {
+            ESP_LOGE(TAG, "Loss rate config value");
+            return ESP_FAIL;
+        }
+#else
         ESP_ERROR_CHECK(esp_wifi_config_espnow_rate(ESP_IF_WIFI_STA, espnow_config_args.rate->ival[0]));
-    }
 #endif
+    }
 
     if (espnow_config_args.tx_power->count) {
         ESP_ERROR_CHECK(esp_wifi_set_max_tx_power(espnow_config_args.tx_power->ival[0]));
@@ -129,7 +145,9 @@ void register_espnow_config()
 {
     espnow_config_args.channel     = arg_int0("c", "channel", "<channel (1 ~ 13)>", "Channel of ESP-NOW");
     espnow_config_args.country_code  = arg_str0("C", "country_code", "<country_code ('CN', 'JP, 'US')>", "Set the current country code");
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(4, 3, 0)
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 1, 0)
+    espnow_config_args.rate     = arg_intn("r", "rate", "<phymode (wifi_phy_mode_t) rate (wifi_phy_rate_t) ersu (0|1) dcm (0|1)>", 0, 4, "Wi-Fi PHY rate encodings");
+#else
     espnow_config_args.rate     = arg_int0("r", "rate", "<rate (wifi_phy_rate_t)>", "Wi-Fi PHY rate encodings");
 #endif
     espnow_config_args.protocol = arg_int0("p", "protocol", "<protocol_bitmap[1, 2, 4, 8]>", "Set protocol type of specified interface");
