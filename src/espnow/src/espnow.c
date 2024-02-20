@@ -1018,6 +1018,7 @@ static void wifi_event_handler(void *arg, esp_event_base_t event_base,
 esp_err_t espnow_init(const espnow_config_t *config)
 {
     ESP_LOGI(TAG, "esp-now Version: %d.%d.%d", ESP_NOW_VER_MAJOR, ESP_NOW_VER_MINOR, ESP_NOW_VER_PATCH);
+    wifi_ap_record_t ap_info;
 
     ESP_PARAM_CHECK(config);
 
@@ -1036,6 +1037,14 @@ esp_err_t espnow_init(const espnow_config_t *config)
     ESP_ERROR_RETURN(!g_send_lock, ESP_FAIL, "Create send semaphore mutex fail");
 
     ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT, ESP_EVENT_ANY_ID, wifi_event_handler, NULL));
+
+    /* There may be chances that another Wi-Fi application has already connected to AP before ESP-NOW
+     * registers wifi_event_handler. Check AP info here to avoid missing WIFI_EVENT_STA_CONNECTED action.
+     */
+    if (esp_wifi_sta_get_ap_info(&ap_info) == ESP_OK) {
+        ESP_LOGI(TAG, "device already connected to SSID: %s", ap_info.ssid);
+        g_set_channel_flag = false;
+    }
 
     if (config->sec_enable) {
         g_espnow_sec = ESP_MALLOC(sizeof(espnow_sec_t));
