@@ -116,9 +116,11 @@ static int espnow_config_func(int argc, char **argv)
                 .phymode = espnow_config_args.rate->ival[0],
                 .rate = espnow_config_args.rate->ival[1],
                 .ersu = espnow_config_args.rate->ival[2],
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 1, 3)
                 .dcm = espnow_config_args.rate->ival[3],
+#endif
             };
-            ESP_LOGI(TAG, "Set rate config: phymode %d, rate %d, ersu %d, dcm %d", rate_config.phymode, rate_config.rate, rate_config.ersu, rate_config.dcm);
+            ESP_LOGI(TAG, "Set rate config: phymode %d, rate %d, ersu %d, dcm %d", rate_config.phymode, rate_config.rate, rate_config.ersu, espnow_config_args.rate->ival[3]);
             ESP_ERROR_CHECK(esp_wifi_get_mac(ESP_IF_WIFI_STA, peer));
             ESP_ERROR_CHECK(esp_now_set_peer_rate_config(peer, &rate_config));
         } else {
