@@ -361,13 +361,14 @@ static esp_err_t espnow_ctrl_initiator_handle(espnow_data_type_t type, espnow_at
     espnow_storage_get(ESPNOW_CHANNEL_KEY, &channel, sizeof(channel));
     espnow_ctrl_data_t data = {
         .frame_head = {
-            .broadcast        = true,
-            .forward_ttl      = CONFIG_ESPNOW_CONTROL_FORWARD_TTL,
-            .forward_rssi     = CONFIG_ESPNOW_CONTROL_FORWARD_RSSI,
-            .magic            = esp_random(),
-            .ack              = true,
-            .channel          = channel,
-            .security         = CONFIG_ESPNOW_CONTROL_SECURITY,
+            .broadcast                  = true,
+            .forward_ttl                = CONFIG_ESPNOW_CONTROL_FORWARD_TTL,
+            .forward_rssi               = CONFIG_ESPNOW_CONTROL_FORWARD_RSSI,
+            .magic                      = esp_random(),
+            .ack                        = true,
+            .channel                    = channel,
+            .filter_adjacent_channel    = true,
+            .security                   = CONFIG_ESPNOW_CONTROL_SECURITY,
         },
         .initiator_attribute = initiator_attribute,
         .responder_attribute = responder_attribute,
@@ -383,8 +384,10 @@ static esp_err_t espnow_ctrl_initiator_handle(espnow_data_type_t type, espnow_at
             break;
         }
 #ifdef CONFIG_ESPNOW_LIGHT_SLEEP
+        esp_wifi_force_wakeup_release();
         esp_sleep_enable_timer_wakeup(CONFIG_ESPNOW_LIGHT_SLEEP_DURATION * 1000);
         esp_light_sleep_start();
+        esp_wifi_force_wakeup_acquire();
 #endif
     } while (retransmit_count ++ < CONFIG_ESPNOW_CONTROL_RETRANSMISSION_TIMES);
 
@@ -408,8 +411,10 @@ static esp_err_t espnow_ctrl_initiator_handle(espnow_data_type_t type, espnow_at
                 if (retransmit_count < CONFIG_ESPNOW_CONTROL_RETRANSMISSION_TIMES || (i < g_self_country.nchan - 1 &&
                     // !(Second last channel, however last channel is the saved channel)
                     !(i == g_self_country.nchan - 2 && g_self_country.schan + i + 1 == channel))) {
+                    esp_wifi_force_wakeup_release();
                     esp_sleep_enable_timer_wakeup(CONFIG_ESPNOW_LIGHT_SLEEP_DURATION * 1000);
                     esp_light_sleep_start();
+                    esp_wifi_force_wakeup_acquire();
                 }
 #endif
             } while (retransmit_count ++ < CONFIG_ESPNOW_CONTROL_RETRANSMISSION_TIMES);

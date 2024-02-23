@@ -565,7 +565,6 @@ esp_err_t espnow_send(espnow_data_type_t type, const espnow_addr_t dest_addr, co
     } else {
         memcpy(&espnow_data->frame_head, &g_espnow_frame_head_default, sizeof(espnow_frame_head_t));
     }
-
     frame_head = &espnow_data->frame_head;
 
     if (enc) {
