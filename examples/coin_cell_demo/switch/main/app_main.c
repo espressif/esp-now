@@ -57,8 +57,10 @@ static espnow_task_state_t task_state = ESPNOW_TASK_STATE_SEND_RECORD;
 
 static void set_light_sleep(uint32_t ms)
 {
+    esp_wifi_force_wakeup_release();
     esp_sleep_enable_timer_wakeup(ms * 1000);
     esp_light_sleep_start();
+    esp_wifi_force_wakeup_acquire();
     esp_sleep_wakeup_cause_t cause = esp_sleep_get_wakeup_cause();
     const char *cause_str;
     switch (cause) {
@@ -215,6 +217,7 @@ void app_main(void)
     espnow_config_t espnow_config = ESPNOW_INIT_CONFIG_DEFAULT();
     espnow_config.send_max_timeout = portMAX_DELAY;
     espnow_init(&espnow_config);
+    esp_now_set_wake_window(0);
 
 #ifdef CONFIG_EXAMPLE_USE_COIN_CELL_BUTTON
     xTaskCreate(control_task, "control_task", 4096*2, NULL, 15, NULL);
