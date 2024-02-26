@@ -47,10 +47,6 @@ static bool g_info_en = false;
 #define CONFIG_ESPNOW_OTA_RETRY_COUNT           50
 #endif
 
-#ifndef CONFIG_ESPNOW_OTA_SEND_RETRY_NUM
-#define CONFIG_ESPNOW_OTA_SEND_RETRY_NUM        1
-#endif
-
 #ifndef CONFIG_ESPNOW_OTA_SEND_FORWARD_TTL
 #define CONFIG_ESPNOW_OTA_SEND_FORWARD_TTL      0
 #endif
