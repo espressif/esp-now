@@ -243,6 +243,7 @@ static esp_err_t protocomm_espnow_initiator_start(const protocomm_security_t *pr
     espnow_sec_packet_t *req_data = ESP_MALLOC(ESPNOW_DATA_LEN);
     espnow_sec_packet_t *response_data = ESP_MALLOC(ESPNOW_DATA_LEN);
     espnow_sec_result_t *result = ESP_CALLOC(1, sizeof(espnow_sec_result_t));
+                         result->successed_addr = ESP_CALLOC(addrs_num, ESPNOW_ADDR_LEN);
     ssize_t  response_size = 0;
     ssize_t  outlen = 0;
     uint8_t *outbuf = NULL;
@@ -326,6 +327,7 @@ static esp_err_t protocomm_espnow_initiator_start(const protocomm_security_t *pr
                 if (req_data->type == ESPNOW_SEC_TYPE_KEY_RESP) {
                     ESP_LOGD(TAG, "Session %d successful, mac "MACSTR"", session_id, MAC2STR(src_addr));
                     addrs_remove(result->unfinished_addr, &result->unfinished_num, src_addr);
+                    memcpy(result->successed_addr[result->successed_num], src_addr, ESPNOW_ADDR_LEN);
                     result->successed_num ++;
                     if (++success_addrs_num == current_addrs_num) {
                         break;
