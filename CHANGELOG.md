@@ -1,3 +1,15 @@
+# v2.5.1
+
+Doc:
+- docs: Update application note with country channel change.
+
+Fixed:
+- Fix: missing successful MAC list when exchanging keys.[#113](https://github.com/espressif/esp-now/issues/113)
+- Fix: Fix an issue of OTA data send
+- Fix: Fix an compile issue
+- Fix: AEG-1318: ESP-NOW may miss WIFI_EVENT_STA_CONNECTED
+- Fix: readme remove incorrect notes
+
 # v2.5.0
 
 Features:
