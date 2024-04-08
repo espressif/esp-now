@@ -14,6 +14,7 @@
 
 #include <string.h>
 #include <ctype.h>
+#include <dirent.h>
 
 /**< SD card module head files */
 #include <sys/unistd.h>
