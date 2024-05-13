@@ -85,7 +85,7 @@ static void app_uart_read_task(void *arg)
         ret = espnow_send(ESPNOW_DATA_TYPE_DATA, ESPNOW_ADDR_BROADCAST, data, size, &frame_head, portMAX_DELAY);
         ESP_ERROR_CONTINUE(ret != ESP_OK, "<%s> espnow_send", esp_err_to_name(ret));
 
-        ESP_LOGI(TAG, "espnow_send, count: %" PRIu32 ", size: %u, %s data: %s", count++, size, s_sec_flag ? "plaintext" : "ciphertext", data);
+        ESP_LOGI(TAG, "espnow_send, count: %" PRIu32 ", size: %u, %s data: %s", count++, size, s_sec_flag ? "ciphertext" : "plaintext", data);
         memset(data, 0, ESPNOW_DATA_LEN);
     }
 
