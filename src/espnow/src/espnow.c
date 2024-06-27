@@ -302,12 +302,17 @@ void espnow_recv_cb(const uint8_t *addr, const uint8_t *data, int size)
 
         ESP_LOGD(TAG, ">1.2< group_id: " MACSTR ", dest_addr: " MACSTR,
                  MAC2STR(group_info->group_id), MAC2STR(espnow_data->dest_addr));
-        ESP_LOGD(TAG, ">1.2< addr_mun: %d, dest_addr: " MACSTR, group_info->addrs_num,
+        ESP_LOGD(TAG, ">1.2< addrs_num: %d, dest_addr: " MACSTR, group_info->addrs_num,
                  MAC2STR(group_info->addrs_list[0]));
 
         if (group_info->addrs_num == 1 && ESPNOW_ADDR_IS_BROADCAST(group_info->addrs_list[0])) {
             set_group_flag = true;
         } else {
+            if (espnow_data->size < (sizeof(espnow_group_info_t) + group_info->addrs_num * ESPNOW_ADDR_LEN)) {
+                ESP_LOGD(TAG, "[%s, %d] The size %d of the data must match with total size for addrs_num: %d", __func__, __LINE__, espnow_data->size, group_info->addrs_num);
+                return;
+            }
+
             for (size_t i = 0; i < group_info->addrs_num; i++) {
                 if (ESPNOW_ADDR_IS_SELF(group_info->addrs_list[i])) {
                     set_group_flag = true;
@@ -735,13 +740,13 @@ esp_err_t espnow_set_group(const uint8_t addrs_list[][ESPNOW_ADDR_LEN], size_t a
     }
 
     group_info->type = type;
-    group_info->addrs_num = addrs_num;
     memcpy(group_info->group_id, group_id, ESPNOW_ADDR_LEN);
 
     for (int i = 0; addrs_num > 0; ++i) {
         size_t send_addrs_num = (addrs_num > 32) ? 32 : addrs_num;
         addrs_num -= send_addrs_num;
         espnow_data->size = sizeof(espnow_group_info_t) + send_addrs_num * ESPNOW_ADDR_LEN;
+        group_info->addrs_num = send_addrs_num;
         memcpy(group_info->addrs_list, addrs_list + i * 32, send_addrs_num * ESPNOW_ADDR_LEN);
         frame_head->magic += i;
 
