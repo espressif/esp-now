@@ -6,4 +6,10 @@ menu "Example Configuration"
         help
             By default, this demo uses the coin cell button to control the bulb, but if you don't have such button, you can use other ESP32 series DevKit to simulate, if so, please set this option to N.
 
+    config EXAMPLE_SWITCH_STATUS_PERSISTED
+        bool "Persist switch status in nvs"
+        default n
+        help
+            If switch status is persisted in nvs, status value is stored in nvs and represents ON or OFF. If it is not persisted, status value represents TOGGLE.
+
 endmenu

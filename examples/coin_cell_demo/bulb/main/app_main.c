@@ -155,10 +155,11 @@ static void app_bulb_ctrl_data_cb(espnow_attribute_t initiator_attribute,
 {
     ESP_LOGI(TAG, "app_bulb_ctrl_data_cb, initiator_attribute: %d, responder_attribute: %d, value: %" PRIu32 "",
              initiator_attribute, responder_attribute, status);
+    /* status = 0: OFF, 1: ON, 2: TOGGLE */
     if (status != s_bulb_status) {
-        s_bulb_status = status;
+        s_bulb_status ^= 1;
         app_set_bulb_status();
-        if (status) {
+        if (s_bulb_status) {
             app_led_set_color(255, 255, 255);
         } else {
             app_led_set_color(0, 0, 0);
@@ -168,7 +169,7 @@ static void app_bulb_ctrl_data_cb(espnow_attribute_t initiator_attribute,
 
 static void app_bulb_init(void)
 {
-    ESP_ERROR_CHECK(espnow_ctrl_responder_bind(30 * 1000, -55, NULL));
+    ESP_ERROR_CHECK(espnow_ctrl_responder_bind(30 * 60 * 1000, -55, NULL));
     espnow_ctrl_responder_data(app_bulb_ctrl_data_cb);
 }
 

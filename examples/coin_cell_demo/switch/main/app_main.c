@@ -88,10 +88,15 @@ static void control_task(void *pvParameter)
 
     for (;;) {
         if (task_state == ESPNOW_TASK_STATE_SEND_RECORD) {
-            bool status = 0;
+            uint8_t status = 0;
+            /* status = 0: OFF, 1: ON, 2: TOGGLE */
+#if CONFIG_EXAMPLE_SWITCH_STATUS_PERSISTED
             espnow_storage_get(BULB_STATUS_KEY, &status, sizeof(status));
-            status = !status;
+            status ^= 1;
             espnow_storage_set(BULB_STATUS_KEY, &status, sizeof(status));
+#else
+            status = 2;
+#endif
             ESP_LOGI(TAG, "switch send press");
             espnow_ctrl_initiator_send(ESPNOW_ATTRIBUTE_KEY_1, ESPNOW_ATTRIBUTE_POWER, status);
 
@@ -158,15 +163,21 @@ static void control_task(void *pvParameter)
 
 static void app_switch_send_press_cb(void *arg, void *usr_data)
 {
-    bool status = 0;
+    uint8_t status = 0;
 
     ESP_ERROR_CHECK(!(BUTTON_SINGLE_CLICK == iot_button_get_event(arg)));
 
     ESP_LOGI(TAG, "switch send press");
+    /* status = 0: OFF, 1: ON, 2: TOGGLE */
+#if CONFIG_EXAMPLE_SWITCH_STATUS_PERSISTED
     espnow_storage_get(BULB_STATUS_KEY, &status, sizeof(status));
-    espnow_ctrl_initiator_send(ESPNOW_ATTRIBUTE_KEY_1, ESPNOW_ATTRIBUTE_POWER, status);
-    status = !status;
+    status ^= 1;
     espnow_storage_set(BULB_STATUS_KEY, &status, sizeof(status));
+#else
+    status = 2;
+#endif
+    ESP_LOGI(TAG, "key status: %d", status);
+    espnow_ctrl_initiator_send(ESPNOW_ATTRIBUTE_KEY_1, ESPNOW_ATTRIBUTE_POWER, status);
 }
 
 static void app_switch_bind_press_cb(void *arg, void *usr_data)
