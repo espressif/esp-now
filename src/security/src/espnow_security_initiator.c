@@ -242,8 +242,7 @@ static esp_err_t protocomm_espnow_initiator_start(const protocomm_security_t *pr
     uint8_t src_addr[6] = {0};
     espnow_sec_packet_t *req_data = ESP_MALLOC(ESPNOW_DATA_LEN);
     espnow_sec_packet_t *response_data = ESP_MALLOC(ESPNOW_DATA_LEN);
-    espnow_sec_result_t *result = ESP_CALLOC(1, sizeof(espnow_sec_result_t));
-                         result->successed_addr = ESP_CALLOC(addrs_num, ESPNOW_ADDR_LEN);
+    espnow_sec_result_t *result = res;
     ssize_t  response_size = 0;
     ssize_t  outlen = 0;
     uint8_t *outbuf = NULL;
@@ -264,6 +263,10 @@ static esp_err_t protocomm_espnow_initiator_start(const protocomm_security_t *pr
     int retry_count = (addrs_num % MAX_NUM == 0) ? (addrs_num / MAX_NUM + 1) : (addrs_num / MAX_NUM + 2);
     g_sec_initiator_flag = true;
 
+    if (!res) {
+        result = ESP_CALLOC(1, sizeof(espnow_sec_result_t));
+    }
+    result->successed_addr = ESP_CALLOC(addrs_num, ESPNOW_ADDR_LEN);
     result->unfinished_num  = addrs_num;
     result->unfinished_addr = ESP_CALLOC(result->unfinished_num, ESPNOW_ADDR_LEN);
     memcpy(result->unfinished_addr, addrs_list, result->unfinished_num * ESPNOW_ADDR_LEN);
@@ -404,17 +407,14 @@ exit_init:
 
     }
 
-    if (res) {
-        memcpy(res, result, sizeof(espnow_sec_result_t));
-    } else {
-        espnow_sec_initiator_result_free(result);
-    }
-
     g_sec_initiator_flag = false;
 
     ESP_FREE(req_data);
     ESP_FREE(response_data);
-    ESP_FREE(result);
+    if (!res) {
+        espnow_sec_initiator_result_free(result);
+        ESP_FREE(result);
+    }
 
     return ret;
 }
