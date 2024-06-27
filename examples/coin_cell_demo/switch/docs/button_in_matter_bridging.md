@@ -23,8 +23,14 @@ As the coin cell battery and the capacitor is connected, when button is released
 
 ### Configurations
 
-A few configurations are applied to try to reduce the power consumption of the button device.
+A few configurations are applied to try to speed up the execution and reduce the power consumption of the button device.
 
+* `CONFIG_ESPTOOLPY_FLASHMODE_QIO=y`: Set flash mode to QIO.
+* `CONFIG_BOOT_ROM_LOG_ALWAYS_OFF=y`: Disable the boot ROM logging.
+* `CONFIG_BOOTLOADER_SKIP_VALIDATE_ALWAYS=y`: Skip image validation always.
+* `CONFIG_BOOTLOADER_LOG_LEVEL_NONE=y`: Let bootloader logging level to none.
+* `CONFIG_BOOTLOADER_COMPILER_OPTIMIZATION_PERF=y`: Set bootloader optimization level to -O2.
+* `CONFIG_COMPILER_OPTIMIZATION_PERF=y`: Set application optimization level to -O2.
 * `CONFIG_ESP_PHY_RF_CAL_NONE=y`: This disables the RF calibration during bootup.
 * `CONFIG_LOG_DEFAULT_LEVEL_NONE=y`: This disables all logs.
 * `CONFIG_ESPNOW_LIGHT_SLEEP=y`: This asks the device to enter light sleep before starting the next transmission.
@@ -88,8 +94,8 @@ With these configurations, it is guaranteed that one of the transmissions on the
 
 The measurement below is based on the above configurations. The software versions are:
 
-* ESP-NOW: v2.4.0, commit: 9d1589
-* IDF: release/v5.2, commit: bf8163
+* ESP-NOW: v2.5.1, commit: 655639
+* IDF: release/v5.2.1, commit: a322e6
 * ESP-NOW Responder: [ESP-NOW Matter bridge](https://github.com/espressif/esp-matter/tree/main/examples/esp-now_bridge_light) in esp-matter commit f5ba14
 
 #### Binding
@@ -110,7 +116,7 @@ The figure below shows a typical control power consumption with 1 transmission, 
 
 ![One Transmission](./img/pc_03-one-tx.png)
 
-The total time from boot up to power off is about 137ms, with average current about 21mA. For the transmission alone, it takes about 19ms and average current about 63mA.
+The total time from boot up to power off is about 126ms, with average current about 21mA. For the transmission alone, it takes about 16ms and average current about 75mA.
 
 ##### Three Transmissions
 
@@ -118,7 +124,7 @@ The figure below shows a power consumption involving retransmissions. It can be 
 
 ![Three Transmissions](./img/pc_04-three-tx.png)
 
-Average consumption is about 30mA in 240ms. The 3 transmission is about 45mA in 123ms.
+Average consumption is about 32mA in 227ms. The 3 transmission is about 49mA in 119ms.
 
 #### Unbind
 
@@ -187,13 +193,13 @@ Comparing this graph and the previous binding graph, transmission spends about t
 
 ![One Transmission](./img/pc_03-one-tx-2.png)
 
-Comparing this graph and the previous one-transmission graph, we can have a similar conclusion. The transmission time is about the same. The related current consumption is about 0.5mA less. The total time is about 1ms less and the average current consumption is about 2mA less.
+Comparing this graph and the previous one-transmission graph, we can have a similar conclusion. The transmission time is about the same. The related current consumption is about 1.7mA less. The total time is about 1.6ms less and the average current consumption is about 0.8mA less.
 
 ##### Three Transmissions
 
 ![Three Transmissions](./img/pc_04-three-tx-2.png)
 
-Comparing the three-transmission graph, now the new configurations have a clear advantage. The 3 transmissions take about the same amount of time (123ms) as the gap before retransmission is still 50ms, whereas the average current is reduced from 45mA to 31mA. This is because the active wait time is reduced by 10ms and light sleep time is increased by 10ms. The same amount of time is spent in sleeping instead of active waiting.
+Comparing the three-transmission graph, now the new configurations have a clear advantage. The 3 transmissions take about the same amount of time (119ms) as the gap before retransmission is still 50ms, whereas the average current is reduced from 49mA to 37mA. This is because the active wait time is reduced by 10ms and light sleep time is increased by 10ms. The same amount of time is spent in sleeping instead of active waiting.
 
 #### Channel Switch
 
@@ -256,62 +262,62 @@ $$225 \times 25\% = 56.25mAh$$
 
 |Task            |Time (ms) |Current (mA) |Charge (mAh) |
 |----------------|----------|-------------|-------------|
-|1 Transmission  |136.7     |21.4         |0.00081      |
-|3 Transmissions |240.1     |30.3         |0.00202      |
+|1 Transmission  |125.6     |20.8         |0.00073      |
+|3 Transmissions |227.3     |31.8         |0.002        |
 |Channel Switch  |1596.4    |39.0         |0.01729      |
 
 * If all controls can be completed in 1 transmission
 
 50 times of 1-transmission and 1 channel switch:
 
-$$0.00081 \times 50 + 0.01729 = 0.05779mAh$$
+$$0.00073 \times 50 + 0.01729 = 0.05379mAh$$
 
 The battery can last for
 
-$$56.25 \div 0.05779 = 973 days \approx 2.67 years$$
+$$56.25 \div 0.05379 = 1046 days \approx 2.87 years$$
 
 * If all controls need 3 transmissions
 
 50 times of 3-transmission and 1 channel switch:
 
-$$0.00202 \times 50 + 0.01729 = 0.11829mAh$$
+$$0.002 \times 50 + 0.01729 = 0.11729mAh$$
 
 The battery can last for
 
-$$56.25 \div 0.11829 = 476 days \approx 1.30 years$$
+$$56.25 \div 0.11729 = 480 days \approx 1.31 years$$
 
-In estimate, the battery can last between 1.30 to 2.67 years.
+In estimate, the battery can last between 1.31 to 2.87 years.
 
 #### Configuration 2
 
 |Task            |Time (ms) |Current (mA) |Charge (mAh) |
 |----------------|----------|-------------|-------------|
-|1 Transmission  |135.8     |20.8         |0.000785     |
-|3 Transmissions |239.6     |22.9         |0.00152      |
+|1 Transmission  |124.0     |20.0         |0.000689     |
+|3 Transmissions |229.1     |25.3         |0.00161      |
 |Channel Switch  |1539.5    |24.7         |0.01056      |
 
 * If all controls can be completed in 1 transmission
 
 50 times of 1-transmission and 1 channel switch:
 
-$$0.000785 \times 50 + 0.01056 = 0.04981mAh$$
+$$0.000689 \times 50 + 0.01056 = 0.04501mAh$$
 
 The battery can last for
 
-$$56.25 \div 0.04981 = 1129 days \approx 3.09 years$$
+$$56.25 \div 0.04501 = 1250 days \approx 3.42 years$$
 
 * If all controls need 3 transmissions
 
 50 times of 3-transmission and 1 channel switch:
 
-$$0.00152 \times 50 + 0.01056 = 0.08656mAh$$
+$$0.00161 \times 50 + 0.01056 = 0.09106mAh$$
 
 The battery can last for
 
-$$56.25 \div 0.08656 = 650 days \approx 1.78 years$$
+$$56.25 \div 0.09106 = 618 days \approx 1.70 years$$
 
-In estimate, the battery can last between 1.78 to 3.09 years.
+In estimate, the battery can last between 1.7 to 3.42 years.
 
 #### Conclusion
 
-From the calculation both configurations can achieve more than 1 year of battery life. The configuration 2 achieves better results than configuration 1 by 15.7% (1-transmission) to 36.9% (3-transmission).
+From the calculation both configurations can achieve more than 1 year of battery life. The configuration 2 achieves better results than configuration 1 by 19.2% (1-transmission) to 29.8% (3-transmission).
