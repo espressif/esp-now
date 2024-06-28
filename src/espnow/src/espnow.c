@@ -873,7 +873,9 @@ static esp_err_t espnow_send_forward(espnow_data_t *espnow_data)
     ESP_LOGD(TAG, "[%s, %d], " MACSTR ", total: %d, type: %d, magic: 0x%x", __func__, __LINE__,
             MAC2STR(espnow_data->src_addr),  espnow_data->size, espnow_data->type, frame_head->magic);
 
-    for (int count = 0; !count || count < frame_head->retransmit_count; ++count) {
+    uint32_t start_ticks      = xTaskGetTickCount();
+    uint32_t max_ticks        = pdMS_TO_TICKS(g_espnow_config->send_max_timeout);
+    for (int count = 0; !count || ((count < frame_head->retransmit_count) && (max_ticks > (xTaskGetTickCount() - start_ticks))); ++count) {
         for (int i = 0;  i == 0 || (frame_head->channel == ESPNOW_CHANNEL_ALL && i < g_self_country.nchan && g_set_channel_flag && g_espnow_config->forward_switch_channel); ++i) {
 
             if (frame_head->channel == ESPNOW_CHANNEL_ALL && g_set_channel_flag && g_espnow_config->forward_switch_channel) {
