@@ -288,8 +288,8 @@ static esp_err_t espnow_ota_write(const espnow_addr_t src_addr, const espnow_ota
 
     /**< Save OTA status periodically, it can be used to
          resumable data transfers from breakpoint after system reset */
+    static uint32_t s_next_written_percentage = 0;
     if (g_espnow_ota_config->progress_report_interval) {
-        static uint32_t s_next_written_percentage = 0;
         uint32_t written_percentage = g_ota_config->status.written_size * 100 / g_ota_config->status.total_size;
 
         if (!s_next_written_percentage) {
@@ -317,6 +317,7 @@ static esp_err_t espnow_ota_write(const espnow_addr_t src_addr, const espnow_ota
     }
 
     if (g_ota_config->status.written_size == g_ota_config->status.total_size) {
+        s_next_written_percentage = 0;
         ESP_LOG_BUFFER_CHAR_LEVEL(TAG, g_ota_config->status.progress_array,
                                   ESPNOW_OTA_PROGRESS_MAX_SIZE, ESP_LOG_VERBOSE);
         ESP_LOGI(TAG, "Write total_size: %d, written_size: %d, spend time: %ds",
