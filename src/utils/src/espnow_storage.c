@@ -143,7 +143,6 @@ esp_err_t espnow_storage_get(const char *key, void *value, size_t length)
     nvs_close(handle);
 
     if (ret == ESP_ERR_NVS_NOT_FOUND) {
-        ESP_LOGD(TAG, "<ESP_ERR_NVS_NOT_FOUND> Get value for given key, key: %s", key);
         return ESP_ERR_NVS_NOT_FOUND;
     }
 

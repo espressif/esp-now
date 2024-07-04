@@ -18,8 +18,9 @@ extern "C" {
 /**
  * @brief Enumerated list of control event id
  */
-#define ESP_EVENT_ESPNOW_CTRL_BIND      (ESP_EVENT_ESPNOW_CTRL_BASE + 0)
-#define ESP_EVENT_ESPNOW_CTRL_UNBIND    (ESP_EVENT_ESPNOW_CTRL_BASE + 1)
+#define ESP_EVENT_ESPNOW_CTRL_BIND          (ESP_EVENT_ESPNOW_CTRL_BASE + 0)
+#define ESP_EVENT_ESPNOW_CTRL_UNBIND        (ESP_EVENT_ESPNOW_CTRL_BASE + 1)
+#define ESP_EVENT_ESPNOW_CTRL_BIND_ERROR    (ESP_EVENT_ESPNOW_CTRL_BASE + 2)
 
 /**
  * @brief Maximum number of device in bind list
@@ -77,6 +78,13 @@ typedef enum {
     ESPNOW_ATTRIBUTE_BATTERY_LEVEL      = 0x0302,
     ESPNOW_ATTRIBUTE_CHARGING_STATE     = 0x0303,
 } espnow_attribute_t;
+
+typedef enum {
+    ESPNOW_BIND_ERROR_NONE,
+    ESPNOW_BIND_ERROR_TIMEOUT,
+    ESPNOW_BIND_ERROR_RSSI,
+    ESPNOW_BIND_ERROR_LIST_FULL,
+} espnow_ctrl_bind_error_t;
 
 /**
  * @brief Bind information from initiator

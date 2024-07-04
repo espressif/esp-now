@@ -97,7 +97,6 @@ static void espnow_load_bindlist(void)
     if(!g_bindlist.is_init) {
         espnow_storage_get("bindlist", &g_bindlist, sizeof(g_bindlist));
         g_bindlist.is_init = true;
-
     }
 }
 
@@ -214,8 +213,8 @@ static esp_err_t espnow_ctrl_responder_bind_process(uint8_t *src_addr, void *dat
 #endif
 
     if (ctrl_data->responder_value_b) {
-        ESP_LOGI(TAG, "bind, esp_log_timestamp: %d, timestamp: %d, rssi: %d, rssi: %d",
-                    esp_log_timestamp(), g_timestamp, rx_ctrl->rssi, g_rssi);
+        ESP_LOGI(TAG, "bind, timestamp: %d, max timestamp: %d, rssi: %d, min rssi: %d, bindlist size: %d",
+                    esp_log_timestamp(), g_timestamp, rx_ctrl->rssi, g_rssi, g_bindlist.size);
 
         bool bind_cb_flag = false;
 
@@ -225,7 +224,19 @@ static esp_err_t espnow_ctrl_responder_bind_process(uint8_t *src_addr, void *dat
             bind_cb_flag = true;
         }
 
-        if (bind_cb_flag && esp_log_timestamp() < g_timestamp && rx_ctrl->rssi > g_rssi) {
+        espnow_ctrl_bind_error_t bind_error = ESPNOW_BIND_ERROR_NONE;
+        if (esp_log_timestamp() > g_timestamp) {
+            bind_error = ESPNOW_BIND_ERROR_TIMEOUT;
+        } else if (rx_ctrl->rssi < g_rssi) {
+            bind_error = ESPNOW_BIND_ERROR_RSSI;
+        } else if (g_bindlist.size >= ESPNOW_BIND_LIST_MAX_SIZE) {
+            bind_error = ESPNOW_BIND_ERROR_LIST_FULL;
+        }
+
+        if (bind_error != ESPNOW_BIND_ERROR_NONE) {
+            esp_event_post(ESP_EVENT_ESPNOW, ESP_EVENT_ESPNOW_CTRL_BIND_ERROR,
+                &bind_error, sizeof(bind_error), 0);
+        } else if (bind_cb_flag){
             if (!espnow_ctrl_responder_is_bindlist(src_addr, ctrl_data->initiator_attribute)) {
                 g_bindlist.data[g_bindlist.size].initiator_attribute = ctrl_data->initiator_attribute;
                 memcpy(g_bindlist.data[g_bindlist.size].mac, src_addr, 6);

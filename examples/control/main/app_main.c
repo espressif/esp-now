@@ -70,6 +70,36 @@ static led_strip_handle_t g_strip_handle = NULL;
 static led_strip_t *g_strip_handle = NULL;
 #endif
 
+static char *bind_error_to_string(espnow_ctrl_bind_error_t bind_error)
+{
+    switch (bind_error) {
+    case ESPNOW_BIND_ERROR_NONE: {
+        return "No error";
+        break;
+    }
+
+    case ESPNOW_BIND_ERROR_TIMEOUT: {
+        return "bind timeout";
+        break;
+    }
+
+    case ESPNOW_BIND_ERROR_RSSI: {
+        return "bind packet RSSI below expected threshold";
+        break;
+    }
+
+    case ESPNOW_BIND_ERROR_LIST_FULL: {
+        return "bindlist is full";
+        break;
+    }
+
+    default: {
+        return "unknown error";
+        break;
+    }
+    }
+}
+
 static void app_wifi_init()
 {
     esp_event_loop_create_default();
@@ -226,6 +256,12 @@ static void app_espnow_event_handler(void *handler_args, esp_event_base_t base, 
         ESP_LOGI(TAG, "bind, uuid: " MACSTR ", initiator_type: %d", MAC2STR(info->mac), info->initiator_attribute);
 
         app_led_set_color(0, 255, 0);
+        break;
+    }
+
+    case ESP_EVENT_ESPNOW_CTRL_BIND_ERROR: {
+        espnow_ctrl_bind_error_t *bind_error = (espnow_ctrl_bind_error_t *)event_data;
+        ESP_LOGW(TAG, "bind error: %s", bind_error_to_string(*bind_error));
         break;
     }
 
