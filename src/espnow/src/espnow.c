@@ -120,6 +120,8 @@ static EventGroupHandle_t g_event_group = NULL;
 static QueueHandle_t g_espnow_queue = NULL;
 static QueueHandle_t g_ack_queue = NULL;
 static uint32_t g_buffered_num;
+static uint8_t g_espnow_sec_key[APP_KEY_LEN] = {0};
+static bool g_read_from_nvs = true;
 
 static struct {
     uint8_t type;
@@ -1033,7 +1035,7 @@ esp_err_t espnow_init(const espnow_config_t *config)
     /**< Event group for espnow sent cb */
     g_event_group = xEventGroupCreate();
     ESP_ERROR_RETURN(!g_event_group, ESP_FAIL, "Create event group fail");
-    
+
     g_send_lock = xSemaphoreCreateMutex();
     ESP_ERROR_RETURN(!g_send_lock, ESP_FAIL, "Create send semaphore mutex fail");
 
@@ -1147,6 +1149,11 @@ esp_err_t espnow_set_key(uint8_t key_info[APP_KEY_LEN])
     ESP_LOG_BUFFER_HEX_LEVEL(TAG, key_info, APP_KEY_LEN, ESP_LOG_DEBUG);
     int ret = espnow_sec_setkey(g_espnow_sec, key_info);
     ESP_ERROR_RETURN(ret != ESP_OK, ret, "espnow_sec_setkey %x", ret);
+
+    if (memcmp(key_info, g_espnow_sec_key, KEY_LEN) == 0)
+        return ret;
+
+    memcpy(g_espnow_sec_key, key_info, APP_KEY_LEN);
     ret = espnow_storage_set("key_info", key_info, APP_KEY_LEN);
 
     return ret;
@@ -1156,10 +1163,22 @@ esp_err_t espnow_get_key(uint8_t key_info[APP_KEY_LEN])
 {
     ESP_PARAM_CHECK(key_info);
 
-    return espnow_storage_get("key_info", key_info, APP_KEY_LEN);
+    if (g_read_from_nvs == false) {
+        memcpy(key_info, g_espnow_sec_key, APP_KEY_LEN);
+        return ESP_OK;
+    }
+
+    esp_err_t ret = espnow_storage_get("key_info", g_espnow_sec_key, APP_KEY_LEN);
+    if (ret == ESP_OK) {
+        memcpy(key_info, g_espnow_sec_key, APP_KEY_LEN);
+        g_read_from_nvs = false;
+    }
+    return ret;
 }
 
 esp_err_t espnow_erase_key(void)
 {
+    g_read_from_nvs = true;
+    memset(g_espnow_sec_key, 0, APP_KEY_LEN);
     return espnow_storage_erase("key_info");
 }
