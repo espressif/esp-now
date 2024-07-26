@@ -124,7 +124,7 @@ static uint32_t g_buffered_num;
 static struct {
     uint8_t type;
     uint16_t magic;
-} __attribute__((packed)) g_msg_magic_cache[ESPNOW_MSG_CACHE] = {0};
+} __attribute__((packed)) g_msg_magic_cache[ESPNOW_MSG_CACHE] = {0}, g_msg_magic_sec_cache[ESPNOW_MSG_CACHE] = {0};
 
 static espnow_addr_t ESPNOW_ADDR_SELF       = {0};
 const espnow_addr_t ESPNOW_ADDR_NONE        = {0};
@@ -250,11 +250,21 @@ void espnow_recv_cb(const uint8_t *addr, const uint8_t *data, int size)
         }
     }
 
-    for (size_t i = 0, index = g_msg_magic_cache_next; i < ESPNOW_MSG_CACHE;
-            i++, index = (g_msg_magic_cache_next + i) % ESPNOW_MSG_CACHE) {
-        if (g_msg_magic_cache[index].type == espnow_data->type
-                && g_msg_magic_cache[index].magic == frame_head->magic) {
-            return ;
+    if (!frame_head->security) {
+        for (size_t i = 0, index = g_msg_magic_cache_next; i < ESPNOW_MSG_CACHE;
+                i++, index = (g_msg_magic_cache_next + i) % ESPNOW_MSG_CACHE) {
+            if (g_msg_magic_cache[index].type == espnow_data->type
+                    && g_msg_magic_cache[index].magic == frame_head->magic) {
+                return ;
+            }
+        }
+    } else {
+        for (size_t i = 0, index = g_msg_magic_cache_next; i < ESPNOW_MSG_CACHE;
+                i++, index = (g_msg_magic_cache_next + i) % ESPNOW_MSG_CACHE) {
+            if (g_msg_magic_sec_cache[index].type == espnow_data->type
+                    && g_msg_magic_sec_cache[index].magic == frame_head->magic) {
+                return ;
+            }
         }
     }
 #if CONFIG_IDF_TARGET_ESP32C6
@@ -374,8 +384,13 @@ FORWARD_DATA:
 
 EXIT:
     g_msg_magic_cache_next = (g_msg_magic_cache_next + 1) % ESPNOW_MSG_CACHE;
-    g_msg_magic_cache[g_msg_magic_cache_next].type  = espnow_data->type;
-    g_msg_magic_cache[g_msg_magic_cache_next].magic = frame_head->magic;
+    if (!frame_head->security) {
+        g_msg_magic_cache[g_msg_magic_cache_next].type  = espnow_data->type;
+        g_msg_magic_cache[g_msg_magic_cache_next].magic = frame_head->magic;
+    } else {
+        g_msg_magic_sec_cache[g_msg_magic_cache_next].type  = espnow_data->type;
+        g_msg_magic_sec_cache[g_msg_magic_cache_next].magic = frame_head->magic;
+    }
 }
 
 /**< callback function of sending ESPNOW data */
