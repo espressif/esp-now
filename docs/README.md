@@ -1,6 +1,6 @@
 # Documentation Source Folder
 
-This folder contains source files of **ESP-NOW documentation** available in [English](https://docs.espressif.com/projects/esp-now/en/latest/index.html).
+This folder contains source files of **ESP-NOW documentation** available in [English](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/network/esp_now.html).
 
 The sources do not render well in GitHub and some information is not visible at all.
 
@@ -8,7 +8,7 @@ Use actual documentation generated within about 20 minutes on each commit:
 
 # Hosted Documentation
 
-* English: https://docs.espressif.com/projects/esp-now/en/latest/index.html
+* English: https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/network/esp_now.html
 
 The above URL is for the main branch latest version. Click the drop-down in the bottom left to choose a particular version or to download a PDF.
 
