@@ -42,6 +42,10 @@ End of Life IDF branches are marked as not supported, such as ESP-IDF Release/v4
 
 **Note 2:** The built-in IDF branch of esp-now v2.x.x is from IDF Release/v4.4 at the current time.
 
+### Support Periods
+
+New feature development and bugfix usually take place on the master branch and will be published into [ESP Component Registry](https://components.espressif.com/). The publish time of the next version is usually a few months. When a new version of the ESP-NOW is published, please plan to upgrade to that version.
+
 ## Quick Start
 ### Hardware Preparation
 Chips of ESP32、ESP32-C3、ESP32-S2、ESP32-S3、ESP32C2、ESP32-C6 are recommended.
