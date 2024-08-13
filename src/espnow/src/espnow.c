@@ -115,13 +115,13 @@ typedef struct {
 static const char *TAG                  = "espnow";
 static bool g_set_channel_flag          = true;
 static espnow_config_t *g_espnow_config = NULL;
-espnow_sec_t *g_espnow_sec = NULL;
+static espnow_sec_t *g_espnow_sec = NULL, *g_espnow_dec = NULL;
 static EventGroupHandle_t g_event_group = NULL;
 static QueueHandle_t g_espnow_queue = NULL;
 static QueueHandle_t g_ack_queue = NULL;
 static uint32_t g_buffered_num;
-static uint8_t g_espnow_sec_key[APP_KEY_LEN] = {0};
-static bool g_read_from_nvs = true;
+static uint8_t g_espnow_sec_key[APP_KEY_LEN] = {0}, g_espnow_dec_key[APP_KEY_LEN] = {0};
+static bool g_read_from_nvs = true, g_read_dec_from_nvs = true;
 
 static struct {
     uint8_t type;
@@ -820,18 +820,18 @@ static esp_err_t espnow_recv_process(espnow_pkt_t *q_data)
         /* Check security */
         if (frame_head->security) {
             if (g_espnow_config->sec_enable) {
-                if (g_espnow_sec && g_espnow_sec->state == ESPNOW_SEC_OVER) {
+                if (g_espnow_dec && g_espnow_dec->state == ESPNOW_SEC_OVER) {
                     uint8_t key_info[APP_KEY_LEN];
 
-                    ret = espnow_get_key(key_info);
+                    ret = espnow_get_dec_key(key_info);
                     if (ret) {
                         ESP_LOGE(TAG, "Get security key fail for decrypt, err_name: %s", esp_err_to_name(ret));
                         goto EXIT;
                     }
                     memcpy(key_info + KEY_LEN, espnow_data->payload + (espnow_data->size - IV_LEN), IV_LEN);
-                    espnow_set_key(key_info);
+                    espnow_set_dec_key(key_info);
 
-                    ret = espnow_sec_auth_decrypt(g_espnow_sec, espnow_data->payload, (espnow_data->size - IV_LEN), data, ESPNOW_PAYLOAD_LEN, &size, g_espnow_sec->tag_len);
+                    ret = espnow_sec_auth_decrypt(g_espnow_dec, espnow_data->payload, (espnow_data->size - IV_LEN), data, ESPNOW_PAYLOAD_LEN, &size, g_espnow_dec->tag_len);
                     ESP_ERROR_GOTO(ret != ESP_OK, EXIT, "espnow_sec_auth_decrypt, err_name: %s", esp_err_to_name(ret));
                 } else {
                     ESP_LOGE(TAG, "Security key is not set");
@@ -1071,7 +1071,9 @@ esp_err_t espnow_init(const espnow_config_t *config)
 
     if (config->sec_enable) {
         g_espnow_sec = ESP_MALLOC(sizeof(espnow_sec_t));
+        g_espnow_dec = ESP_MALLOC(sizeof(espnow_sec_t));
         espnow_sec_init(g_espnow_sec);
+        espnow_sec_init(g_espnow_dec);
     }
 
     uint32_t *enable = (uint32_t *)&config->receive_enable;
@@ -1115,9 +1117,16 @@ esp_err_t espnow_deinit(void)
         g_recv_handle[i].handle = NULL;
     }
 
-    if (g_espnow_config->sec_enable && g_espnow_sec) {
-        espnow_sec_deinit(g_espnow_sec);
-        ESP_FREE(g_espnow_sec);
+    if (g_espnow_config->sec_enable) {
+        if (g_espnow_sec) {
+            espnow_sec_deinit(g_espnow_sec);
+            ESP_FREE(g_espnow_sec);
+        }
+
+        if (g_espnow_dec) {
+            espnow_sec_deinit(g_espnow_dec);
+            ESP_FREE(g_espnow_dec);
+        }
     }
 
     ESP_ERROR_CHECK(esp_event_handler_unregister(WIFI_EVENT, ESP_EVENT_ANY_ID, wifi_event_handler));
@@ -1201,4 +1210,46 @@ esp_err_t espnow_erase_key(void)
     g_read_from_nvs = true;
     memset(g_espnow_sec_key, 0, APP_KEY_LEN);
     return espnow_storage_erase("key_info");
+}
+
+esp_err_t espnow_set_dec_key(uint8_t key_info[APP_KEY_LEN])
+{
+    ESP_PARAM_CHECK(g_espnow_dec);
+    ESP_PARAM_CHECK(key_info);
+
+    ESP_LOG_BUFFER_HEX_LEVEL(TAG, key_info, APP_KEY_LEN, ESP_LOG_DEBUG);
+    int ret = espnow_sec_setkey(g_espnow_dec, key_info);
+    ESP_ERROR_RETURN(ret != ESP_OK, ret, "espnow_sec_setkey %x", ret);
+
+    if (memcmp(key_info, g_espnow_dec_key, KEY_LEN) == 0)
+        return ret;
+
+    memcpy(g_espnow_dec_key, key_info, APP_KEY_LEN);
+    ret = espnow_storage_set("dec_key_info", key_info, APP_KEY_LEN);
+
+    return ret;
+}
+
+esp_err_t espnow_get_dec_key(uint8_t key_info[APP_KEY_LEN])
+{
+    ESP_PARAM_CHECK(key_info);
+
+    if (g_read_dec_from_nvs == false) {
+        memcpy(key_info, g_espnow_dec_key, APP_KEY_LEN);
+        return ESP_OK;
+    }
+
+    esp_err_t ret = espnow_storage_get("dec_key_info", g_espnow_dec_key, APP_KEY_LEN);
+    if (ret == ESP_OK) {
+        memcpy(key_info, g_espnow_dec_key, APP_KEY_LEN);
+        g_read_dec_from_nvs = false;
+    }
+    return ret;
+}
+
+esp_err_t espnow_erase_dec_key(void)
+{
+    g_read_dec_from_nvs = true;
+    memset(g_espnow_dec_key, 0, APP_KEY_LEN);
+    return espnow_storage_erase("dec_key_info");
 }

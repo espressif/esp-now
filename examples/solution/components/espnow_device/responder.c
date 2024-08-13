@@ -261,6 +261,7 @@ void app_espnow_responder()
     /* If espnow_set_key succeed, sending and receiving will be in security mode */
     if (espnow_get_key(key_info) == ESP_OK) {
         espnow_set_key(key_info);
+        espnow_set_dec_key(key_info);
     }
 
     /* If responder handshake with initiator succeed, espnow_set_key will be executed again. */

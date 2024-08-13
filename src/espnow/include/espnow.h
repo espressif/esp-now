@@ -379,6 +379,39 @@ esp_err_t espnow_get_key(uint8_t key_info[APP_KEY_LEN]);
  */
 esp_err_t espnow_erase_key(void);
 
+/**
+ * @brief Set the security key info
+ *        The security key info is used to derive key and stored to flash.
+ *        The derived key is used to encrypt ESP-NOW data payload when send and decrypt ESP-NOW data payload when receive.
+ *
+ * @attention Set sec_enable in espnow_config to true when ESP-NOW initializes, or the function will return failed.
+ *
+ * @param[in]  key_info  security key info
+ *
+ *    - ESP_OK
+ *    - ESP_ERR_INVALID_ARG
+ */
+esp_err_t espnow_set_dec_key(uint8_t key_info[APP_KEY_LEN]);
+
+/**
+ * @brief Get the security key info stored in flash
+ *        If no security key info is stored in flash, the function will return failed.
+ *
+ * @param[out]  key_info  security key info
+ *
+ *    - ESP_OK
+ *    - ESP_ERR_INVALID_ARG
+ */
+esp_err_t espnow_get_dec_key(uint8_t key_info[APP_KEY_LEN]);
+
+/**
+ * @brief Erase the security key info stored in flash
+ *
+ *    - ESP_OK
+ *    - ESP_ERR_NVS_NOT_FOUND
+ */
+esp_err_t espnow_erase_dec_key(void);
+
 #ifdef __cplusplus
 }
 #endif /**< _cplusplus */

@@ -173,6 +173,8 @@ static esp_err_t protocomm_espnow_responder_start(protocomm_t *pc)
 static esp_err_t espnow_config_data_handler(uint32_t session_id, const uint8_t *inbuf, ssize_t inlen,
                                         uint8_t **outbuf, ssize_t *outlen, void *priv_data)
 {
+    esp_err_t ret = ESP_OK;
+
     ESP_PARAM_CHECK(inlen >= APP_KEY_LEN);
 
     memcpy(app_key, inbuf, APP_KEY_LEN);
@@ -190,7 +192,8 @@ static esp_err_t espnow_config_data_handler(uint32_t session_id, const uint8_t *
 
     ESP_LOGI(TAG, "Get APP key");
 
-    esp_err_t ret = espnow_set_key(app_key);
+    ret = espnow_set_key(app_key);
+    ret |= espnow_set_dec_key(app_key);
 
     esp_event_post(ESP_EVENT_ESPNOW, ret ? ESP_EVENT_ESPNOW_SEC_FAIL : ESP_EVENT_ESPNOW_SEC_OK, NULL, 0, 0);
 
