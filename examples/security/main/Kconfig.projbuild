@@ -17,6 +17,12 @@ menu "Example Configuration"
         default y
         help
             Send ciphertext or plaintext when enable security.
+    
+    config APP_ESNOW_STRESS_OPTION
+        bool "Select stress or function when enable security"
+        default n
+        help
+            Select stress or function when enable security.
 
     choice APP_ESPNOW_SEC_MODE
         bool "ESP-NOW Mode"

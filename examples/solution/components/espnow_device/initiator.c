@@ -198,6 +198,7 @@ static void app_espnow_initiator_sec_task(void *arg)
         esp_fill_random(key_info, APP_KEY_LEN);
     }
     espnow_set_key(key_info);
+    espnow_set_dec_key(key_info);
 
     uint32_t start_time1 = xTaskGetTickCount();
     espnow_sec_initiator_scan(&info_list, &num, pdMS_TO_TICKS(3000));

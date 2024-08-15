@@ -82,11 +82,26 @@ static void app_uart_read_task(void *arg)
         ESP_ERROR_CONTINUE(size <= 0, "");
 
         frame_head.security = s_sec_flag;
+#ifdef CONFIG_APP_ESNOW_STRESS_OPTION
+        frame_head.ack = false;
+        uint32_t stress_data = 0;
+        while (stress_data != 0xFFFFFFFF) {
+            stress_data ++;
+            ret = espnow_send(ESPNOW_DATA_TYPE_DATA, ESPNOW_ADDR_BROADCAST, &stress_data, sizeof(uint32_t), &frame_head, 0);
+            if (ret != ESP_OK) {
+                ESP_LOG_BUFFER_HEX_LEVEL(TAG, &stress_data, sizeof(uint32_t), ESP_LOG_ERROR);
+                ESP_ERROR_CONTINUE(ret != ESP_OK, "<%s> espnow_send", esp_err_to_name(ret));
+            }
+
+            vTaskDelay(pdMS_TO_TICKS(20));
+        }
+#else
         ret = espnow_send(ESPNOW_DATA_TYPE_DATA, ESPNOW_ADDR_BROADCAST, data, size, &frame_head, portMAX_DELAY);
         ESP_ERROR_CONTINUE(ret != ESP_OK, "<%s> espnow_send", esp_err_to_name(ret));
 
         ESP_LOGI(TAG, "espnow_send, count: %" PRIu32 ", size: %u, %s data: %s", count++, size, s_sec_flag ? "ciphertext" : "plaintext", data);
         memset(data, 0, ESPNOW_DATA_LEN);
+#endif
     }
 
     ESP_LOGI(TAG, "Uart handle task is exit");
@@ -137,12 +152,14 @@ static esp_err_t app_uart_write_handle(uint8_t *src_addr, void *data,
     ESP_PARAM_CHECK(data);
     ESP_PARAM_CHECK(size);
     ESP_PARAM_CHECK(rx_ctrl);
-
+#ifdef CONFIG_APP_ESNOW_STRESS_OPTION
+    ESP_LOG_BUFFER_HEX_LEVEL(TAG, data, size, ESP_LOG_INFO);
+#else
     static uint32_t count = 0;
 
     ESP_LOGI(TAG, "espnow_recv, <%" PRIu32 "> [" MACSTR "][%d][%d][%u]: %.*s",
              count++, MAC2STR(src_addr), rx_ctrl->channel, rx_ctrl->rssi, size, size, (char *)data);
-
+#endif
     return ESP_OK;
 }
 
@@ -166,6 +183,7 @@ void app_main()
         esp_fill_random(key_info, APP_KEY_LEN);
     }
     espnow_set_key(key_info);
+    espnow_set_dec_key(key_info);
 
     uint32_t start_time1 = xTaskGetTickCount();
     espnow_sec_result_t espnow_sec_result = {0};
@@ -207,6 +225,7 @@ EXIT:
     /* If espnow_set_key succeed, sending and receiving will be in security mode */
     if (espnow_get_key(key_info) == ESP_OK) {
         espnow_set_key(key_info);
+        espnow_set_dec_key(key_info);
     }
 
     /* If responder handshake with initiator succeed, espnow_set_key will be executed again. */
