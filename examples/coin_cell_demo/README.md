@@ -1,18 +1,21 @@
 # Coin Cell Example
 
-This example provides a low-power solution to achieve wireless control which has two sub-projects SWITCH (switch) and BULB (controlled end). The switch with a coin cell can be used to send 65000 packets and the actual lifetime is calculated to be 2.5 years if it is pressed 50 times a day and the receiver switches channels once a day.
+This example provides a low-power solution to achieve wireless control which has two sub-projects SWITCH (switch) and BULB (controlled end). The switch with a CR2032 coin cell battery can be used to send 65000 packets and the actual lifetime is calculated to be 2.5 years if it is pressed 50 times a day and the receiver switches channels once a day.
 
 ## Functionality
 
 ### switch
 
-The switch device sends the control commands to change the `RGB LED` status of the bulb devices. By default, the switch uses the coin cell button to control the bulb devices, but if you don't have such button, you can use other ESP32 series DevKit to simulate.
+The switch device sends the control commands to change the `RGB LED` status of the bulb devices. By default, the switch app runs on the coin cell button to control the bulb devices. If you don't have such button, you can use other ESP32 series DevKits to simulate the switch.
 
 Open the project configuration menu (`idf.py menuconfig`) to set following configurations under `Example Configuration` Options: 
 
 * Set `Use coin cell button` of example to `N` to simulate.
 
-> Note: The device can only control the bound devices, so it must be bound before control.
+> **Note:** The default configuration has light-sleep enabled in ESP-NOW component. If you are running the app on a DevKit, you can enable app level power saving by setting the following configurations to true:
+> * CONFIG_PM_ENABLE
+> * CONFIG_FREERTOS_USE_TICKLESS_IDLE
+> * CONFIG_GPIO_BUTTON_SUPPORT_POWER_SAVE
 
 ### bulb
 
@@ -37,6 +40,10 @@ You can reference the schematic as follows:
 ![button schematic](switch/docs/img/coin_cell_schematic.png)
 
 ## How to Use the Example
+
+### switch
+
+> **Note:** The device can only control the bound devices, so it must be bound before control.
 
 #### ESP32 series DevKit
 
@@ -73,7 +80,7 @@ app_switch: switch unbind press
 - The devices receive the control command, the status of `RGB LED` (ON/OFF) will be controlled by the switch device, and the color will be white.
 - The devices receive the unbinding command, the `RGB LED` on these devices will turn red, indicating that the devices have been unbound successfully.
 
-> Note: Reboot the devices quickly also can unbind
+> **Note:** Reboot the devices quickly also can unbind
 
 Output sample from the bulb:
 

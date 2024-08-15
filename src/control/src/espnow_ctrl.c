@@ -369,6 +369,9 @@ static esp_err_t espnow_ctrl_initiator_handle(espnow_data_type_t type, espnow_at
     BaseType_t bind_sem_ret = pdFAIL;
     int retransmit_count = 0;
     uint8_t channel = 1;
+#ifdef CONFIG_ESPNOW_LIGHT_SLEEP
+    bool timer_wakeup_enabled = false;
+#endif
     espnow_storage_get(ESPNOW_CHANNEL_KEY, &channel, sizeof(channel));
     espnow_ctrl_data_t data = {
         .frame_head = {
@@ -397,6 +400,7 @@ static esp_err_t espnow_ctrl_initiator_handle(espnow_data_type_t type, espnow_at
 #ifdef CONFIG_ESPNOW_LIGHT_SLEEP
         esp_wifi_force_wakeup_release();
         esp_sleep_enable_timer_wakeup(CONFIG_ESPNOW_LIGHT_SLEEP_DURATION * 1000);
+        timer_wakeup_enabled = true;
         esp_light_sleep_start();
         esp_wifi_force_wakeup_acquire();
 #endif
@@ -424,6 +428,7 @@ static esp_err_t espnow_ctrl_initiator_handle(espnow_data_type_t type, espnow_at
                     !(i == g_self_country.nchan - 2 && g_self_country.schan + i + 1 == channel))) {
                     esp_wifi_force_wakeup_release();
                     esp_sleep_enable_timer_wakeup(CONFIG_ESPNOW_LIGHT_SLEEP_DURATION * 1000);
+                    timer_wakeup_enabled = true;
                     esp_light_sleep_start();
                     esp_wifi_force_wakeup_acquire();
                 }
@@ -434,6 +439,11 @@ static esp_err_t espnow_ctrl_initiator_handle(espnow_data_type_t type, espnow_at
             }
         }
     }
+#ifdef CONFIG_ESPNOW_LIGHT_SLEEP
+    if (timer_wakeup_enabled) {
+        esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_TIMER);
+    }
+#endif
     vSemaphoreDelete(g_bind_sem);
     g_bind_sem = NULL;
 
