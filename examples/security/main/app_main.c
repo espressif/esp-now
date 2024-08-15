@@ -47,12 +47,12 @@ static void app_espnow_event_handler(void *handler_args, esp_event_base_t base, 
 
     switch (id) {
     case ESP_EVENT_ESPNOW_SEC_OK:
-        ESP_LOGI(TAG, "ESP_EVENT_ESPNOW_SEC_OK");
+        ESP_LOGI(TAG, "ESP_EVENT_ESPNOW_SEC_OK [" MACSTR "]", MAC2STR((uint8_t *)event_data));
         s_sec_flag = true;
         break;
 
     case ESP_EVENT_ESPNOW_SEC_FAIL:
-        ESP_LOGI(TAG, "ESP_EVENT_ESPNOW_SEC_FAIL");
+        ESP_LOGI(TAG, "ESP_EVENT_ESPNOW_SEC_FAIL [" MACSTR "]", MAC2STR((uint8_t *)event_data));
         s_sec_flag = false;
         break;
 
