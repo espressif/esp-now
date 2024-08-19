@@ -4,6 +4,8 @@
 
 - [User Guide](https://github.com/espressif/esp-now/tree/master/User_Guide.md)
 
+- [User Guide 中文版](https://github.com/espressif/esp-now/tree/master/User_Guide_CN.md)
+
 esp-now supports one-to-many and many-to-many device connection and control which can be used for the mass data transmission, like network config, firmware upgrade and debugging etc.
 
 ### Add component to your project
