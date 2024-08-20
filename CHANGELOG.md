@@ -1,3 +1,22 @@
+# v2.5.2
+
+Doc:
+- docs: Update Support Periods.
+
+Fixed:
+- Fix log output error of security example. [#120](https://github.com/espressif/esp-now/pull/120)
+- Fix an issue of unable to receive data when enable forward and retransmission times are too large.
+- Fix a bug when upgrade multiple firmware on once session. [#122](https://github.com/espressif/esp-now/issues/122)
+- Fix an Out-of-Bound (OOB) vulnerability for group type message.
+- Fix a replay attacks vulnerability for ciphertext.
+- Fix devkit power save mode and update README of coin_cell_demo example.
+
+Features:
+- Add bind error event for timeout, rssi and bindlist size.
+- Reduce the number of NVS operations. [#123](https://github.com/espressif/esp-now/pull/123)
+- Use separate cache to store security keys, one for encrypt, the other for decrypt.
+- Announce securiy handshake info of initiator to responder.
+
 # v2.5.1
 
 Doc:
