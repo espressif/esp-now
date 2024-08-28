@@ -1,5 +1,8 @@
 # ESP-NOW
-This project provides examples to simplify the use of ESP-NOW.  
+
+* [中文版](./User_Guide_CN.md)
+
+This project provides examples to simplify the use of ESP-NOW.
 
 [ESP-NOW](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/network/esp_now.html) is a kind of connectionless Wi-Fi communication protocol that is defined by Espressif. Different from traditional Wi-Fi protocols, the first five upper layers in OSI are simplified to one layer in ESP-NOW, so the data doesn't need to be transmitted through the network layer, the transport layer, the session layer, the presentation layer, and the application layer, which reduces the delay caused by packet loss under congested network, and leads to quickly response time.
 
@@ -24,23 +27,23 @@ There are two roles defined in ESP-NOW according to the data flow, initiator and
 
 ### IDF Version
 
-The following table shows the ESP-IDF versions supported by esp-now at the current time. The lable ![alt text](docs/_static/yes-checkm.png "supported") means supported, and the lable ![alt text](docs/_static/no-icon.png) means not supported.
+The following table shows the ESP-IDF versions supported by ESP-NOW at the current time. The lable ![alt text](docs/_static/yes-checkm.png "supported") means supported, and the lable ![alt text](docs/_static/no-icon.png) means not supported.
 
-The ESP-IDF master branch is marked as not supported because the major feature changes it has introduced may cause conflicts with esp-now. Yet, the esp-now examples not affected by those feature changes can still run correctly on the IDF master branch.
+The ESP-IDF master branch is marked as not supported because the major feature changes it has introduced may cause conflicts with ESP-NOW. Yet, the ESP-NOW examples not affected by those feature changes can still run correctly on the IDF master branch.
 
 End of Life IDF branches are marked as not supported, such as ESP-IDF Release/v4.0. See [IDF Supported Periods](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/versions.html#support-periods) for details.
 
 
 |                       | ESP-IDF <br> Release/v4.1| ESP-IDF <br> Release/v4.2| ESP-IDF <br> Release/v4.3| ESP-IDF <br> Release/v4.4 | ESP-IDF <br> Release/v5.0 | ESP-IDF <br> Release/v5.1 | ESP-IDF <br> Release/v5.2 | ESP-IDF <br> Master |
 |:----------- | :---------------------:|:---------------------: | :---------------------:| :---------------------:| :---------------------:| :---------------------:| :---------------------:| :---------------------:|
-| esp-now <br> Master  | ![alt text](docs/_static/no-icon.png "not supported") | ![alt text](docs/_static/no-icon.png "not supported") | ![alt text](docs/_static/no-icon.png "not supported") | ![alt text](docs/_static/yes-checkm.png "supported") | ![alt text](docs/_static/yes-checkm.png "supported") | ![alt text](docs/_static/yes-checkm.png "supported") | ![alt text](docs/_static/yes-checkm.png "supported") |![alt text](docs/_static/yes-checkm.png "supported") |
-| esp-now <br> v2.x.x  | ![alt text](docs/_static/no-icon.png "not supported") | ![alt text](docs/_static/no-icon.png "not supported") | ![alt text](docs/_static/no-icon.png "not supported")  | ![alt text](docs/_static/yes-checkm.png "supported") <sup> **2** </sup> | ![alt text](docs/_static/yes-checkm.png "supported") | ![alt text](docs/_static/yes-checkm.png "supported")  | ![alt text](docs/_static/yes-checkm.png "supported") |![alt text](docs/_static/yes-checkm.png "supported") |
-| esp-now <br> v1.0  | ![alt text](docs/_static/yes-checkm.png "supported") | ![alt text](docs/_static/yes-checkm.png "supported") | ![alt text](docs/_static/yes-checkm.png "supported") | ![alt text](docs/_static/yes-checkm.png "supported") <sup> **1** </sup> | ![alt text](docs/_static/no-icon.png "not supported") | ![alt text](docs/_static/no-icon.png "not supported") | ![alt text](docs/_static/no-icon.png "not supported") |![alt text](docs/_static/no-icon.png "not supported") |
+| ESP-NOW <br> Master  | ![alt text](docs/_static/no-icon.png "not supported") | ![alt text](docs/_static/no-icon.png "not supported") | ![alt text](docs/_static/no-icon.png "not supported") | ![alt text](docs/_static/yes-checkm.png "supported") | ![alt text](docs/_static/yes-checkm.png "supported") | ![alt text](docs/_static/yes-checkm.png "supported") | ![alt text](docs/_static/yes-checkm.png "supported") |![alt text](docs/_static/yes-checkm.png "supported") |
+| ESP-NOW <br> v2.x.x  | ![alt text](docs/_static/no-icon.png "not supported") | ![alt text](docs/_static/no-icon.png "not supported") | ![alt text](docs/_static/no-icon.png "not supported")  | ![alt text](docs/_static/yes-checkm.png "supported") <sup> **2** </sup> | ![alt text](docs/_static/yes-checkm.png "supported") | ![alt text](docs/_static/yes-checkm.png "supported")  | ![alt text](docs/_static/yes-checkm.png "supported") |![alt text](docs/_static/yes-checkm.png "supported") |
+| ESP-NOW <br> v1.0  | ![alt text](docs/_static/yes-checkm.png "supported") | ![alt text](docs/_static/yes-checkm.png "supported") | ![alt text](docs/_static/yes-checkm.png "supported") | ![alt text](docs/_static/yes-checkm.png "supported") <sup> **1** </sup> | ![alt text](docs/_static/no-icon.png "not supported") | ![alt text](docs/_static/no-icon.png "not supported") | ![alt text](docs/_static/no-icon.png "not supported") |![alt text](docs/_static/no-icon.png "not supported") |
 
 
-**Note 1:** The built-in IDF branch of esp-now v1.0 is IDF Release/v4.4 at the current time.
+**Note 1:** The built-in IDF branch of ESP-NOW v1.0 is IDF Release/v4.4 at the current time.
 
-**Note 2:** The built-in IDF branch of esp-now v2.x.x is from IDF Release/v4.4 at the current time.
+**Note 2:** The built-in IDF branch of ESP-NOW v2.x.x is from IDF Release/v4.4 at the current time.
 
 ### Support Periods
 
@@ -114,15 +117,15 @@ ESP-NOW can be used to receive the running log for debugging. It can be used in 
 ESP-NOW can protect the data security with ECDH and AES128-CCM.
 
 1. **Quick Configuration**: 16 devices can be configurated in 5 seconds.
-2. **Multiple Devices Handshake**: ESP-NOW initiator can support multiple devices handshake at same time. 
+2. **Multiple Devices Handshake**: ESP-NOW initiator can support multiple devices handshake at same time.
 3. **Safety**:
     - ECDH and Proof of Possession (PoP) string used to authorize session and derive shared key
     - AES256-CTR mode encryption for the configuration data
-    - AES128-CCM mode encryption for ESP-NOW data.
+    - AES128-CCM mode encryption for ESP-NOW data
 
 ## Resources
 - [ESP-NOW API guide](https://docs.espressif.com/projects/esp-idf/en/latest/esp32c3/api-reference/network/esp_now.html)
 - [ESP-NOW in Arduino](https://github.com/yoursunny/WifiEspNow)
 - The [esp32.com forum](https://esp32.com/) is a place to ask questions and find community resources.
 - [Check the Issues section on github](https://github.com/espressif/esp-now/issues) if you find a bug or have a feature request. Please check existing Issues before opening a new one.
-- [Troubleshooting](https://docs.espressif.com/projects/espressif-esp-faq/en/latest/) which include some common FAQs. Please click it if something is not working when you enable ESP-NOW in your project.
+- [ESP-FAQ](https://docs.espressif.com/projects/espressif-esp-faq/en/latest/) which include some common FAQs. Please click it if something is not working when you enable ESP-NOW in your project.
