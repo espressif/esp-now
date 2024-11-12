@@ -17,14 +17,54 @@
 #include "espnow_utils.h"
 #include "espnow.h"
 #include "espnow_ctrl.h"
-#ifndef CONFIG_EXAMPLE_USE_COIN_CELL_BUTTON
+#if !defined(CONFIG_EXAMPLE_USE_COIN_CELL_BUTTON) || !CONFIG_EXAMPLE_USE_COIN_CELL_BUTTON_V1
 #include "iot_button.h"
 #endif
+#ifdef CONFIG_EXAMPLE_USE_COIN_CELL_BUTTON
 #include "switch_board.h"
+#endif
 
+#if CONFIG_EXAMPLE_SWITCH_STATUS_PERSISTED
 #define BULB_STATUS_KEY       "bulb_key"
+#endif
 
 static const char *TAG = "app_switch";
+
+#if !defined(CONFIG_EXAMPLE_USE_COIN_CELL_BUTTON) || !CONFIG_EXAMPLE_USE_COIN_CELL_BUTTON_V1
+static QueueHandle_t g_button_queue = NULL;
+
+#if CONFIG_PM_ENABLE
+void power_save_set(bool enable_light_sleep)
+{
+    // Configure dynamic frequency scaling:
+    // maximum and minimum frequencies are set in sdkconfig,
+    // automatic light sleep is enabled if tickless idle support is enabled.
+#if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 1, 0)
+#if CONFIG_IDF_TARGET_ESP32
+    esp_pm_config_esp32_t pm_config = {
+#elif CONFIG_IDF_TARGET_ESP32S2
+    esp_pm_config_esp32s2_t pm_config = {
+#elif CONFIG_IDF_TARGET_ESP32C3
+    esp_pm_config_esp32c3_t pm_config = {
+#elif CONFIG_IDF_TARGET_ESP32S3
+    esp_pm_config_esp32s3_t pm_config = {
+#elif CONFIG_IDF_TARGET_ESP32C2
+    esp_pm_config_esp32c2_t pm_config = {
+#endif
+#else // ESP_IDF_VERSION
+    esp_pm_config_t pm_config = {
+#endif
+            .max_freq_mhz = CONFIG_EXAMPLE_MAX_CPU_FREQ_MHZ,
+            .min_freq_mhz = CONFIG_EXAMPLE_MIN_CPU_FREQ_MHZ,
+#if CONFIG_FREERTOS_USE_TICKLESS_IDLE
+            .light_sleep_enable = enable_light_sleep
+#endif
+    };
+    ESP_ERROR_CHECK( esp_pm_configure(&pm_config) );
+}
+#endif // CONFIG_PM_ENABLE
+
+#endif
 
 static void app_wifi_init()
 {
@@ -40,6 +80,8 @@ static void app_wifi_init()
 }
 
 #ifdef CONFIG_EXAMPLE_USE_COIN_CELL_BUTTON
+
+#if CONFIG_EXAMPLE_USE_COIN_CELL_BUTTON_V1
 static void set_light_sleep(uint32_t ms)
 {
     esp_wifi_force_wakeup_release();
@@ -124,7 +166,7 @@ static void control_task(void *pvParameter)
             set_light_sleep(SEND_GAP_TIME); //Prevent false wake-ups
             board_power_lock(false);
             board_led_on(false);
-            ESP_LOGW(TAG, "task_state = ESPNOW_TASK_STATE_DONE");
+            ESP_LOGW(TAG, "task_state = ESPNOW_TASK_STATE_BIND_DONE");
             set_light_sleep(LONG_PRESS_SLEEP_TIME);
             board_power_lock(true);
             board_led_on(true);
@@ -145,6 +187,83 @@ static void control_task(void *pvParameter)
         }
     }
 }
+#else // !V1
+
+static void control_task(void *pvParameter)
+{
+    button_event_t evt_data;
+    uint8_t status = 0;
+
+    board_led_on(true);
+
+    g_button_queue = xQueueCreate(5, sizeof(button_event_t));
+    if (!g_button_queue) {
+        ESP_LOGE(TAG, "Error creating queue.");
+        return;
+    }
+
+    if (xQueueReceive(g_button_queue, &evt_data, portMAX_DELAY) != pdTRUE) {
+        ESP_LOGI(TAG, "Nothing received");
+        return;
+    }
+    iot_button_stop();
+#if CONFIG_PM_ENABLE
+    power_save_set(false);
+#endif
+#if CONFIG_PM_ENABLE || CONFIG_ESPNOW_LIGHT_SLEEP
+    esp_wifi_force_wakeup_acquire();
+#endif
+
+    ESP_LOGI(TAG, "Button event: %d", evt_data);
+    if (evt_data == BUTTON_SINGLE_CLICK) {
+        ESP_LOGI(TAG, "switch send press");
+#if CONFIG_EXAMPLE_SWITCH_STATUS_PERSISTED
+        espnow_storage_get(BULB_STATUS_KEY, &status, sizeof(status));
+        status ^= 1;
+        espnow_storage_set(BULB_STATUS_KEY, &status, sizeof(status));
+#else
+        status = 2;
+#endif
+        /* status = 0: OFF, 1: ON, 2: TOGGLE */
+        ESP_LOGI(TAG, "key status: %d", status);
+        espnow_ctrl_initiator_send(ESPNOW_ATTRIBUTE_KEY_1, ESPNOW_ATTRIBUTE_POWER, status);
+    } else if (evt_data == BUTTON_LONG_PRESS_UP) {
+        ESP_LOGI(TAG, "switch bind press");
+        espnow_ctrl_initiator_bind(ESPNOW_ATTRIBUTE_KEY_1, true);
+    } else if (evt_data == BUTTON_LONG_PRESS_START) {
+        ESP_LOGI(TAG, "switch unbind press");
+        espnow_ctrl_initiator_bind(ESPNOW_ATTRIBUTE_KEY_1, false);
+    } else {
+        ESP_LOGI(TAG, "event not handled");
+    }
+#if CONFIG_PM_ENABLE || CONFIG_ESPNOW_LIGHT_SLEEP
+    esp_wifi_force_wakeup_release();
+#endif
+
+    board_power_lock(false);
+    board_led_on(false);
+
+    esp_wifi_force_wakeup_release();
+    esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_ALL);
+    esp_light_sleep_start();
+}
+
+static void app_switch_button_event_cb(void *arg, void *usr_data)
+{
+    static bool light_status = false;
+    button_event_t btn_evt = iot_button_get_event(arg);
+    if (btn_evt == BUTTON_PRESS_DOWN) {
+        // Make sure iot_button state machine has started.
+        board_power_lock(true);
+    } else if (btn_evt == BUTTON_LONG_PRESS_HOLD) {
+        board_led_on(light_status);
+        light_status = !light_status;
+    } else {
+        xQueueSend(g_button_queue, &btn_evt, pdMS_TO_TICKS(300));
+    }
+}
+
+#endif
 #else
 // All the default GPIOs are based on ESP32 series DevKitC boards, for other boards, please modify them accordingly.
 #ifdef CONFIG_IDF_TARGET_ESP32C2
@@ -161,42 +280,8 @@ static void control_task(void *pvParameter)
 #define CONTROL_KEY_GPIO      GPIO_NUM_9
 #endif
 
-static QueueHandle_t g_button_queue = NULL;
-
-const char *button_event_table[] = {
-    "BUTTON_PRESS_DOWN",
-    "BUTTON_PRESS_UP",
-    "BUTTON_PRESS_REPEAT",
-    "BUTTON_PRESS_REPEAT_DONE",
-    "BUTTON_SINGLE_CLICK",
-    "BUTTON_DOUBLE_CLICK",
-    "BUTTON_MULTIPLE_CLICK",
-    "BUTTON_LONG_PRESS_START",
-    "BUTTON_LONG_PRESS_HOLD",
-    "BUTTON_LONG_PRESS_UP",
-    "BUTTON_NONE_PRESS",
-};
-
-#if CONFIG_PM_ENABLE
-void power_save_set(bool enable_light_sleep)
-{
-    // Configure dynamic frequency scaling:
-    // maximum and minimum frequencies are set in sdkconfig,
-    // automatic light sleep is enabled if tickless idle support is enabled.
-    esp_pm_config_t pm_config = {
-            .max_freq_mhz = CONFIG_EXAMPLE_MAX_CPU_FREQ_MHZ,
-            .min_freq_mhz = CONFIG_EXAMPLE_MIN_CPU_FREQ_MHZ,
-#if CONFIG_FREERTOS_USE_TICKLESS_IDLE
-            .light_sleep_enable = enable_light_sleep
-#endif
-    };
-    ESP_ERROR_CHECK( esp_pm_configure(&pm_config) );
-}
-#endif
-
 static void control_task(void *pvParameter)
 {
-    bool is_running = true;
     button_event_t evt_data;
     uint8_t status = 0;
     g_button_queue = xQueueCreate(5, sizeof(button_event_t));
@@ -210,7 +295,7 @@ static void control_task(void *pvParameter)
     esp_sleep_enable_gpio_wakeup();
 #endif
 
-    while(is_running) {
+    while(1) {
         if (xQueueReceive(g_button_queue, &evt_data, portMAX_DELAY) != pdTRUE) {
             ESP_LOGI(TAG, "Nothing received");
             continue;
@@ -222,7 +307,7 @@ static void control_task(void *pvParameter)
         esp_wifi_force_wakeup_acquire();
 #endif
 
-        ESP_LOGI(TAG, "Button event: %s", button_event_table[(button_event_t)evt_data]);
+        ESP_LOGI(TAG, "Button event: %d", evt_data);
         if (evt_data == BUTTON_SINGLE_CLICK) {
             ESP_LOGI(TAG, "switch send press");
 #if CONFIG_EXAMPLE_SWITCH_STATUS_PERSISTED
@@ -269,6 +354,36 @@ static void app_driver_init(void)
 {
 #ifdef CONFIG_EXAMPLE_USE_COIN_CELL_BUTTON
     board_init();
+
+#if !CONFIG_EXAMPLE_USE_COIN_CELL_BUTTON_V1
+    button_config_t button_config = {
+        .type = BUTTON_TYPE_ADC,
+        .adc_button_config = {
+            .adc_channel = BOARD_CHAN_ADC,
+            .min = 2200,
+            .max = 3400,
+            .adc_handle = NULL,
+        },
+    };
+    button_handle_t button_handle = iot_button_create(&button_config);
+    iot_button_register_cb(button_handle, BUTTON_PRESS_DOWN, app_switch_button_event_cb, NULL);
+    iot_button_register_cb(button_handle, BUTTON_SINGLE_CLICK, app_switch_button_event_cb, NULL);
+    iot_button_register_cb(button_handle, BUTTON_LONG_PRESS_HOLD, app_switch_button_event_cb, NULL);
+    iot_button_register_cb(button_handle, BUTTON_PRESS_END, app_switch_button_event_cb, NULL);
+
+    button_event_config_t btn_event_cfg = {
+        .event = BUTTON_LONG_PRESS_UP,
+        .event_data = {
+            .long_press.press_time = 2000,
+        }
+    };
+    iot_button_register_event_cb(button_handle, btn_event_cfg, app_switch_button_event_cb, NULL);
+
+    btn_event_cfg.event = BUTTON_LONG_PRESS_START;
+    btn_event_cfg.event_data.long_press.press_time = 4000;
+    iot_button_register_event_cb(button_handle, btn_event_cfg, app_switch_button_event_cb, NULL);
+#endif
+
 #else
     button_config_t button_config = {
         .type = BUTTON_TYPE_GPIO,
@@ -293,14 +408,14 @@ void app_main(void)
 {
     espnow_storage_init();
 
-#ifndef CONFIG_EXAMPLE_USE_COIN_CELL_BUTTON
+    app_wifi_init();
+    app_driver_init();
+
+#if !defined(CONFIG_EXAMPLE_USE_COIN_CELL_BUTTON) || !CONFIG_EXAMPLE_USE_COIN_CELL_BUTTON_V1
 #if CONFIG_PM_ENABLE
     power_save_set(true);
 #endif // CONFIG_PM_ENABLE
 #endif
-
-    app_wifi_init();
-    app_driver_init();
 
     espnow_config_t espnow_config = ESPNOW_INIT_CONFIG_DEFAULT();
     espnow_config.send_max_timeout = portMAX_DELAY;

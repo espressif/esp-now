@@ -6,13 +6,26 @@ menu "Example Configuration"
         bool "Use coin cell button"
         default y
         help
-            By default, this demo uses the coin cell button to control the bulb, but if you don't have such button, you can use other ESP32 series DevKit to simulate, if so, please set this option to N.
+            By default, this demo uses the coin cell button to control the bulb, but
+            if you don't have such button, you can use other ESP32 series DevKit to
+            simulate, if so, please set this option to N.
+
+    config EXAMPLE_USE_COIN_CELL_BUTTON_V1
+        depends on EXAMPLE_USE_COIN_CELL_BUTTON
+        bool "Coin cell button hardware v1"
+        default n
+        help
+            Currently the coin cell button hardware has two versions. The marking on
+            the PCB is v1.0 and v1.4 respectively. Refer to the schematics for details.
+            Select this option according to your hardware.
 
     config EXAMPLE_SWITCH_STATUS_PERSISTED
         bool "Persist switch status in nvs"
         default n
         help
-            If switch status is persisted in nvs, status value is stored in nvs and represents ON or OFF. If it is not persisted, status value represents TOGGLE.
+            If switch status is persisted in nvs, status value is stored in nvs and
+            represents ON or OFF. If it is not persisted, status value represents
+            TOGGLE.
 
     choice EXAMPLE_MAX_CPU_FREQ
         prompt "Maximum CPU frequency"

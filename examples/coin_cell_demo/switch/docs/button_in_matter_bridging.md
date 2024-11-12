@@ -8,7 +8,11 @@ In general, the coin cell button can be used in an initiator role to control ano
 
 ## Hardware Design
 
-Refer to [this document](./SCH_Cell_button_switch_ESP32C2.pdf) for the schematic diagram.
+There are currently two hardware designs: V1 and V2. The designs are open sourced and available [here](https://oshwhub.com/esp-college/32bfc63ed181441a9a44da6cd2419809).
+
+### V1
+
+Refer to [SCH_Cell_button_switch_ESP32C2.pdf](./SCH_Cell_button_switch_ESP32C2.pdf) for the schematic diagram of the V1 hardware.
 
 The diagram below shows a simplified hardware design of the coin cell button circuit.
 ![hardware diagram](img/hardware-diagram.png)
@@ -18,6 +22,15 @@ From the diagram, it can be seen that the button is not a GPIO, instead it is th
 The power of the button is supplied by a power system consisting of a coin cell battery and a large capacitor. Both can only supply unstable power for a short period. There is additional circuitry ( Boost Converter) to stabilize and extend the power supply for additional period. However the power system is still considered limited. We should try to reduce the tasks for the device to perform. And the coin cell button needs to complete its task as fast as possible.
 
 As the coin cell battery and the capacitor is connected, when button is released, there will still be a small current leakage. Based on the specification of the capacitor (refer to the [BOM](./BOM_Cell_button_switch_ESP32C2.xlsx) for details), the leakage is about 1.5$\mu$A.
+
+### V2
+
+Refer to [SCH_Cell_button_switch_ESP32C2_V2.pdf](./SCH_Cell_button_switch_ESP32C2_V2.pdf) for the schematic diagram of the V2 hardware.
+
+The main difference compared to V1 is an additional circuit to use IO2 as ADC1 CH2 for voltage level detection.
+![switch ADC](img/switch_adc.png)
+
+With this addition, it is now possible to detect the action of button press as well as the duration of a long press.
 
 ## Software Design
 
@@ -51,17 +64,27 @@ In this application, the attribute `ESPNOW_ATTRIBUTE_KEY_1` on the initiator (bu
 
 ### Software Flow
 
+#### V1
+
 After boot-up and initialization is complete, the button starts to execute a task as shown below.  Note however that the execution can stop anytime when the button is released.
 
 ![Software Flow](img/button-software-flow.drawio.svg)
 
-#### Operations
+##### Operations
 
 The coin cell button can only perform on-off control to a bound responder. Following the software flow as described above, the operations performed by the device are:
 
-- Press the button on the device: send the control command.
-- Press and hold the key on the device for more than 2s: send the binding command.
-- Press and hold the key on the device for more than 4s: send the unbinding command.
+- Press the button on the device: send a control command.
+- Press and hold the key on the device for more than 2s: send a control command followed by a binding command.
+- Press and hold the key on the device for more than 4s: send one control, one binding and one unbinding command in sequence.
+
+#### V2
+
+With the change in hardware design, V2 coin cell button is able to detect button press action (single press, double press, long press, etc.), hence it is not required to cycle through control - binding - unbinding any more.
+
+For power saving during button action detection, Power Management and DFS needs to be enabled by following two configurations:
+- `CONFIG_PM_ENABLE=y`
+- `CONFIG_FREERTOS_USE_TICKLESS_IDLE=y`
 
 ### Channel Switching
 
@@ -90,9 +113,9 @@ With these configurations, it is guaranteed that one of the transmissions on the
 
 ## Power Consumption
 
-### Measurement and Analysis
+### Measurement and Analysis on V1 Hardware
 
-The measurement below is based on the above configurations. The software versions are:
+The measurement below is based on the above configurations on V1 coin cell button. The software versions are:
 
 * ESP-NOW: v2.5.1, commit: 655639
 * IDF: release/v5.2.1, commit: a322e6
@@ -150,7 +173,7 @@ The power consumption matches with the configuration values `CONFIG_ESPNOW_LIGHT
 
 ![Transmission Details](./img/pc_07-tx-details.png)
 
-### Configuration Tuning
+### Configuration Tuning on V1 Hardware
 
 In the above measurement, we have the following configurations.
 
@@ -231,7 +254,7 @@ The new configuration consumed $38.8\%$ less than the previous configuration for
 
 In conclusion, when retransmission is involved, the new configuration saves more power. If there is no retransmission, the new configuration is slightly better or about the same.
 
-### Battery Life Calculation
+### Battery Life Calculation Based on V1 Hardware
 
 The coin cell button uses a CR2032 battery. The typical capacity of a CR2032 battery is 225mAh. A number of factors affect the amount of charge that can actually be used by the device's operation. With the current [BOM](./BOM_Cell_button_switch_ESP32C2.xlsx), it is measured from test that about 25% of charge is actually used by the firmware operations.
 
@@ -245,6 +268,8 @@ Here we will present a rough estimation of the battery life of the coin cell but
   * `CONFIG_ESPNOW_CONTROL_WAIT_ACK_DURATION`: 10ms
 
 In actual usage, usually we will only bind once and will not unbind the coin cell button from the responder. And the pattern of binding is similar to control. Hence we will only consider the control transmission.
+
+> However, note that with V1 hardware, for each bind operation, the button needs to send one extra control, and for each unbind, the button needs to send one extra control and one extra bind.
 
 In control tranmission, we will calculate the power consumption for both one time transmission and three-time transmission. We will also calculate the power consumption for channel switching. The numbers will be taken from the measurements above.
 
@@ -321,3 +346,141 @@ In estimate, the battery can last between 1.7 to 3.42 years.
 #### Conclusion
 
 From the calculation both configurations can achieve more than 1 year of battery life. The configuration 2 achieves better results than configuration 1 by 19.2% (1-transmission) to 29.8% (3-transmission).
+
+### Power Consumption Measurement on V2 Hardware
+
+The measurements for V2 coin cell button are presented here, with same approach for analysis and calculation as V1.
+
+* ESP-NOW: v2.5.3
+* IDF: release/v5.3, commit: 0bbd72
+* ESP-NOW Responder: [ESP-NOW Matter bridge](https://github.com/espressif/esp-matter/tree/main/examples/esp-now_bridge_light) in esp-matter commit 606fe8
+
+#### Configuration 1
+
+* `CONFIG_ESPNOW_LIGHT_SLEEP_DURATION`: 30ms
+* `CONFIG_ESPNOW_CONTROL_WAIT_ACK_DURATION`: 20ms
+
+##### Binding
+
+![V2 Binding](./img/pc_v2_01-bind.png)
+
+This figure shows a typical binding operation. As V2 hardware is able to detect button press action, there is no control operation before sending binding packet. When the button press action is hold for 2-4 seconds, the coin cell button triggers the binding operation. During the detection, the button enables power saving. The average base current consumption is around 1.12mA.
+
+In this test, the coin cell button is not aware of the channel of the responder, hence there are some retransmission before binding is successful.
+
+##### Control
+
+###### One Transmission
+
+![V2 Control One](./img/pc_v2_02-one-tx.png)
+
+Compared to V1 figure, the current consumption graph is cleaner, however it takes more time to detect the button action before starting the operation.
+
+###### Three Transmission
+
+![V2 Control Three](./img/pc_v2_03-Three-tx.png)
+
+##### Unbinding
+
+![V2 Unbinding](./img/pc_v2_04-unbind.png)
+
+Unbinding completes in 4 seconds. There is no need to go through control and binding before sending the unbinding packet. This is a huge considering Wi-Fi transmission consumes much more current than idle.
+
+##### Channel Switch
+
+![V2 Channel Switch](./img/pc_v2_05-switch-channel-10-success.png)
+
+Switching channel to 10.
+
+#### Configuration 2
+
+* `CONFIG_ESPNOW_LIGHT_SLEEP_DURATION`: 40ms
+* `CONFIG_ESPNOW_CONTROL_WAIT_ACK_DURATION`: 10ms
+
+##### Binding
+
+![V2 Bind](./img/pc_v2_01-bind-2.png)
+
+##### Control
+
+###### One Transmission
+
+![V2 Control One](./img/pc_v2_02-one-tx-2.png)
+
+###### Three Transmission
+
+![V2 Control Three](./img/pc_v2_03-Three-tx-2.png)
+
+##### Unbinding
+
+![V2 Unbinding](./img/pc_v2_04-unbind-2.png)
+
+##### Channel Switching
+
+![V2 Channel Switch](./img/pc_v2_05-switch-channel-10-success-2.png)
+
+#### Battery Life Calculation
+
+##### Configuration 1
+
+|Task            |Time (ms) |Current (mA) |Charge (mAh) |
+|----------------|----------|-------------|-------------|
+|1 Transmission  | 372.3    | 9.4         | 0.000972    |
+|3 Transmissions | 456.3    | 17.1        | 0.00217     |
+|Channel Switch  | 1819.8   | 36.2        | 0.01830     |
+
+* If all controls can be completed in 1 transmission
+
+50 times of 1-transmission and 1 channel switch:
+
+$$0.000972 \times 50 + 0.01830 = 0.0669 mAh$$
+
+The battery can last for
+
+$$56.25 \div 0.0669 = 840.8 days \approx 2.3 years$$
+
+* If all controls need 3 transmissions
+
+50 times of 3-transmission and 1 channel switch:
+
+$$0.00217 \times 50 + 0.01830 = 0.1268 mAh$$
+
+The battery can last for
+
+$$56.25 \div 0.1268 = 443.6 days \approx 1.2 years$$
+
+In estimate, the battery can last between 1.2 to 2.3 years.
+
+##### Configuration 2
+
+|Task            |Time (ms) |Current (mA) |Charge (mAh) |
+|----------------|----------|-------------|-------------|
+|1 Transmission  | 358.9    | 9.5         | 0.000947    |
+|3 Transmissions | 415.9    | 14.8        | 0.00171     |
+|Channel Switch  | 1858.0   | 25.8        | 0.01332     |
+
+* If all controls can be completed in 1 transmission
+
+50 times of 1-transmission and 1 channel switch:
+
+$$0.000947 \times 50 + 0.01332 = 0.06067 mAh$$
+
+The battery can last for
+
+$$56.25 \div 0.06067 = 927 days \approx 2.5 years$$
+
+* If all controls need 3 transmissions
+
+50 times of 3-transmission and 1 channel switch:
+
+$$0.00171 \times 50 + 0.01332 = 0.09882 mAh$$
+
+The battery can last for
+
+$$56.25 \div 0.09882 = 569 days \approx 1.6 years$$
+
+In estimate, the battery can last between 1.6 to 2.5 years.
+
+##### Conclusion
+
+The power consumption of V2 hardware is slightly more than V1. However, this calculation does not factor in the unnecessary operations during binding and unbinding. The V2 hardware can provide better reliability and functionality.

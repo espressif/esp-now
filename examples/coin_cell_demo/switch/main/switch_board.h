@@ -17,7 +17,15 @@ extern "C" {
  */
 #define BOARD_IO_PWRLOCK    GPIO_NUM_0
 #define BOARD_IO_LED        GPIO_NUM_1
+#define BOARD_CHAN_ADC      ADC_CHANNEL_2
 #define BOARD_IO_PIN_SEL_OUTPUT ((1ULL << BOARD_IO_PWRLOCK) | (1ULL << BOARD_IO_LED))
+
+#if !CONFIG_EXAMPLE_USE_COIN_CELL_BUTTON_V1
+/**
+ * Define the ADC channel used.
+ */
+#define BOARD_CHAN_ADC      ADC_CHANNEL_2
+#endif
 
 /**
  * @brief Lock the power.
