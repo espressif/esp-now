@@ -10,12 +10,18 @@ The switch device sends the control commands to change the `RGB LED` status of t
 
 Open the project configuration menu (`idf.py menuconfig`) to set following configurations under `Example Configuration` Options: 
 
-* Set `Use coin cell button` of example to `N` to simulate.
+* Set `Use coin cell button` of example to `N` to run the switch application on a DevKit.
 
 > **Note:** The default configuration has light-sleep enabled in ESP-NOW component. If you are running the app on a DevKit, you can enable app level power saving by setting the following configurations to true:
 > * CONFIG_PM_ENABLE
 > * CONFIG_FREERTOS_USE_TICKLESS_IDLE
 > * CONFIG_GPIO_BUTTON_SUPPORT_POWER_SAVE
+
+* If `Use coin cell button` is set to `Y`, an additional option appears to allow you to select coin cell button hardware version: `Coin cell button hardware v1`. Currently there are two hardware version: V1 (set this option to `Y`) and V2 (set this option to `N`).
+
+> **Note:** When V2 hardware is used, PM component can be enabled for power saving.
+> * CONFIG_PM_ENABLE
+> * CONFIG_FREERTOS_USE_TICKLESS_IDLE
 
 ### bulb
 
@@ -36,8 +42,7 @@ Switch example can run on coin cell button which uses ESP32C2 chip. The images b
 ![button front view](switch/docs/img/coin_cell_button_front.png)
 ![button back view](switch/docs/img/coin_cell_button_back.png)
 
-You can reference the schematic as follows:
-![button schematic](switch/docs/img/coin_cell_schematic.png)
+Refer to [V1](./switch/docs/SCH_Cell_button_switch_ESP32C2_V1.pdf) and [V2](./switch/docs/SCH_Cell_button_switch_ESP32C2_V2.pdf) file for schematic of the V1 and V2 board respectively.
 
 ## How to Use the Example
 
@@ -47,16 +52,17 @@ You can reference the schematic as follows:
 
 #### ESP32 series DevKit
 
+- Open the project and compile the firmware with default config.
 - Double click the `BOOT` button on the device, it will send the binding command.
 - Single click the `BOOT` button on the device, it will send the control command.
 - Long press (more than 1.5 seconds) the `BOOT` button on the device, it will send the unbinding command.
 
 #### coin cell button
 
-- Open the project and compile the firmware as default config.
+- Open the project and compile the firmware with default config file sdkconfig.defaults.v1 or sdkconfig.defaults.v2. For example: `idf.py -D SDKCONFIG_DEFAULTS="sdkconfig.defaults.v1" set-target esp32c2`.
 - Connect the [ESP-Prog](https://espressif-docs.readthedocs-hosted.com/projects/esp-dev-kits/en/latest/other/esp-prog/index.html#) board and button use 2*3-PIN 1.27 mm male shrouded box header.
 - Download the firmware by the command `idf.py -p /dev/ttyUSB1 flash` on Ubuntu or [Flash Download Tools](https://www.espressif.com/sites/default/files/tools/flash_download_tool_3.9.4.zip) on windows.
-- Press and hold the key on the device for more than 2s, it will send the binding command.
+- Disconnect ESP-Prog and insert a CR2032 coin cell battery. Press, hold the key on the device for more than 2s and release, it will send the binding command.
 - Click the key on the device, it will send the control command.
 - Press and hold the key on the device for more than 4s, it will send the unbinding command.
 

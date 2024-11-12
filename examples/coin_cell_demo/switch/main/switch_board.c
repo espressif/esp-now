@@ -29,8 +29,8 @@ static esp_err_t _board_gpio_init(void)
     // configure GPIO with the given settings
     ret = gpio_config(&io_conf);
 
-    gpio_set_level(BOARD_IO_PWRLOCK, 1);
-    gpio_set_level(BOARD_IO_LED, 1);
+    gpio_set_level(BOARD_IO_PWRLOCK, 0);
+    gpio_set_level(BOARD_IO_LED, 0);
 
     return ret;
 }

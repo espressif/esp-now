@@ -187,7 +187,7 @@ static void app_bulb_ctrl_data_cb(espnow_attribute_t initiator_attribute,
              initiator_attribute, responder_attribute, status);
     /* status = 0: OFF, 1: ON, 2: TOGGLE */
     if (status != s_bulb_status) {
-        s_bulb_status ^= 1;
+        s_bulb_status = !s_bulb_status; ;
         app_set_bulb_status();
         if (s_bulb_status) {
             app_led_set_color(255, 255, 255);
