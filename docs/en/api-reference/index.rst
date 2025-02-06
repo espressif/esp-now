@@ -1,4 +1,4 @@
-API Reference
+2. API Reference
 ================
 
 This section provides the ESP-NOW's APIs that support different scenarios in ESP-NOW production and development phase.
