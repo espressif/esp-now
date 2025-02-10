@@ -100,6 +100,17 @@ static void espnow_load_bindlist(void)
     }
 }
 
+static void espnow_remove_item_from_bindlist(int item_index)
+{
+    g_bindlist.size--;
+
+    memcpy(g_bindlist.data + item_index, g_bindlist.data + g_bindlist.size, sizeof(espnow_ctrl_bind_info_t));
+    memset(g_bindlist.data + g_bindlist.size, 0, sizeof(espnow_ctrl_bind_info_t));
+
+    espnow_storage_set("bindlist", &g_bindlist, sizeof(g_bindlist));
+    return;
+}
+
 static bool espnow_ctrl_responder_is_bindlist(const uint8_t *mac, espnow_attribute_t initiator_attribute)
 {
     espnow_load_bindlist();
@@ -129,6 +140,10 @@ esp_err_t espnow_ctrl_responder_get_bindlist(espnow_ctrl_bind_info_t *list, size
 esp_err_t espnow_ctrl_responder_set_bindlist(const espnow_ctrl_bind_info_t *info)
 {
     espnow_load_bindlist();
+    if (g_bindlist.size >= ESPNOW_BIND_LIST_MAX_SIZE) {
+        return ESP_ERR_ESPNOW_FULL;
+    }
+
     if (!espnow_ctrl_responder_is_bindlist(info->mac, info->initiator_attribute)) {
         memcpy(g_bindlist.data + g_bindlist.size, info, sizeof(espnow_ctrl_bind_info_t));
         g_bindlist.size++;
@@ -143,14 +158,7 @@ esp_err_t espnow_ctrl_responder_remove_bindlist(const espnow_ctrl_bind_info_t *i
     espnow_load_bindlist();
     for (int i = 0; i < g_bindlist.size; ++i) {
         if (!memcmp(g_bindlist.data + i, info, sizeof(espnow_ctrl_bind_info_t))) {
-            g_bindlist.size--;
-
-            if (g_bindlist.size > 0) {
-                g_bindlist.data[g_bindlist.size].initiator_attribute = info->initiator_attribute;
-                memcpy(g_bindlist.data[g_bindlist.size].mac, info->mac, 6);
-            }
-
-            espnow_storage_set("bindlist", &g_bindlist, sizeof(g_bindlist));
+            espnow_remove_item_from_bindlist(i);
             break;
         }
     }
@@ -260,16 +268,7 @@ static esp_err_t espnow_ctrl_responder_bind_process(uint8_t *src_addr, void *dat
                 vTaskDelay(pdMS_TO_TICKS(100));
 #endif
 
-                g_bindlist.size--;
-
-                for (int j = i; j < g_bindlist.size; j++) {
-                    g_bindlist.data[j].initiator_attribute = g_bindlist.data[j + 1].initiator_attribute;
-                    memcpy(g_bindlist.data[j].mac, g_bindlist.data[j + 1].mac, 6);
-                }
-                g_bindlist.data[g_bindlist.size].initiator_attribute = 0;
-                memset(g_bindlist.data[g_bindlist.size].mac, 0, 6);
-
-                espnow_storage_set("bindlist", &g_bindlist, sizeof(g_bindlist));
+                espnow_remove_item_from_bindlist(i);
                 break;
             }
         }
