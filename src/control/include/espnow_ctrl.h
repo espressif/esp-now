@@ -70,7 +70,7 @@ typedef enum {
     ESPNOW_ATTRIBUTE_KEY_7              = 0x0207,
     ESPNOW_ATTRIBUTE_KEY_8              = 0x0208,
     ESPNOW_ATTRIBUTE_KEY_9              = 0x0209,
-    ESPNOW_ATTRIBUTE_KEY_10             = 0x0210,
+    ESPNOW_ATTRIBUTE_KEY_10             = 0x020a,
 
     /**< battery */
     ESPNOW_ATTRIBUTE_BATTERY_BASE       = 0x0300,
