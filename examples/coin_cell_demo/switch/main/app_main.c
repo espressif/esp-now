@@ -9,6 +9,9 @@
 #include "esp_wifi.h"
 #include "esp_sleep.h"
 #include "esp_pm.h"
+#if CONFIG_PM_ENABLE
+#include "driver/gpio.h"
+#endif
 
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(4, 4, 0)
 #include "esp_mac.h"

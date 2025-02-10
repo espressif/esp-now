@@ -29,6 +29,7 @@
 #include "esp_chip_info.h"
 #endif
 
+#include "driver/gpio.h"
 #include "driver/rtc_io.h"
 #include "driver/uart.h"
 
