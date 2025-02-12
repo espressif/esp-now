@@ -48,7 +48,7 @@ build_docs:
     stage: build
     image: $CI_DOCKER_REGISTRY/esp-idf-doc-env-v5.3:1-1
     variables:
-        ESP_DOCS_LATEST_BRANCH_NAME: "main"
+        ESP_DOCS_LATEST_BRANCH_NAME: "master"
     artifacts:
         when: always
         paths:
@@ -65,7 +65,7 @@ build_docs:
     needs:
         - build_docs
     variables:
-        ESP_DOCS_LATEST_BRANCH_NAME: "main"
+        ESP_DOCS_LATEST_BRANCH_NAME: "master"
     script:
         - source ${CI_PROJECT_DIR}/docs/utils.sh
         - add_doc_server_ssh_keys $DOCS_DEPLOY_PRIVATEKEY $DOCS_DEPLOY_SERVER $DOCS_DEPLOY_SERVER_USER
@@ -89,6 +89,8 @@ deploy_docs_preview:
 deploy_docs_production:
     only:
         - master
+        - /^release\/v/
+        - /^v\d+\.\d+/
     extends:
         - .deploy_docs_template
     variables:
