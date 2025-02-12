@@ -59,6 +59,47 @@ build_docs:
         - cd docs
         - build-docs -t esp32 esp32s2 esp32s3 esp32c2 esp32c3 esp32c6 -l en
 
+.deploy_docs_template:
+    stage: build
+    image: $CI_DOCKER_REGISTRY/esp-idf-doc-env-v5.3:1-1
+    needs:
+        - build_docs
+    variables:
+        ESP_DOCS_LATEST_BRANCH_NAME: "main"
+    script:
+        - source ${CI_PROJECT_DIR}/docs/utils.sh
+        - add_doc_server_ssh_keys $DOCS_DEPLOY_PRIVATEKEY $DOCS_DEPLOY_SERVER $DOCS_DEPLOY_SERVER_USER
+        - export GIT_VER=$(git describe --always)
+        - deploy-docs
+    tags:
+        - deploy_docs
+
+deploy_docs_preview:
+    extends:
+        - .deploy_docs_template
+    variables:
+        TYPE: "preview"
+        DOCS_BUILD_DIR: "${CI_PROJECT_DIR}/docs/_build/"
+        DOCS_DEPLOY_PRIVATEKEY: "$DOCS_PREVIEW_PRIVATEKEY"
+        DOCS_DEPLOY_SERVER: "$DOCS_PREVIEW_SERVER"
+        DOCS_DEPLOY_SERVER_USER: "$DOCS_PREVIEW_SERVER_USER"
+        DOCS_DEPLOY_PATH: "$DOCS_PREVIEW_PATH"
+        DOCS_DEPLOY_URL_BASE: "https://$DOCS_PREVIEW_SERVER/projects/esp-now"
+
+deploy_docs_production:
+    only:
+        - master
+    extends:
+        - .deploy_docs_template
+    variables:
+        TYPE: "production"
+        DOCS_BUILD_DIR: "${CI_PROJECT_DIR}/docs/_build/"
+        DOCS_DEPLOY_PRIVATEKEY: "$DOCS_PROD_PRIVATEKEY"
+        DOCS_DEPLOY_SERVER: "$DOCS_PROD_SERVER"
+        DOCS_DEPLOY_SERVER_USER: "$DOCS_PROD_SERVER_USER"
+        DOCS_DEPLOY_PATH: "$DOCS_PROD_PATH"
+        DOCS_DEPLOY_URL_BASE: "https://$DOCS_PROD_SERVER/projects/esp-now"
+
 build_idf_v4.4:
   extends: .build_template
   image: espressif/idf:release-v4.4
