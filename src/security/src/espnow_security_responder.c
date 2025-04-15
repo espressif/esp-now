@@ -270,5 +270,9 @@ esp_err_t espnow_sec_responder_stop()
         g_espnow_pc = NULL;
     }
 
+    memset(&g_sec_info, 0, sizeof(espnow_sec_info_t));
+    memset(&g_frame_config, 0, sizeof(espnow_frame_head_t));
+    memset(app_key, 0, APP_KEY_LEN);
+
     return ESP_OK;
 }
