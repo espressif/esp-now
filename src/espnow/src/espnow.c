@@ -1094,7 +1094,12 @@ esp_err_t espnow_init(const espnow_config_t *config)
     ESP_LOGI(TAG, "mac: " MACSTR ", version: %d", MAC2STR(ESPNOW_ADDR_SELF), ESPNOW_VERSION);
 
     ESP_LOGI(TAG, "Enable main task");
-    xTaskCreate(espnow_main_task, "espnow_main", 4096, NULL, tskIDLE_PRIORITY + 1, NULL);
+    xTaskCreatePinnedToCore(espnow_main_task, "espnow_main",
+                            g_espnow_config->task_config.stack_size_bytes,
+                            NULL,
+                            g_espnow_config->task_config.priority,
+                            NULL,
+                            g_espnow_config->task_config.core_id);
 
     return ESP_OK;
 }

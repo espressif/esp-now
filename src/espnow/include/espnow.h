@@ -96,6 +96,11 @@ typedef struct {
         bool sec_data               : 1;    /**< Enable or disable security data */
         uint32_t reserved2          : 18;   /**< Reserved */
     } receive_enable;            /**< Set 1 to enable receiving the corresponding ESP-NOW data type */
+    struct {
+        uint32_t stack_size_bytes;   /**< Task stack size in bytes. Increase this if you perform more work in the callbacks. */
+        int32_t core_id;             /**< Task core ID, tskNO_AFFINITY means not pinned to a core. */
+        uint8_t priority;            /**< Task priority, tskIDLE_PRIORITY is the lowest priority */
+    } task_config; /**< Task configuration for the espnow_main task. */
 } espnow_config_t;
 
 #define ESPNOW_INIT_CONFIG_DEFAULT() { \
@@ -124,6 +129,11 @@ typedef struct {
                 .sec_data      = 0, \
                 .reserved2     = 0, \
                 }, \
+    .task_config = { \
+        .stack_size_bytes = 4096, \
+        .priority = tskIDLE_PRIORITY + 1, \
+        .core_id = tskNO_AFFINITY, \
+    }, \
     }
 
 /**
