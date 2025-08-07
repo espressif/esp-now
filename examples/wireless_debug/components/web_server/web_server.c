@@ -1,11 +1,11 @@
-/* HTTP Restful API Server
+/*
+ * SPDX-FileCopyrightText: 2021-2025 Espressif Systems (Shanghai) CO LTD
+ *
+ * SPDX-License-Identifier: Unlicense OR CC0-1.0
+ */
 
-   This example code is in the Public Domain (or CC0 licensed, at your option.)
+// HTTP Restful API Server
 
-   Unless required by applicable law or agreed to in writing, this
-   software is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
-   CONDITIONS OF ANY KIND, either express or implied.
-*/
 #include <string.h>
 #include <fcntl.h>
 #include "esp_http_server.h"
@@ -69,18 +69,42 @@ static esp_err_t rest_common_get_handler(httpd_req_t *req)
     char filepath[FILE_PATH_MAX];
     rest_server_context_t *rest_context = (rest_server_context_t *)req->user_ctx;
 
+    char filepath_gz[FILE_PATH_MAX];
+    char content_type_path[FILE_PATH_MAX];
+    bool is_gzip = false;
+
     strlcpy(filepath, rest_context->base_path, sizeof(filepath));
     strlcat(filepath, req->uri, sizeof(filepath));
 
-    int fd = open(filepath, O_RDONLY, 0);
+    snprintf(filepath_gz, sizeof(filepath_gz), "%s.gz", filepath);
+
+    int fd = open(filepath_gz, O_RDONLY, 0);
+    if (fd != -1) {
+        is_gzip = true;
+        strlcpy(content_type_path, filepath, sizeof(content_type_path));
+        strlcpy(filepath, filepath_gz, sizeof(filepath));
+    } else {
+        fd = open(filepath, O_RDONLY, 0);
+        if (fd != -1) {
+            is_gzip = false;
+            strlcpy(content_type_path, filepath, sizeof(content_type_path));
+        }
+    }
 
     if (fd == -1) {
-        ESP_LOGD(TAG, "[%s, %d] filepath: %s", __func__, __LINE__, filepath);
-
-        const char *scratch = "index.html";
-        sprintf(filepath, "%s/%s", rest_context->base_path, scratch);
-
+        snprintf(filepath, sizeof(filepath), "%s/index.html.gz", rest_context->base_path);
         fd = open(filepath, O_RDONLY, 0);
+        if (fd != -1) {
+            is_gzip = true;
+            snprintf(content_type_path, sizeof(content_type_path), "%s/index.html", rest_context->base_path);
+        } else {
+            snprintf(filepath, sizeof(filepath), "%s/index.html", rest_context->base_path);
+            fd = open(filepath, O_RDONLY, 0);
+            if (fd != -1) {
+                is_gzip = false;
+                strlcpy(content_type_path, filepath, sizeof(content_type_path));
+            }
+        }
     }
 
     if (fd == -1) {
@@ -90,7 +114,11 @@ static esp_err_t rest_common_get_handler(httpd_req_t *req)
         return ESP_FAIL;
     }
 
-    set_content_type_from_file(req, filepath);
+    if (is_gzip) {
+        httpd_resp_set_hdr(req, "Content-Encoding", "gzip");
+    }
+
+    set_content_type_from_file(req, content_type_path);
 
     char *chunk = rest_context->scratch;
     ssize_t read_bytes;
@@ -149,7 +177,7 @@ esp_err_t web_server_send(const uint8_t *addr, const char *data,
     esp_err_t ret = ESP_OK;
     char *log_data = NULL;
     size_t log_size = 0;
-    char *buffer = ESP_CALLOC(1, size);
+    char *buffer = ESP_CALLOC(1, size + 1);
 
     uint32_t timestamp = 0;
     char log_level[2] = {0};
@@ -157,8 +185,17 @@ esp_err_t web_server_send(const uint8_t *addr, const char *data,
 
     ret = sscanf((char *)data + ((data[0] == '\033') ? 7 : 0), "%1s (%d) %[^:]: %[^\r\n\033]%*c",
                  log_level, &timestamp, tag, buffer);
-    log_size = asprintf(&log_data, "{\"errno\":0,\"src_addr\":\""MACSTR"\",\"rssi\":%d,\"timetamp\":%u,\"log_level\":\"%s\",\"tag\":\"%s\",\"data\":\"%.*s\"}",
-                        MAC2STR(addr), rx_ctrl->rssi, timestamp, log_level, tag, strlen(buffer), buffer);
+
+    // filter control characters or non-UTF-8 ASCII range characters to avoid browser parsing WS text frame failure
+    for (size_t i = 0; i < strlen(buffer); ++i) {
+        unsigned char c = buffer[i];
+        if (c < 0x20 || c >= 0x7f) {
+            buffer[i] = ' ';
+        }
+    }
+
+    log_size = asprintf(&log_data, "{\"errno\":0,\"src_addr\":\""MACSTR"\",\"rssi\":%d,\"timestamp\":%u,\"log_level\":\"%s\",\"tag\":\"%s\",\"data\":\"%s\"}",
+                        MAC2STR(addr), rx_ctrl->rssi, timestamp, log_level, tag, buffer);
 
     ESP_LOGD(TAG, "ret: %d, %s", ret, log_data);
 
@@ -177,6 +214,7 @@ esp_err_t web_server_send(const uint8_t *addr, const char *data,
         ESP_LOGW(TAG, "<%s> httpd_ws_send_frame_async, err_str: %s", esp_err_to_name(ret), strerror(errno));
         close(g_resp_handle->fd);
         ESP_FREE(g_resp_handle);
+        g_resp_handle = NULL;
         return ret;
     }
 
@@ -452,6 +490,9 @@ esp_err_t web_server_start(const char *base_path)
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
     config.recv_wait_timeout  = 30;
     config.uri_match_fn = httpd_uri_match_wildcard;
+    // Enable LRU（Least Recently Used）to avoid socket full affecting WebSocket connection
+    config.lru_purge_enable = true;
+    config.max_open_sockets = 7;
 
     ESP_LOGI(TAG, "Starting HTTP Server");
     ret = httpd_start(&server, &config);

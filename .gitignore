@@ -86,3 +86,6 @@ managed_components
 __pycache__/
 out/
 _build/
+
+# vscode
+.vscode/
