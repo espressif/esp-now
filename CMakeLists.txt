@@ -50,7 +50,15 @@ list(APPEND srcs         "src/utils/src/espnow_mem.c"
                          "src/utils/src/espnow_utils.c")
 list(APPEND include_dirs "src/utils/include")
 
-list(APPEND requires "spi_flash" "nvs_flash" "esp_timer" "esp_wifi" "driver")
+list(APPEND requires "spi_flash" "nvs_flash" "esp_timer" "esp_wifi")
+# only need to append these if ESP-IDF is >= 5.4
+idf_build_get_property(IDF_VERSION_MAJOR IDF_VERSION_MAJOR)
+idf_build_get_property(IDF_VERSION_MINOR IDF_VERSION_MINOR)
+if(IDF_VERSION_MAJOR GREATER 5 OR (IDF_VERSION_MAJOR EQUAL 5 AND IDF_VERSION_MINOR GREATER_EQUAL 4))
+     list(APPEND requires "esp_driver_gpio" "esp_driver_uart" "esp_driver_usb_serial_jtag")
+else()
+     list(APPEND requires "driver")
+endif()
 
 idf_component_register(SRCS "${srcs}"
                        INCLUDE_DIRS "${include_dirs}"

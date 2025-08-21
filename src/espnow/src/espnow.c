@@ -401,16 +401,27 @@ EXIT:
 }
 
 /**< callback function of sending ESPNOW data */
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 1)
+void espnow_send_cb(const esp_now_send_info_t *tx_info, esp_now_send_status_t status)
+#else
 void espnow_send_cb(const uint8_t *addr, esp_now_send_status_t status)
+#endif
 {
     if (g_buffered_num) {
         g_buffered_num --;
     }
 
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 1)
+    if (!tx_info || !g_event_group) {
+        ESP_LOGW(TAG, "Send cb args error, tx_info is NULL");
+        return ;
+    }
+#else
     if (!addr || !g_event_group) {
         ESP_LOGW(TAG, "Send cb args error, addr is NULL");
         return ;
     }
+#endif
 
     if (status == ESP_NOW_SEND_SUCCESS) {
         xEventGroupSetBits(g_event_group, SEND_CB_OK);
