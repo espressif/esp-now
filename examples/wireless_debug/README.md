@@ -225,7 +225,7 @@ The function is disabled by default. If you want to use the function, please fol
   * Set `WiFi SoftAP SSID`, default is `espnow-webserver`
   * Set `Website mount point in VFS`, default is `/www`
 - Connect PC or phone to `Wi-Fi SoftAP`
-- Open url `http://espnow-webserver` in web browser, and customer can debug devices through the web browser, like getting all devices log and status, controlling or upgrading the monitored devices.
+- Open url `http://espnow-webserver.local` or `http://192.168.4.1` in web browser, and customer can debug devices through the web browser, like getting all devices log and status, controlling or upgrading the monitored devices.
 
 <img src="../../docs/_static/zh_CN/web_server.png" width="1000">
 

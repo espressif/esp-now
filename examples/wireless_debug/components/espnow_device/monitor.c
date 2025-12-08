@@ -1,17 +1,17 @@
-/* Wireless Debug Example
+/*
+ * SPDX-FileCopyrightText: 2021-2025 Espressif Systems (Shanghai) CO LTD
+ *
+ * SPDX-License-Identifier: Unlicense OR CC0-1.0
+ */
 
-   This example code is in the Public Domain (or CC0 licensed, at your option.)
-
-   Unless required by applicable law or agreed to in writing, this
-   software is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
-   CONDITIONS OF ANY KIND, either express or implied.
-*/
+// Wireless Debug Example
 
 #include "esp_log.h"
 #include "esp_netif.h"
 #include "esp_spiffs.h"
 #include "esp_system.h"
 #include "esp_wifi.h"
+#include "esp_check.h"
 
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(4, 4, 0)
 #include "esp_mac.h"
@@ -77,8 +77,6 @@ static esp_err_t app_espnow_debug_recv_process(uint8_t *src_addr, void *data,
 }
 
 #if CONFIG_APP_WEB_SERVER
-
-#define MDNS_SERVICE_NAME "espnow-webserver"
 
 static int device_channel = 0;
 
@@ -220,15 +218,18 @@ static esp_err_t app_web_command()
         {"path", "/"}
     };
 
-    mdns_init();
-    mdns_hostname_set(CONFIG_APP_MDNS_HOST_NAME);
-    mdns_instance_name_set("Wireless ESP-NOW Debug WebServer");
-    ESP_ERROR_CHECK(mdns_service_add("ESPNOW-WebServer", "_http", "_tcp", 80, serviceTxtData,
-                                     sizeof(serviceTxtData) / sizeof(serviceTxtData[0])));
+    ESP_RETURN_ON_ERROR(mdns_init(), TAG, "mDNS init failed");
+    ESP_RETURN_ON_ERROR(mdns_hostname_set(CONFIG_APP_MDNS_HOST_NAME), TAG, "mDNS hostname set failed");
+    ESP_RETURN_ON_ERROR(mdns_instance_name_set("Wireless ESP-NOW Debug WebServer"), TAG, "mDNS instance name set failed");
+    ESP_RETURN_ON_ERROR(mdns_service_add("ESPNOW-WebServer", "_http", "_tcp", 80, serviceTxtData,
+                                        sizeof(serviceTxtData) / sizeof(serviceTxtData[0])), TAG, "mDNS service add failed");
+    ESP_RETURN_ON_ERROR(mdns_service_instance_name_set("_http", "_tcp", "Wireless ESP-NOW Debug WebServer"),
+                                                       TAG, "mDNS service instance name set failed");
+
     netbiosns_init();
 
-    ESP_ERROR_CHECK(app_init_fs());
-    ESP_ERROR_CHECK(web_server_start(CONFIG_APP_WEB_MOUNT_POINT));
+    ESP_RETURN_ON_ERROR(app_init_fs(), TAG, "File system init failed");
+    ESP_RETURN_ON_ERROR(web_server_start(CONFIG_APP_WEB_MOUNT_POINT), TAG, "Web server start failed");
 
     return ESP_OK;
 }
