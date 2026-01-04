@@ -50,6 +50,28 @@ menu "Example Configuration"
         help
             Enable ESP-NOW security.
 
+    config APP_ESPNOW_TIMESYNC
+        bool "Enable ESP-NOW Time Synchronization"
+        default n
+        help
+            Enable ESP-NOW internal time synchronization between nodes.
+            Initiator broadcasts authoritative time, Responder adjusts its time.
+
+    config APP_ESPNOW_TIMESYNC_INTERVAL_MS
+        int "Time sync broadcast interval (ms)"
+        default 60000
+        depends on APP_ESPNOW_TIMESYNC && APP_ESPNOW_INITIATOR
+        help
+            Interval in milliseconds for initiator to broadcast time.
+            Set to 0 for on-demand only.
+
+    config APP_ESPNOW_TIMESYNC_MAX_DRIFT_MS
+        int "Maximum time drift before adjustment (ms)"
+        default 100
+        depends on APP_ESPNOW_TIMESYNC && APP_ESPNOW_RESPONDER
+        help
+            Maximum acceptable time drift in milliseconds before adjustment.
+
     config APP_ESPNOW_SESSION_POP
         string "Proof of Possession"
         default "espnow_pop"

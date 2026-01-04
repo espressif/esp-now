@@ -56,7 +56,8 @@ ESP_EVENT_DECLARE_BASE(ESP_EVENT_ESPNOW);
 #define ESP_EVENT_ESPNOW_CTRL_BASE          0x200
 #define ESP_EVENT_ESPNOW_OTA_BASE           0x300
 #define ESP_EVENT_ESPNOW_DEBUG_BASE         0x400
-#define ESP_EVENT_ESPNOW_RESERVED_BASE      0x500
+#define ESP_EVENT_ESPNOW_TIMESYNC_BASE      0x500
+#define ESP_EVENT_ESPNOW_RESERVED_BASE      0x600
 
 /**
  * @brief The channel on which the device sends packets
@@ -94,7 +95,8 @@ typedef struct {
         bool sec_status             : 1;    /**< Enable or disable security status */
         bool sec                    : 1;    /**< Enable or disable security */
         bool sec_data               : 1;    /**< Enable or disable security data */
-        uint32_t reserved2          : 18;   /**< Reserved */
+        bool timesync               : 1;    /**< Enable or disable time synchronization */
+        uint32_t reserved2          : 17;   /**< Reserved */
     } receive_enable;            /**< Set 1 to enable receiving the corresponding ESP-NOW data type */
 } espnow_config_t;
 
@@ -122,6 +124,7 @@ typedef struct {
                 .sec_status    = 0, \
                 .sec           = 0, \
                 .sec_data      = 0, \
+                .timesync      = 0, \
                 .reserved2     = 0, \
                 }, \
     }
@@ -144,6 +147,7 @@ typedef enum {
     ESPNOW_DATA_TYPE_SECURITY_STATUS,/**< Security status packet */
     ESPNOW_DATA_TYPE_SECURITY,       /**< Security handshake packet */
     ESPNOW_DATA_TYPE_SECURITY_DATA,  /**< Security packet */
+    ESPNOW_DATA_TYPE_TIMESYNC,       /**< Time synchronization packet */
     ESPNOW_DATA_TYPE_RESERVED,       /**< Reserved for other function */
     ESPNOW_DATA_TYPE_MAX,
 } espnow_data_type_t;

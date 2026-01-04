@@ -29,6 +29,9 @@ Open the project configuration menu (`idf.py menuconfig`) to set following confi
 * Set `Enable WiFi Provision over ESP-NOW` to enable ESP-NOW `provision` function
 * Set `Enable ESPNOW Security` to enable ESP-NOW `security` function
   - Set `Proof  Possession` string to authorize session.
+* Set `Enable ESP-NOW Time Synchronization` to enable internal time sync between nodes
+  - Set `Time sync broadcast interval (ms)` for initiator broadcast interval (default: 60000ms)
+  - Set `Maximum time drift before adjustment (ms)` for responder drift threshold (default: 100ms)
 * Under `WIFI Provision Configuration`, set `BLE` or `SoftAP` provisioning.
 
 > Note that, the initiator/responder board will enable some functions as default. Only the initiator board can enable `WiFi Provision` function, and enabled by default.

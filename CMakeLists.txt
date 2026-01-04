@@ -43,6 +43,9 @@ list(APPEND srcs         "src/security/src/espnow_security.c"
 list(APPEND include_dirs "src/security/include" "src/security/include/protocomm/security")
 list(APPEND requires "mbedtls" "protobuf-c" "protocomm")
 
+list(APPEND srcs         "src/time/src/espnow_time.c")
+list(APPEND include_dirs "src/time/include")
+
 list(APPEND srcs         "src/utils/src/espnow_mem.c"
                          "src/utils/src/espnow_reboot.c"
                          "src/utils/src/espnow_storage.c"
