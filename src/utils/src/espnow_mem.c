@@ -132,7 +132,7 @@ void espnow_mem_print_task()
 #if ( ( configUSE_TRACE_FACILITY == 1 ) && ( configUSE_STATS_FORMATTING_FUNCTIONS > 0 ) )
     TaskStatus_t *pxTaskStatusArray = NULL;
     volatile UBaseType_t uxArraySize = 0;
-    uint32_t ulTotalRunTime = 0, ulStatsAsPercentage = 0, ulRunTimeCounte = 0;
+    configRUN_TIME_COUNTER_TYPE ulTotalRunTime = 0, ulStatsAsPercentage = 0, ulRunTimeCounte = 0;
     const char task_status_char[] = {'r', 'R', 'B', 'S', 'D'};
 
     /* Take a snapshot of the number of tasks in case it changes while this
