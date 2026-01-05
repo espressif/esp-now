@@ -87,7 +87,7 @@ static esp_err_t espnow_sec_info(uint8_t *src_addr, void *data,
     }
 
     espnow_addr_t addr_self    = {0};
-    esp_wifi_get_mac(ESP_IF_WIFI_STA, addr_self);
+    esp_wifi_get_mac(WIFI_IF_STA, addr_self);
 
     if (recv_data->sec_ver == ESPNOW_SEC_VER_V1_0
         && !memcmp(recv_data->client_mac, addr_self, 6)) {

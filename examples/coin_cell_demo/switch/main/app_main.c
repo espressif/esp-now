@@ -22,6 +22,8 @@
 #include "espnow_ctrl.h"
 #if !defined(CONFIG_EXAMPLE_USE_COIN_CELL_BUTTON) || !CONFIG_EXAMPLE_USE_COIN_CELL_BUTTON_V1
 #include "iot_button.h"
+#include "button_gpio.h"
+#include "button_adc.h"
 #endif
 #ifdef CONFIG_EXAMPLE_USE_COIN_CELL_BUTTON
 #include "switch_board.h"
@@ -359,51 +361,59 @@ static void app_driver_init(void)
     board_init();
 
 #if !CONFIG_EXAMPLE_USE_COIN_CELL_BUTTON_V1
+    /* Button 4.x API for ADC */
     button_config_t button_config = {
-        .type = BUTTON_TYPE_ADC,
-        .adc_button_config = {
-            .adc_channel = BOARD_CHAN_ADC,
-            .min = 2200,
-            .max = 3400,
-            .adc_handle = NULL,
-        },
+        .long_press_time = 2000,
+        .short_press_time = 180,
     };
-    button_handle_t button_handle = iot_button_create(&button_config);
-    iot_button_register_cb(button_handle, BUTTON_PRESS_DOWN, app_switch_button_event_cb, NULL);
-    iot_button_register_cb(button_handle, BUTTON_SINGLE_CLICK, app_switch_button_event_cb, NULL);
-    iot_button_register_cb(button_handle, BUTTON_LONG_PRESS_HOLD, app_switch_button_event_cb, NULL);
-    iot_button_register_cb(button_handle, BUTTON_PRESS_END, app_switch_button_event_cb, NULL);
 
-    button_event_config_t btn_event_cfg = {
-        .event = BUTTON_LONG_PRESS_UP,
-        .event_data = {
-            .long_press.press_time = 2000,
-        }
+    button_adc_config_t adc_config = {
+        .adc_channel = BOARD_CHAN_ADC,
+        .adc_handle = NULL,
+        .unit_id = ADC_UNIT_1,
+        .button_index = 0,
+        .min = 2200,
+        .max = 3400,
     };
-    iot_button_register_event_cb(button_handle, btn_event_cfg, app_switch_button_event_cb, NULL);
 
-    btn_event_cfg.event = BUTTON_LONG_PRESS_START;
-    btn_event_cfg.event_data.long_press.press_time = 4000;
-    iot_button_register_event_cb(button_handle, btn_event_cfg, app_switch_button_event_cb, NULL);
+    button_handle_t button_handle = NULL;
+    ESP_ERROR_CHECK(iot_button_new_adc_device(&button_config, &adc_config, &button_handle));
+
+    iot_button_register_cb(button_handle, BUTTON_PRESS_DOWN, NULL, app_switch_button_event_cb, NULL);
+    iot_button_register_cb(button_handle, BUTTON_SINGLE_CLICK, NULL, app_switch_button_event_cb, NULL);
+    iot_button_register_cb(button_handle, BUTTON_LONG_PRESS_HOLD, NULL, app_switch_button_event_cb, NULL);
+    iot_button_register_cb(button_handle, BUTTON_PRESS_END, NULL, app_switch_button_event_cb, NULL);
+
+    button_event_args_t btn_event_args = {
+        .long_press.press_time = 2000,
+    };
+    iot_button_register_cb(button_handle, BUTTON_LONG_PRESS_UP, &btn_event_args, app_switch_button_event_cb, NULL);
+
+    btn_event_args.long_press.press_time = 4000;
+    iot_button_register_cb(button_handle, BUTTON_LONG_PRESS_START, &btn_event_args, app_switch_button_event_cb, NULL);
 #endif
 
 #else
+    /* Button 4.x API */
     button_config_t button_config = {
-        .type = BUTTON_TYPE_GPIO,
-        .gpio_button_config = {
-            .gpio_num = CONTROL_KEY_GPIO,
-            .active_level = 0,
+        .long_press_time = 2000,
+        .short_press_time = 180,
+    };
+
+    button_gpio_config_t gpio_config = {
+        .gpio_num = CONTROL_KEY_GPIO,
+        .active_level = 0,
 #if CONFIG_GPIO_BUTTON_SUPPORT_POWER_SAVE
         .enable_power_save = true,
 #endif
-        },
     };
 
-    button_handle_t button_handle = iot_button_create(&button_config);
+    button_handle_t button_handle = NULL;
+    ESP_ERROR_CHECK(iot_button_new_gpio_device(&button_config, &gpio_config, &button_handle));
 
-    iot_button_register_cb(button_handle, BUTTON_SINGLE_CLICK, app_switch_button_event_cb, NULL);
-    iot_button_register_cb(button_handle, BUTTON_DOUBLE_CLICK, app_switch_button_event_cb, NULL);
-    iot_button_register_cb(button_handle, BUTTON_LONG_PRESS_START, app_switch_button_event_cb, NULL);
+    iot_button_register_cb(button_handle, BUTTON_SINGLE_CLICK, NULL, app_switch_button_event_cb, NULL);
+    iot_button_register_cb(button_handle, BUTTON_DOUBLE_CLICK, NULL, app_switch_button_event_cb, NULL);
+    iot_button_register_cb(button_handle, BUTTON_LONG_PRESS_START, NULL, app_switch_button_event_cb, NULL);
 #endif
 }
 

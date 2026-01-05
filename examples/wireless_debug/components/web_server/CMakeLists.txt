@@ -1,7 +1,16 @@
 
+set(requires "spi_flash" "console" "nvs_flash" "fatfs" "esp-now" "spiffs" "mdns" "esp_http_server")
+
+# json component was removed from IDF v6.0, use espressif__cjson instead
+if(IDF_VERSION_MAJOR GREATER_EQUAL 6)
+    list(APPEND requires "espressif__cjson")
+else()
+    list(APPEND requires "json")
+endif()
+
 idf_component_register(SRC_DIRS "."
                     INCLUDE_DIRS "include"
-                    REQUIRES "spi_flash" "console" "nvs_flash" "fatfs" "esp-now" "spiffs" "mdns" "esp_http_server" "json")
+                    REQUIRES ${requires})
 
 set(WEB_SRC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/front")
 

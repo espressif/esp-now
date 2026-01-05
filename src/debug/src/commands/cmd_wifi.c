@@ -188,7 +188,7 @@ static int wifi_config_func(int argc, char **argv)
     }
 
     if (strlen((char *)wifi_config.sta.ssid)) {
-        ret = esp_wifi_set_config(ESP_IF_WIFI_STA, &wifi_config);
+        ret = esp_wifi_set_config(WIFI_IF_STA, &wifi_config);
         ESP_ERROR_RETURN(ret != ESP_OK, ret, "esp_wifi_set_config");
 
         ret = esp_wifi_connect();

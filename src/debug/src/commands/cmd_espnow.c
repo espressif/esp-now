@@ -291,7 +291,7 @@ static esp_err_t initiator_recv_callback(uint8_t *src_addr, void *data,
                 MAC2STR(src_addr), rx_ctrl->channel, rx_ctrl->rssi,
                 wifi_config->mode, wifi_config->sta.ssid, wifi_config->sta.password, wifi_config->token);
 
-    ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_STA, &wifi_sta_config));
+    ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_sta_config));
     ESP_ERROR_CHECK(esp_wifi_connect());
     return ESP_OK;
 }
