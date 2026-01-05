@@ -8,6 +8,11 @@ if(NOT DEFINED IDF_TARGET)
 endif()
 
 # include(${ESPNOW_PATH}/component.cmake)
+
+# Exclude wifi_provisioning to use network_provisioning component instead
+# This is needed for IDF 5.x compatibility where wifi_provisioning is still built-in
+set(EXCLUDE_COMPONENTS wifi_provisioning)
+
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 
 if(DEFINED ENV{PROJECT_NAME})

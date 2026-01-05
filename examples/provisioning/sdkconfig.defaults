@@ -1,0 +1,3 @@
+# Enable protocomm security version 1 for ESP-NOW security
+CONFIG_ESP_PROTOCOMM_SUPPORT_SECURITY_VERSION_1=y
+

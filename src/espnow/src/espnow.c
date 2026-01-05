@@ -1096,7 +1096,7 @@ esp_err_t espnow_init(const espnow_config_t *config)
     espnow_add_peer(ESPNOW_ADDR_BROADCAST, NULL);
 
     esp_wifi_get_country(&g_self_country);
-    esp_wifi_get_mac(ESP_IF_WIFI_STA, ESPNOW_ADDR_SELF);
+    esp_wifi_get_mac(WIFI_IF_STA, ESPNOW_ADDR_SELF);
     ESP_LOGI(TAG, "mac: " MACSTR ", version: %d", MAC2STR(ESPNOW_ADDR_SELF), ESPNOW_VERSION);
 
     ESP_LOGI(TAG, "Enable main task");

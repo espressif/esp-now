@@ -4,6 +4,10 @@ dependencies:
     version: "^1.0.7"
     rules:
       - if: "idf_version >=5.0"
+  espressif/cjson:
+    version: "^1.0.0"
+    rules:
+      - if: "idf_version >=6.0"
   ## Required IDF version
   idf:
     version: ">=4.4"

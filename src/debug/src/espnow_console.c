@@ -21,8 +21,16 @@
 #include "esp_console.h"
 #include "esp_vfs_dev.h"
 #include "esp_vfs_fat.h"
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+#include "esp_vfs.h"
+#else
 #include "esp_vfs_cdcacm.h"
+#endif
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+#include "driver/usb_serial_jtag_vfs.h"
+#else
 #include "esp_vfs_usb_serial_jtag.h"
+#endif
 #include "driver/uart.h"
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 3, 0)
 #include "driver/uart_vfs.h"
@@ -254,9 +262,17 @@ esp_err_t espnow_console_init(const espnow_console_config_t *config)
     setvbuf(stdin, NULL, _IONBF, 0);
 
     /* Minicom, screen, idf_monitor send CR when ENTER key is pressed */
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+    usb_serial_jtag_vfs_set_rx_line_endings(ESP_LINE_ENDINGS_CR);
+#else
     esp_vfs_dev_usb_serial_jtag_set_rx_line_endings(ESP_LINE_ENDINGS_CR);
+#endif
     /* Move the caret to the beginning of the next line on '\n' */
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+    usb_serial_jtag_vfs_set_tx_line_endings(ESP_LINE_ENDINGS_CRLF);
+#else
     esp_vfs_dev_usb_serial_jtag_set_tx_line_endings(ESP_LINE_ENDINGS_CRLF);
+#endif
 
     /* Enable non-blocking mode on stdin and stdout */
     fcntl(fileno(stdout), F_SETFL, 0);
@@ -268,13 +284,25 @@ esp_err_t espnow_console_init(const espnow_console_config_t *config)
     ESP_ERROR_CHECK(usb_serial_jtag_driver_install(&usb_serial_jtag_config));
 
     /* Tell vfs to use usb-serial-jtag driver */
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+    usb_serial_jtag_vfs_use_driver();
+#else
     esp_vfs_usb_serial_jtag_use_driver();
+#endif
 
 #elif CONFIG_ESP_CONSOLE_USB_CDC
     /* Minicom, screen, idf_monitor send CR when ENTER key is pressed */
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+    esp_vfs_set_rx_line_endings(ESP_LINE_ENDINGS_CR);
+#else
     esp_vfs_dev_cdcacm_set_rx_line_endings(ESP_LINE_ENDINGS_CR);
+#endif
     /* Move the caret to the beginning of the next line on '\n' */
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+    esp_vfs_set_tx_line_endings(ESP_LINE_ENDINGS_CRLF);
+#else
     esp_vfs_dev_cdcacm_set_tx_line_endings(ESP_LINE_ENDINGS_CRLF);
+#endif
 
     /* Enable non-blocking mode on stdin and stdout */
     fcntl(fileno(stdout), F_SETFL, 0);

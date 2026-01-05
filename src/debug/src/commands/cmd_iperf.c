@@ -71,7 +71,7 @@ static int espnow_config_func(int argc, char **argv)
         esp_wifi_get_country(&country);
         esp_wifi_get_channel(&primary, &second);
         esp_wifi_get_max_tx_power(&power);
-        esp_wifi_get_protocol(ESP_IF_WIFI_STA, &protocol_bitmap);
+        esp_wifi_get_protocol(WIFI_IF_STA, &protocol_bitmap);
 
         ESP_LOGI(TAG, "Channel, primary: %d, second: %d", primary, second);
         ESP_LOGI(TAG, "Maximum transmiting power: %d", power);
@@ -121,14 +121,14 @@ static int espnow_config_func(int argc, char **argv)
 #endif
             };
             ESP_LOGI(TAG, "Set rate config: phymode %d, rate %d, ersu %d, dcm %d", rate_config.phymode, rate_config.rate, rate_config.ersu, espnow_config_args.rate->ival[3]);
-            ESP_ERROR_CHECK(esp_wifi_get_mac(ESP_IF_WIFI_STA, peer));
+            ESP_ERROR_CHECK(esp_wifi_get_mac(WIFI_IF_STA, peer));
             ESP_ERROR_CHECK(esp_now_set_peer_rate_config(peer, &rate_config));
         } else {
             ESP_LOGE(TAG, "Loss rate config value");
             return ESP_FAIL;
         }
 #else
-        ESP_ERROR_CHECK(esp_wifi_config_espnow_rate(ESP_IF_WIFI_STA, espnow_config_args.rate->ival[0]));
+        ESP_ERROR_CHECK(esp_wifi_config_espnow_rate(WIFI_IF_STA, espnow_config_args.rate->ival[0]));
 #endif
     }
 
@@ -137,7 +137,7 @@ static int espnow_config_func(int argc, char **argv)
     }
 
     if (espnow_config_args.protocol->count) {
-        ESP_ERROR_CHECK(esp_wifi_set_protocol(ESP_IF_WIFI_STA, espnow_config_args.protocol->ival[0]));
+        ESP_ERROR_CHECK(esp_wifi_set_protocol(WIFI_IF_STA, espnow_config_args.protocol->ival[0]));
     }
 
     return ESP_OK;
@@ -629,7 +629,7 @@ static esp_err_t espnow_iperf_func(int argc, char **argv)
     }
 
     uint8_t sta_mac[ESPNOW_ADDR_LEN] = {0};
-    esp_wifi_get_mac(ESP_IF_WIFI_STA, sta_mac);
+    esp_wifi_get_mac(WIFI_IF_STA, sta_mac);
 
     uint8_t channel                = 1;
     wifi_second_chan_t second      = 0;

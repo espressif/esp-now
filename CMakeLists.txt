@@ -51,6 +51,9 @@ list(APPEND srcs         "src/utils/src/espnow_mem.c"
 list(APPEND include_dirs "src/utils/include")
 
 list(APPEND requires "spi_flash" "nvs_flash" "esp_timer" "esp_wifi" "driver")
+if(IDF_VERSION_MAJOR GREATER_EQUAL 6)
+    list(APPEND requires "esp_driver_uart" "esp_driver_usb_serial_jtag" "vfs")
+endif()
 
 idf_component_register(SRCS "${srcs}"
                        INCLUDE_DIRS "${include_dirs}"

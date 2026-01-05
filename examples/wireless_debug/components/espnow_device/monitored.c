@@ -176,7 +176,7 @@ static int app_console_system_info(int argc, char **argv)
         uint8_t sta_mac[6] = {0};
         wifi_second_chan_t second = 0;
 
-        esp_wifi_get_mac(ESP_IF_WIFI_STA, sta_mac);
+        esp_wifi_get_mac(WIFI_IF_STA, sta_mac);
         esp_wifi_get_channel(&primary, &second);
 
         ESP_LOGI(TAG, "System information, mac: " MACSTR ", channel: %" PRIu8 ", free heap: %" PRIu32 "",

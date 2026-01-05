@@ -20,6 +20,12 @@
 extern "C" {
 #endif
 
+ #if defined(MBEDTLS_MAJOR_VERSION) && (MBEDTLS_MAJOR_VERSION >= 4)
+ #define ESPNOW_USE_PSA_CRYPTO 1
+ #else
+ #define ESPNOW_USE_PSA_CRYPTO 0
+ #endif
+
 /**
  * @brief   Protocomm security version 1 implementation
  *

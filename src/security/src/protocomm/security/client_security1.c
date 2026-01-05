@@ -26,13 +26,20 @@ which are undefined if the following flag is not defined */
 /* ToDo - Replace them with proper getter-setter once they are added */
 #define MBEDTLS_ALLOW_PRIVATE_ACCESS
 
+#include "protocomm_client_security1.h"
 
+#if ESPNOW_USE_PSA_CRYPTO
+#include "psa/crypto.h"
+#include <mbedtls/error.h>
+#include <mbedtls/constant_time.h>
+#else
 #include <mbedtls/aes.h>
 #include <mbedtls/sha256.h>
 #include <mbedtls/entropy.h>
 #include <mbedtls/ctr_drbg.h>
 #include <mbedtls/ecdh.h>
 #include <mbedtls/error.h>
+#endif
 // #include <ssl_misc.h>
 
 /* ToDo - Remove this once appropriate solution is available.
@@ -63,6 +70,12 @@ static const char* TAG = "client_security1";
 #define SESSION_STATE_RESP1  1 /* Session is not setup */
 #define SESSION_STATE_DONE   2 /* Session setup successful */
 
+#if ESPNOW_USE_PSA_CRYPTO
+typedef struct public_session{
+    psa_key_id_t keypair_id;
+    uint8_t client_pubkey[PUBLIC_KEY_LEN];
+} public_session_t;
+#else
     /* mbedtls context data for Curve25519 */
 typedef struct public_session{
     mbedtls_ecdh_context ctx_client;
@@ -70,6 +83,7 @@ typedef struct public_session{
     mbedtls_ctr_drbg_context ctr_drbg;
     uint8_t client_pubkey[PUBLIC_KEY_LEN];
 } public_session_t;
+#endif
 
 static public_session_t *pub_session = NULL;
 
@@ -82,7 +96,12 @@ typedef struct session {
     uint8_t rand[SZ_RANDOM];
 
     /* mbedtls context data for AES */
+#if ESPNOW_USE_PSA_CRYPTO
+    psa_cipher_operation_t ctx_aes;
+    psa_key_id_t key_id;
+#else
     mbedtls_aes_context ctx_aes;
+#endif
     unsigned char stb[16];
     size_t nc_off;
 } session_t;
@@ -102,6 +121,19 @@ static void hexdump(const char *msg, uint8_t *buf, int len)
     ESP_LOGD(TAG, "%s:", msg);
     ESP_LOG_BUFFER_HEX_LEVEL(TAG, buf, len, ESP_LOG_DEBUG);
 }
+
+#if ESPNOW_USE_PSA_CRYPTO
+static esp_err_t sec1_psa_cipher_update(session_t *session, const uint8_t *in, size_t inlen, uint8_t *out)
+{
+    size_t out_len = 0;
+    psa_status_t st = psa_cipher_update(&session->ctx_aes, in, inlen, out, inlen, &out_len);
+    if (st != PSA_SUCCESS || out_len != inlen) {
+        ESP_LOGE(TAG, "psa_cipher_update failed: %d (out_len=%u)", (int)st, (unsigned)out_len);
+        return ESP_FAIL;
+    }
+    return ESP_OK;
+}
+#endif
 
 static esp_err_t prepare_command0(public_session_t *session, SessionData *req)
 {
@@ -150,8 +182,42 @@ static esp_err_t write_session_command0(public_session_t *session, uint8_t **out
         return ESP_ERR_INVALID_ARG;
     }
 
-    int ret = ESP_FAIL;
     SessionData req;
+#if ESPNOW_USE_PSA_CRYPTO
+    psa_status_t st = psa_crypto_init();
+    if (st != PSA_SUCCESS) {
+        ESP_LOGE(TAG, "psa_crypto_init failed: %d", (int)st);
+        return ESP_FAIL;
+    }
+
+    /* Generate Curve25519 keypair and export raw public key (32 bytes) */
+    psa_key_attributes_t attr = PSA_KEY_ATTRIBUTES_INIT;
+    psa_set_key_usage_flags(&attr, PSA_KEY_USAGE_DERIVE);
+    psa_set_key_type(&attr, PSA_KEY_TYPE_ECC_KEY_PAIR(PSA_ECC_FAMILY_MONTGOMERY));
+    psa_set_key_bits(&attr, 255);
+    psa_set_key_algorithm(&attr, PSA_ALG_ECDH);
+
+    if (session->keypair_id != (psa_key_id_t)0) {
+        (void)psa_destroy_key(session->keypair_id);
+        session->keypair_id = (psa_key_id_t)0;
+    }
+    st = psa_generate_key(&attr, &session->keypair_id);
+    psa_reset_key_attributes(&attr);
+    if (st != PSA_SUCCESS) {
+        ESP_LOGE(TAG, "psa_generate_key failed: %d", (int)st);
+        return ESP_FAIL;
+    }
+
+    size_t pub_len = 0;
+    st = psa_export_public_key(session->keypair_id,
+                               session->client_pubkey, PUBLIC_KEY_LEN,
+                               &pub_len);
+    if (st != PSA_SUCCESS || pub_len != PUBLIC_KEY_LEN) {
+        ESP_LOGE(TAG, "psa_export_public_key failed: %d (len=%u)", (int)st, (unsigned)pub_len);
+        return ESP_FAIL;
+    }
+#else
+    int ret = ESP_FAIL;
 
     mbedtls_ecdh_init(&session->ctx_client);
     mbedtls_ctr_drbg_init(&session->ctr_drbg);
@@ -188,6 +254,7 @@ static esp_err_t write_session_command0(public_session_t *session, uint8_t **out
         goto exit_cmd0;
     }
     flip_endian(session->client_pubkey, PUBLIC_KEY_LEN);
+#endif
 
     /*********** Transaction0 - SessionCmd0 ****************/
     session_data__init(&req);
@@ -213,9 +280,13 @@ static esp_err_t write_session_command0(public_session_t *session, uint8_t **out
 
 exit_cmd0:
 
+#if ESPNOW_USE_PSA_CRYPTO
+    /* keypair is kept for the rest of the handshake; destroy on cleanup */
+#else
     mbedtls_ecdh_free(&session->ctx_client);
     mbedtls_ctr_drbg_free(&session->ctr_drbg);
     mbedtls_entropy_free(&session->entropy);
+#endif
 
     ESP_LOGD(TAG, "Write setup0_command failed");
 
@@ -240,6 +311,19 @@ static esp_err_t verify_response1(session_t *session, SessionData *resp)
     uint8_t check_buf[PUBLIC_KEY_LEN];
     Sec1Payload *in = (Sec1Payload *) resp->sec1;
 
+    if (in->sr1->device_verify_data.len != PUBLIC_KEY_LEN) {
+        ESP_LOGE(TAG, "Invalid device verifier len: %u", (unsigned)in->sr1->device_verify_data.len);
+        return ESP_ERR_INVALID_ARG;
+    }
+
+#if ESPNOW_USE_PSA_CRYPTO
+    if (sec1_psa_cipher_update(session,
+                               in->sr1->device_verify_data.data, PUBLIC_KEY_LEN,
+                               check_buf) != ESP_OK) {
+        ESP_LOGE(TAG, "decrypt device verifier failed");
+        return ESP_FAIL;
+    }
+#else
     int ret = mbedtls_aes_crypt_ctr(&session->ctx_aes, PUBLIC_KEY_LEN,
                                     &session->nc_off, session->rand, session->stb,
                                     in->sr1->device_verify_data.data, check_buf);
@@ -247,6 +331,7 @@ static esp_err_t verify_response1(session_t *session, SessionData *resp)
         ESP_LOGE(TAG, "Failed at mbedtls_aes_crypt_ctr with erro code : %d", ret);
         return ESP_FAIL;
     }
+#endif
     hexdump("Dec Device verifier", check_buf, sizeof(check_buf));
 
     if (memcmp(check_buf, pub_session->client_pubkey, sizeof(pub_session->client_pubkey)) != 0) {
@@ -290,7 +375,11 @@ static esp_err_t verify_response0(session_t *session, SessionData *resp, const p
         return ESP_ERR_INVALID_ARG;
     }
 
-    int ret;
+ #if ESPNOW_USE_PSA_CRYPTO
+    /* PSA path doesn't need a shared 'ret' variable */
+ #else
+    int ret = 0;
+ #endif
     Sec1Payload *in = (Sec1Payload *) resp->sec1;
 
     if (in->sr0->device_pubkey.len != PUBLIC_KEY_LEN) {
@@ -310,6 +399,24 @@ static esp_err_t verify_response0(session_t *session, SessionData *resp, const p
     hexdump("Device pubkey", dev_pubkey, PUBLIC_KEY_LEN);
     hexdump("Client pubkey", cli_pubkey, PUBLIC_KEY_LEN);
 
+#if ESPNOW_USE_PSA_CRYPTO
+    /* Curve25519 ECDH: derive 32-byte shared secret */
+    psa_status_t st = psa_crypto_init();
+    if (st != PSA_SUCCESS) {
+        ESP_LOGE(TAG, "psa_crypto_init failed: %d", (int)st);
+        return ESP_FAIL;
+    }
+    size_t secret_len = 0;
+    st = psa_raw_key_agreement(PSA_ALG_ECDH,
+                               pub_session->keypair_id,
+                               dev_pubkey, PUBLIC_KEY_LEN,
+                               session->sym_key, sizeof(session->sym_key),
+                               &secret_len);
+    if (st != PSA_SUCCESS || secret_len != PUBLIC_KEY_LEN) {
+        ESP_LOGE(TAG, "psa_raw_key_agreement failed: %d (len=%u)", (int)st, (unsigned)secret_len);
+        return ESP_FAIL;
+    }
+#else
     ret = mbedtls_mpi_lset(ACCESS_ECDH(&pub_session->ctx_client, Qp).Z, 1);
     if (ret != 0) {
         ESP_LOGE(TAG, "Failed at mbedtls_mpi_lset with error code : %d", ret);
@@ -341,11 +448,23 @@ static esp_err_t verify_response0(session_t *session, SessionData *resp, const p
         return ESP_FAIL;
     }
     flip_endian(session->sym_key, PUBLIC_KEY_LEN);
+#endif
 
     if (pop != NULL && pop->data != NULL && pop->len != 0) {
         ESP_LOGD(TAG, "Adding proof of possession");
         uint8_t sha_out[PUBLIC_KEY_LEN];
 
+#if ESPNOW_USE_PSA_CRYPTO
+        size_t hash_len = 0;
+        psa_status_t st = psa_hash_compute(PSA_ALG_SHA_256,
+                                           pop->data, pop->len,
+                                           sha_out, sizeof(sha_out),
+                                           &hash_len);
+        if (st != PSA_SUCCESS || hash_len != PUBLIC_KEY_LEN) {
+            ESP_LOGE(TAG, "psa_hash_compute failed: %d (len=%u)", (int)st, (unsigned)hash_len);
+            return ESP_FAIL;
+        }
+#else
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
         ret = mbedtls_sha256((const unsigned char *) pop->data, pop->len, sha_out, 0);
 #else
@@ -355,6 +474,7 @@ static esp_err_t verify_response0(session_t *session, SessionData *resp, const p
             ESP_LOGE(TAG, "Failed at mbedtls_sha256_ret with error code : %d", ret);
             return ESP_FAIL;
         }
+#endif
 
         for (int i = 0; i < PUBLIC_KEY_LEN; i++) {
             session->sym_key[i] ^= sha_out[i];
@@ -370,7 +490,6 @@ static esp_err_t verify_response0(session_t *session, SessionData *resp, const p
 
 static esp_err_t prepare_command1(session_t *session, SessionData *req)
 {
-    int ret;
     uint8_t *outbuf = (uint8_t *) malloc(PUBLIC_KEY_LEN);
     if (!outbuf) {
         ESP_LOGE(TAG, "Error allocating ciphertext buffer");
@@ -378,6 +497,56 @@ static esp_err_t prepare_command1(session_t *session, SessionData *req)
     }
 
     /* Initialise crypto context */
+#if ESPNOW_USE_PSA_CRYPTO
+    psa_status_t st = psa_crypto_init();
+    if (st != PSA_SUCCESS) {
+        ESP_LOGE(TAG, "psa_crypto_init failed: %d", (int)st);
+        free(outbuf);
+        return ESP_FAIL;
+    }
+
+    /* Reset cipher operation and key */
+    (void)psa_cipher_abort(&session->ctx_aes);
+    session->ctx_aes = psa_cipher_operation_init();
+    if (session->key_id != (psa_key_id_t)0) {
+        (void)psa_destroy_key(session->key_id);
+        session->key_id = (psa_key_id_t)0;
+    }
+
+    psa_key_attributes_t attr = PSA_KEY_ATTRIBUTES_INIT;
+    psa_set_key_type(&attr, PSA_KEY_TYPE_AES);
+    psa_set_key_bits(&attr, sizeof(session->sym_key) * 8);
+    psa_set_key_usage_flags(&attr, PSA_KEY_USAGE_ENCRYPT | PSA_KEY_USAGE_DECRYPT);
+    psa_set_key_algorithm(&attr, PSA_ALG_CTR);
+
+    st = psa_import_key(&attr, session->sym_key, sizeof(session->sym_key), &session->key_id);
+    psa_reset_key_attributes(&attr);
+    if (st != PSA_SUCCESS) {
+        ESP_LOGE(TAG, "psa_import_key failed: %d", (int)st);
+        free(outbuf);
+        return ESP_FAIL;
+    }
+
+    st = psa_cipher_encrypt_setup(&session->ctx_aes, session->key_id, PSA_ALG_CTR);
+    if (st != PSA_SUCCESS) {
+        ESP_LOGE(TAG, "psa_cipher_encrypt_setup failed: %d", (int)st);
+        free(outbuf);
+        return ESP_FAIL;
+    }
+
+    st = psa_cipher_set_iv(&session->ctx_aes, session->rand, sizeof(session->rand));
+    if (st != PSA_SUCCESS) {
+        ESP_LOGE(TAG, "psa_cipher_set_iv failed: %d", (int)st);
+        free(outbuf);
+        return ESP_FAIL;
+    }
+
+    if (sec1_psa_cipher_update(session, session->device_pubkey, PUBLIC_KEY_LEN, outbuf) != ESP_OK) {
+        free(outbuf);
+        return ESP_FAIL;
+    }
+#else
+    int ret;
     mbedtls_aes_init(&session->ctx_aes);
     memset(session->stb, 0, sizeof(session->stb));
     session->nc_off = 0;
@@ -398,6 +567,7 @@ static esp_err_t prepare_command1(session_t *session, SessionData *req)
         free(outbuf);
         return ESP_FAIL;
     }
+#endif
 
     Sec1Payload *out = (Sec1Payload *) malloc(sizeof(Sec1Payload));
     if (!out) {
@@ -563,7 +733,15 @@ static esp_err_t sec1_close_session(protocomm_security_handle_t handle, uint32_t
 
     if (cur_session->state == SESSION_STATE_DONE) {
         /* Free AES context data */
+#if ESPNOW_USE_PSA_CRYPTO
+        (void)psa_cipher_abort(&cur_session->ctx_aes);
+        if (cur_session->key_id != (psa_key_id_t)0) {
+            (void)psa_destroy_key(cur_session->key_id);
+            cur_session->key_id = (psa_key_id_t)0;
+        }
+#else
         mbedtls_aes_free(&cur_session->ctx_aes);
+#endif
     }
 
     memset(cur_session, 0, sizeof(session_t));
@@ -590,9 +768,16 @@ static esp_err_t sec1_new_session(protocomm_security_handle_t handle, uint32_t s
 
 static esp_err_t pub_session_deinit(public_session_t *session)
 {
+#if ESPNOW_USE_PSA_CRYPTO
+    if (session->keypair_id != (psa_key_id_t)0) {
+        (void)psa_destroy_key(session->keypair_id);
+        session->keypair_id = (psa_key_id_t)0;
+    }
+#else
     mbedtls_ecdh_free(&session->ctx_client);
     mbedtls_ctr_drbg_free(&session->ctr_drbg);
     mbedtls_entropy_free(&session->entropy);
+#endif
     memset(session, 0, sizeof(public_session_t));
     free(session);
     return ESP_OK;
@@ -619,6 +804,10 @@ static esp_err_t sec1_init(protocomm_security_handle_t *handle)
     }
 
     cur_session->id = -1;
+#if ESPNOW_USE_PSA_CRYPTO
+    cur_session->ctx_aes = psa_cipher_operation_init();
+    cur_session->key_id = (psa_key_id_t)0;
+#endif
 
     *handle = (protocomm_security_handle_t) cur_session;
 
@@ -675,11 +864,25 @@ static esp_err_t sec1_decrypt(protocomm_security_handle_t handle,
         return ESP_ERR_NO_MEM;
     }
 
-    int ret = mbedtls_aes_crypt_ctr(&cur_session->ctx_aes, inlen, &cur_session->nc_off,
-                                    cur_session->rand, cur_session->stb, inbuf, *outbuf);
+    int ret = 0;
+#if ESPNOW_USE_PSA_CRYPTO
+    if (sec1_psa_cipher_update(cur_session, inbuf, inlen, *outbuf) != ESP_OK) {
+        return ESP_FAIL;
+    }
 #else
-    int ret = mbedtls_aes_crypt_ctr(&cur_session->ctx_aes, inlen, &cur_session->nc_off,
-                                    cur_session->rand, cur_session->stb, inbuf, outbuf);
+    ret = mbedtls_aes_crypt_ctr(&cur_session->ctx_aes, inlen, &cur_session->nc_off,
+                                cur_session->rand, cur_session->stb, inbuf, *outbuf);
+#endif
+#else
+    int ret = 0;
+#if ESPNOW_USE_PSA_CRYPTO
+    if (sec1_psa_cipher_update(cur_session, inbuf, inlen, outbuf) != ESP_OK) {
+        return ESP_FAIL;
+    }
+#else
+    ret = mbedtls_aes_crypt_ctr(&cur_session->ctx_aes, inlen, &cur_session->nc_off,
+                                cur_session->rand, cur_session->stb, inbuf, outbuf);
+#endif
 #endif
     if (ret != 0) {
         ESP_LOGE(TAG, "Failed at mbedtls_aes_crypt_ctr with error code : %d", ret);

@@ -39,7 +39,7 @@ static void show_system_info_timercb(TimerHandle_t timer)
     wifi_second_chan_t second = 0;
     wifi_ap_record_t ap_info  = {0};
 
-    esp_wifi_get_mac(ESP_IF_WIFI_STA, sta_mac);
+    esp_wifi_get_mac(WIFI_IF_STA, sta_mac);
     esp_wifi_get_channel(&primary, &second);
     esp_wifi_sta_get_ap_info(&ap_info);
 
