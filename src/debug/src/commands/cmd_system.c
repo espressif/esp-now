@@ -408,21 +408,24 @@ static int light_sleep(int argc, char **argv)
     fflush(stdout);
     fsync(fileno(stdout));
     esp_light_sleep_start();
-    esp_sleep_wakeup_cause_t cause = esp_sleep_get_wakeup_cause();
-    const char *cause_str;
-    switch (cause) {
-    case ESP_SLEEP_WAKEUP_GPIO:
-        cause_str = "GPIO";
-        break;
-    case ESP_SLEEP_WAKEUP_UART:
-        cause_str = "UART";
-        break;
-    case ESP_SLEEP_WAKEUP_TIMER:
-        cause_str = "timer";
-        break;
-    default:
-        cause_str = "unknown";
-        printf("%d\n", cause);
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+    const uint32_t causes = esp_sleep_get_wakeup_causes();
+#else
+    const uint32_t causes = BIT(esp_sleep_get_wakeup_cause());
+#endif
+    char cause_str[32] = "";
+    if (causes & BIT(ESP_SLEEP_WAKEUP_GPIO)) {
+        strcat(cause_str, "GPIO ");
+    }
+    if (causes & BIT(ESP_SLEEP_WAKEUP_UART)) {
+        strcat(cause_str, "UART ");
+    }
+    if (causes & BIT(ESP_SLEEP_WAKEUP_TIMER)) {
+        strcat(cause_str, "TIMER ");
+    }
+    if (cause_str[0] == '\0') {
+        strcpy(cause_str, "UNKNOWN");
+        printf("%d\n", causes);
     }
     ESP_LOGI(TAG, "Woke up from: %s", cause_str);
     return 0;
