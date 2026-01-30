@@ -1,3 +1,29 @@
+# v2.5.3
+
+Doc:
+- docs: Translate CN ESP-NOW User Guide.
+- docs: Modify docs latest branch name.
+- docs: Add deploy docs.
+- docs: Update espnow_ctrl.h. [#135](https://github.com/espressif/esp-now/pull/135)
+
+Fixed:
+- Fix an incompatible pointer type issue. [#145](https://github.com/espressif/esp-now/issues/145)
+- Fix compile issue when update IDF to 6.0.
+- Improve WebUI accessibility and device info retrieval.
+- Update espnow_send_cb to support different ESP-IDF versions.
+- Fix the insufficient clearance of sec responder stop.
+- Fix web end cannot load the device correctly.
+- Fix coin cell build broken due to new button component.
+- Fix bug when removing item from bindlist.
+- Fix bug when espnow data size is validated for internal consistency but not against the actual received packet length.
+- Fix deprecated wakeup cause retrieval allowing multiple wakeup reasons. [#153](https://github.com/espressif/esp-now/pull/153)
+- Fix spelling errors in code and documentation (forward, provisioning, length).
+
+Features:
+- Allow configuration of espnow_main task stack size and priority, support time sync. [#140](https://github.com/espressif/esp-now/issues/140) [#143](https://github.com/espressif/esp-now/issues/143) [#147](https://github.com/espressif/esp-now/issues/147)
+- Add coin cell button v2.
+- Add codespell check to CI pipeline for automatic spelling error detection.
+
 # v2.5.2
 
 Doc:
