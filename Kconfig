@@ -161,6 +161,30 @@ menu "ESP-NOW Configuration"
         help
             Select whether to call the ack handler immediately in the data receive callback, or queue it and call it when idle.
 
+    menu "ESP-NOW Task Configuration"
+
+        comment "Avoid heavy processing in handlers; offload to app task via queues."
+
+    config ESPNOW_TASK_STACK_SIZE
+        int "Stack size of espnow task"
+        range 2048 8192
+        default 4096
+        help
+            Set the stack size of the espnow task.
+            Increase this value if you perform complex operations in message handlers
+            (e.g., JSON parsing, encryption, deep function calls) and encounter stack overflow.
+
+    config ESPNOW_TASK_PRIORITY
+        int "Priority of espnow task"
+        range 1 25
+        default 1
+        help
+            Set the priority of the espnow main task.
+            Higher values indicate higher priority. The default is tskIDLE_PRIORITY + 1 (i.e., 1).
+            Increase this value if you need faster message processing or have real-time requirements.
+
+    endmenu
+
     menu "ESP-NOW Utils Configuration"
     choice ESPNOW_MEM_ALLOCATION_LOCATION
         prompt "The memory location allocated by MALLOC, CALLOC and REALLOC"

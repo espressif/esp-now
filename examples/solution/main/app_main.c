@@ -7,6 +7,8 @@
    CONDITIONS OF ANY KIND, either express or implied.
 */
 
+#include <inttypes.h>
+
 #include "esp_log.h"
 #include "esp_netif.h"
 #include "esp_system.h"
@@ -18,6 +20,10 @@
 
 #include "espnow.h"
 #include "espnow_utils.h"
+
+#ifdef CONFIG_APP_ESPNOW_TIMESYNC
+#include "espnow_time.h"
+#endif
 
 #ifdef CONFIG_APP_ESPNOW_CONTROL
 #include "espnow_ctrl.h"
@@ -169,6 +175,21 @@ static void app_wifi_event_handler(void *arg, esp_event_base_t event_base,
         app_led_set_color(0, 255, 0);
     }
 }
+
+#ifdef CONFIG_APP_ESPNOW_TIMESYNC
+static int64_t s_time_offset_us = 0;
+
+static void app_timesync_event_handler(void *arg, esp_event_base_t event_base,
+                                       int32_t event_id, void *event_data)
+{
+    if (event_id == ESP_EVENT_ESPNOW_TIMESYNC_SYNCED) {
+        espnow_timesync_event_t *evt = (espnow_timesync_event_t *)event_data;
+        s_time_offset_us = evt->synced_time_us - esp_timer_get_time();
+        ESP_LOGI(TAG, "Time synced from " MACSTR ", drift: %" PRId32 " ms",
+                 MAC2STR(evt->src_addr), evt->drift_ms);
+    }
+}
+#endif
 
 #ifdef CONFIG_APP_ESPNOW_CONTROL
 #if CONFIG_APP_ESPNOW_INITIATOR
@@ -463,12 +484,30 @@ void app_main()
     app_control_button_init();
 #endif
 
+#ifdef CONFIG_APP_ESPNOW_TIMESYNC
+    espnow_time_initiator_config_t time_config = {
+        .sync_interval_ms = CONFIG_APP_ESPNOW_TIMESYNC_INTERVAL_MS,
+    };
+    ESP_ERROR_CHECK(espnow_time_initiator_start(&time_config));
+    ESP_LOGI(TAG, "Time sync initiator started, interval: %d ms", CONFIG_APP_ESPNOW_TIMESYNC_INTERVAL_MS);
+#endif
+
     app_espnow_initiator();
 #elif CONFIG_APP_ESPNOW_RESPONDER
     app_espnow_responder_register();
 
 #ifdef CONFIG_APP_ESPNOW_CONTROL
     app_control_responder_init();
+#endif
+
+#ifdef CONFIG_APP_ESPNOW_TIMESYNC
+    espnow_time_responder_config_t time_config = {
+        .max_drift_ms = CONFIG_APP_ESPNOW_TIMESYNC_MAX_DRIFT_MS,
+    };
+    esp_event_handler_register(ESP_EVENT_ESPNOW, ESP_EVENT_ESPNOW_TIMESYNC_SYNCED, app_timesync_event_handler, NULL);
+    ESP_ERROR_CHECK(espnow_time_responder_start(&time_config));
+    ESP_ERROR_CHECK(espnow_time_responder_request());
+    ESP_LOGI(TAG, "Time sync responder started, max drift: %d ms", CONFIG_APP_ESPNOW_TIMESYNC_MAX_DRIFT_MS);
 #endif
 
     app_espnow_responder();

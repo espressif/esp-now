@@ -12,4 +12,5 @@ This section provides the ESP-NOW's APIs that support different scenarios in ESP
    ota/index
    provisioning/index
    security/index
+   time/index
    utils/index
