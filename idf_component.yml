@@ -1,4 +1,4 @@
-version: "2.5.2"
+version: "2.5.3"
 description: This package provides enhanced ESP-NOW functions which will be easy to integrate into product.
 url: https://github.com/espressif/esp-now
 issues: https://github.com/espressif/esp-now/issues
