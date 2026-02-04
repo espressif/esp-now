@@ -70,7 +70,7 @@ typedef struct {
 esp_err_t pcap_new(pcap_config_t *config);
 
 /**
- * @brief Close pcap file and recyle related resources
+ * @brief Close pcap file and recycle related resources
  *
  * @return esp_err_t ESP_OK on success, ESP_FAIL on error
  */

@@ -236,7 +236,7 @@ menu "ESP-NOW Configuration"
             default y
             help
                 Linenoise line editing library provides functions to save and load
-                command history. If this option is enabled, initalizes a FAT filesystem
+                command history. If this option is enabled, initializes a FAT filesystem
                 and uses it to store command history.
     endmenu
 
@@ -248,7 +248,7 @@ menu "ESP-NOW Configuration"
                 Store log info partition label.
             
         config ESPNOW_DEBUG_LOG_PARTITION_LABEL_NVS
-            string "The partition lable used to store log status"
+            string "The partition label used to store log status"
             default "log_status"
             help
                 Store log status partition label.

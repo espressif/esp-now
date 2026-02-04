@@ -74,11 +74,11 @@ typedef struct espnow_time_config_s {
         } \
     } while(0)
 
-#define ESP_ERROR_GOTO(con, lable, format, ...) do { \
+#define ESP_ERROR_GOTO(con, label, format, ...) do { \
         if (con) { \
             if(*format != '\0') \
                 ESP_LOGW(TAG, "[%s, %d]" format, __func__, __LINE__, ##__VA_ARGS__); \
-            goto lable; \
+            goto label; \
         } \
     } while(0)
 

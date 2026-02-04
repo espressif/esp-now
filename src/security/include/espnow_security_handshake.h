@@ -94,7 +94,7 @@ typedef struct espnow_sec_result_s {
  * @attention Only called at the root
  *
  * @param[out]  info_list  destination nodes of mac
- * @param[out]  num  number of scaned nodes
+ * @param[out]  num  number of scanned nodes
  * @param[in]  wait_ticks  the maximum scanning time in ticks
  *
  * @return

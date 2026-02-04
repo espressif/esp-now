@@ -104,7 +104,7 @@ static int version_func(int argc, char **argv)
 #endif
 
         default:
-            chip_name = "Unknow";
+            chip_name = "Unknown";
             break;
     }
 
@@ -120,7 +120,7 @@ static int version_func(int argc, char **argv)
         { NULL,          0xff},
     };
 
-    const char *flash_manufacturer = "Unknow";
+    const char *flash_manufacturer = "Unknown";
 #if CONFIG_IDF_TARGET_ESP32 || CONFIG_IDF_TARGET_ESP32S2
     uint32_t raw_flash_id    = g_rom_flashchip.device_id;
 #else

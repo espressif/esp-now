@@ -64,7 +64,7 @@ void espnow_mem_remove_record(void *ptr, const char *tag, int line);
 /**
  * @brief Print the all allocation but not released memory
  *
- * @attention Must configure CONFIG_ESPNOW_MEM_DEBUG == y annd esp_log_level_set(esp_mem, ESP_LOG_INFO);
+ * @attention Must configure CONFIG_ESPNOW_MEM_DEBUG == y and esp_log_level_set(esp_mem, ESP_LOG_INFO);
  */
 void espnow_mem_print_record(void);
 

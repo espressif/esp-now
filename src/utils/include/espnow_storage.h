@@ -22,7 +22,7 @@ extern "C"
 #endif
 
 /** 
- * @brief Intialise ESP Storage
+ * @brief Initialise ESP Storage
  *
  * @return
  *     - ESP_FAIL

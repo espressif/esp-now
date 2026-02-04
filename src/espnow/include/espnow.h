@@ -82,9 +82,9 @@ typedef struct {
     uint32_t send_max_timeout;              /**< Maximum timeout */
     struct {
         bool ack                    : 1;    /**< Enable or disable ACK */
-        bool forward                : 1;    /**< Enable or disable forword */
+        bool forward                : 1;    /**< Enable or disable forward */
         bool group                  : 1;    /**< Enable or disable group */
-        bool provisoning            : 1;    /**< Enable or disable provisoning */
+        bool provisioning            : 1;    /**< Enable or disable provisioning */
         bool control_bind           : 1;    /**< Enable or disable control bind */
         bool control_data           : 1;    /**< Enable or disable control data */
         bool ota_status             : 1;    /**< Enable or disable OTA status */
@@ -113,7 +113,7 @@ typedef struct {
                 .ack           = 1, \
                 .forward       = 1, \
                 .group         = 1, \
-                .provisoning   = 0, \
+                .provisioning   = 0, \
                 .control_bind  = 0, \
                 .control_data  = 0, \
                 .ota_status    = 0, \

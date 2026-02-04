@@ -27,7 +27,7 @@ There are two roles defined in ESP-NOW according to the data flow, initiator and
 
 ### IDF Version
 
-The following table shows the ESP-IDF versions supported by ESP-NOW at the current time. The lable ![alt text](docs/_static/yes-checkm.png "supported") means supported, and the lable ![alt text](docs/_static/no-icon.png) means not supported.
+The following table shows the ESP-IDF versions supported by ESP-NOW at the current time. The label ![alt text](docs/_static/yes-checkm.png "supported") means supported, and the label ![alt text](docs/_static/no-icon.png) means not supported.
 
 The ESP-IDF master branch is marked as not supported because the major feature changes it has introduced may cause conflicts with ESP-NOW. Yet, the ESP-NOW examples not affected by those feature changes can still run correctly on the IDF master branch.
 
@@ -116,7 +116,7 @@ ESP-NOW can be used to receive the running log for debugging. It can be used in 
 
 ESP-NOW can protect the data security with ECDH and AES128-CCM.
 
-1. **Quick Configuration**: 16 devices can be configurated in 5 seconds.
+1. **Quick Configuration**: 16 devices can be configured in 5 seconds.
 2. **Multiple Devices Handshake**: ESP-NOW initiator can support multiple devices handshake at same time.
 3. **Safety**:
     - ECDH and Proof of Possession (PoP) string used to authorize session and derive shared key
