@@ -89,11 +89,11 @@ static uint16_t get_uint16(const uint8_t *pnt)
 static int parse_next_query(void *data, int size, dns_query_t *query)
 {
     int len;
-    int lables;
+    int labels;
     uint8_t *ptr;
 
     len = 0;
-    lables = 0;
+    labels = 0;
     ptr = (uint8_t *)data;
 
     while (true) {
@@ -110,7 +110,7 @@ static int parse_next_query(void *data, int size, dns_query_t *query)
             break;
         }
 
-        if (lables > 0) {
+        if (labels > 0) {
             if (len == DNS_MAX_HOST_NAME_LEN) {
                 return -2;
             }
@@ -130,7 +130,7 @@ static int parse_next_query(void *data, int size, dns_query_t *query)
         len += lable_len;
         ptr += lable_len;
         size -= lable_len;
-        lables++;
+        labels++;
     }
 
     if (size < 4) {

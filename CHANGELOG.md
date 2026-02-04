@@ -15,7 +15,7 @@ Features:
 - Add bind error event for timeout, rssi and bindlist size.
 - Reduce the number of NVS operations. [#123](https://github.com/espressif/esp-now/pull/123)
 - Use separate cache to store security keys, one for encrypt, the other for decrypt.
-- Announce securiy handshake info of initiator to responder.
+- Announce security handshake info of initiator to responder.
 
 # v2.5.1
 
@@ -33,7 +33,7 @@ Fixed:
 
 Features:
 - Control attribute is mostly meaningless. [#82](https://github.com/espressif/esp-now/issues/82)
-- Control functionality improvments. [#84](https://github.com/espressif/esp-now/issues/84)
+- Control functionality improvements. [#84](https://github.com/espressif/esp-now/issues/84)
 - Update document for match the components. [#85](https://github.com/espressif/esp-now/issues/85)
 - Support USB Serial JTAG and USB CDC console. [#86](https://github.com/espressif/esp-now/issues/86)
 - Add Kconfig options for esp-now OTA. [#94](https://github.com/espressif/esp-now/issues/94)
@@ -46,7 +46,7 @@ Fixed:
 - Fix provisioning doesn't work when enable CONFIG_ESPNOW_APP_SECURITY.[#103](https://github.com/espressif/esp-now/issues/103)
 - Fix an issue of init error after deinit.[#104](https://github.com/espressif/esp-now/issues/104)
 - Fix Wrong channel logged on send error. [#106](https://github.com/espressif/esp-now/issues/106)
-- Fix Some API is deprecated which cause compile waring. [#111](https://github.com/espressif/esp-now/issues/111)
+- Fix Some API is deprecated which cause compile warning. [#111](https://github.com/espressif/esp-now/issues/111)
 
 # v2.4.0
 
@@ -80,7 +80,7 @@ Features:
 
 Fixed:
 - Fix the bug with bindlist cleanup when unbinding.
-- Fix compile issue when enbale Anti-rollback option.
+- Fix compile issue when enable Anti-rollback option.
 - Fix the bug that prevents sending clear data when security is enabled. [#63](https://github.com/espressif/esp-now/issues/63)
 - Fix the bug where ESPNOW_INIT_CONFIG_DEFAULT does not match its declaration in C++. [#65](https://github.com/espressif/esp-now/issues/65)
 

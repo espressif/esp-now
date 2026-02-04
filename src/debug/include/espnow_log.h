@@ -110,7 +110,7 @@ esp_err_t espnow_log_set_config(const espnow_log_config_t *config);
 /**
  * @brief Initialize log debug
  *        - Set log debug configuration
- *        - Create the log sendinng task
+ *        - Create the log sending task
  *
  * @param[in]  config  the configuration of the log
  * 

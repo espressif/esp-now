@@ -190,7 +190,7 @@ static esp_err_t espnow_ota_status_handle(const espnow_addr_t src_addr, const es
     ret = esp_ota_begin(update, g_ota_config->status.total_size, &g_ota_config->handle);
     ESP_ERROR_GOTO(ret != ESP_OK, EXIT, "esp_ota_begin failed");
 
-    /**< Save upgrade infomation to flash. */
+    /**< Save upgrade information to flash. */
     ret = espnow_storage_set(ESPNOW_OTA_STORE_CONFIG_KEY, g_ota_config,
                           sizeof(ota_config_t) + g_ota_config->status.packet_num / 8 + 1);
     ESP_ERROR_GOTO(ret != ESP_OK, EXIT, "info_store_save, ret: %d", ret);

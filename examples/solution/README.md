@@ -77,7 +77,7 @@ Then the initiator and responders can communicate ESP-NOW application data in se
 
 If the device runs for the first time, it has not stored the router info and will not connect to AP. If it has stored the AP info, it will connect to router when WiFi start.
 
-Double click the provision button if the device is not configurated and the light will turn `white`.
+Double click the provision button if the device is not configured and the light will turn `white`.
 
 Use APP to scan the QR code to provision the initiator board, please refer to [README](https://github.com/espressif/esp-idf/blob/v4.4.1/examples/provisioning/wifi_prov_mgr/README.md)
 
@@ -308,7 +308,7 @@ I (355451) app: unbind, uuid: 7c:df:a1:76:42:38, initiator_type: 513
 
 * Errors `E (14798) espnow_sec: Failed at mbedtls_ccm_auth_decrypt with error code : -15`. It means authentication failed. Maybe initiator board erases its flash and generates a new security key, not the same with responder. If you see this error please erase responder board flash and reset responder board, the security handshake will execute again after reset initiator board. The responder board will get the security key to keep the same with initiator board.
 * Build with ESP32-C3 failed with 'ADC_BUTTON_WIDTH' undeclared.
-  Please change the defination as the following in [button_adc.c](managed_components/espressif__button/button_adc.c)
+  Please change the definition as the following in [button_adc.c](managed_components/espressif__button/button_adc.c)
 
 ```
 #if CONFIG_IDF_TARGET_ESP32 || CONFIG_IDF_TARGET_ESP32C3

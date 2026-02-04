@@ -102,7 +102,7 @@ esp_err_t sdcard_print_file(const char *file_name, file_format_t type, ssize_t s
  *
  * @param  file_name  file name
  * @param  offset  write offset, if offset == UINT32_MAX, add data at end of file.
- * @param  data  writen data
+ * @param  data  written data
  * @param  size  data length
  *
  * @return

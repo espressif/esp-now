@@ -70,7 +70,7 @@ typedef struct {
     uint8_t random_values[4];
     struct {
         uint8_t element_id;                 // 0xdd
-        uint8_t lenght;                     //
+        uint8_t length;                     //
         uint8_t organization_identifier[3]; // 0x18fe34
         uint8_t type;                       // 4
         uint8_t version;

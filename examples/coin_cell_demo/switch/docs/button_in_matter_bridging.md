@@ -44,7 +44,7 @@ A few configurations are applied to try to speed up the execution and reduce the
 * `CONFIG_BOOTLOADER_LOG_LEVEL_NONE=y`: Let bootloader logging level to none.
 * `CONFIG_BOOTLOADER_COMPILER_OPTIMIZATION_PERF=y`: Set bootloader optimization level to -O2.
 * `CONFIG_COMPILER_OPTIMIZATION_PERF=y`: Set application optimization level to -O2.
-* `CONFIG_ESP_PHY_RF_CAL_NONE=y`: This disables the RF calibration during bootup.
+* `CONFIG_ESP_PHY_RF_CAL_NONE=y`: This disables the RF calibration during boot-up.
 * `CONFIG_LOG_DEFAULT_LEVEL_NONE=y`: This disables all logs.
 * `CONFIG_ESPNOW_LIGHT_SLEEP=y`: This asks the device to enter light sleep before starting the next transmission.
 * `CONFIG_ESPNOW_LIGHT_SLEEP_DURATION`: After ```CONFIG_ESPNOW_LIGHT_SLEEP``` is enabled, the duration can be set with this configuration. Default is 30ms.
@@ -271,7 +271,7 @@ In actual usage, usually we will only bind once and will not unbind the coin cel
 
 > However, note that with V1 hardware, for each bind operation, the button needs to send one extra control, and for each unbind, the button needs to send one extra control and one extra bind.
 
-In control tranmission, we will calculate the power consumption for both one time transmission and three-time transmission. We will also calculate the power consumption for channel switching. The numbers will be taken from the measurements above.
+In control transmission, we will calculate the power consumption for both one time transmission and three-time transmission. We will also calculate the power consumption for channel switching. The numbers will be taken from the measurements above.
 
 In battery life calculation, we assume the coin cell button will be pressed 50 times a day, and there will be 1 channel switching per day.
 

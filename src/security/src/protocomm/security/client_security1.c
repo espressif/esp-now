@@ -328,7 +328,7 @@ static esp_err_t verify_response1(session_t *session, SessionData *resp)
                                     &session->nc_off, session->rand, session->stb,
                                     in->sr1->device_verify_data.data, check_buf);
     if (ret != 0) {
-        ESP_LOGE(TAG, "Failed at mbedtls_aes_crypt_ctr with erro code : %d", ret);
+        ESP_LOGE(TAG, "Failed at mbedtls_aes_crypt_ctr with error code : %d", ret);
         return ESP_FAIL;
     }
 #endif
@@ -554,7 +554,7 @@ static esp_err_t prepare_command1(session_t *session, SessionData *req)
     ret = mbedtls_aes_setkey_enc(&session->ctx_aes, session->sym_key,
                                  sizeof(session->sym_key)*8);
     if (ret != 0) {
-        ESP_LOGE(TAG, "Failed at mbedtls_aes_setkey_enc with erro code : %d", ret);
+        ESP_LOGE(TAG, "Failed at mbedtls_aes_setkey_enc with error code : %d", ret);
         free(outbuf);
         return ESP_FAIL;
     }
@@ -563,7 +563,7 @@ static esp_err_t prepare_command1(session_t *session, SessionData *req)
                                 &session->nc_off, session->rand,
                                 session->stb, session->device_pubkey, outbuf);
     if (ret != 0) {
-        ESP_LOGE(TAG, "Failed at mbedtls_aes_crypt_ctr with erro code : %d", ret);
+        ESP_LOGE(TAG, "Failed at mbedtls_aes_crypt_ctr with error code : %d", ret);
         free(outbuf);
         return ESP_FAIL;
     }

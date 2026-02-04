@@ -74,7 +74,7 @@ static int espnow_config_func(int argc, char **argv)
         esp_wifi_get_protocol(WIFI_IF_STA, &protocol_bitmap);
 
         ESP_LOGI(TAG, "Channel, primary: %d, second: %d", primary, second);
-        ESP_LOGI(TAG, "Maximum transmiting power: %d", power);
+        ESP_LOGI(TAG, "Maximum transmitting power: %d", power);
         ESP_LOGI(TAG, "Wi-Fi protocol bitmap: 0x%02x", protocol_bitmap);
         country.cc[2] = '\0';
         ESP_LOGI(TAG, "Wi-Fi country code: %s", country.cc);

@@ -32,7 +32,7 @@ python -m http.server 8070
 While the server is running, you may open this `http://localhost:8070/` in browse to check the build directory.
 
 > Note:
-	1. If there are firewall softwares that prevent any access to the port 8070, please grant the access while the example is running.
+	1. If there are firewall software that prevent any access to the port 8070, please grant the access while the example is running.
 
 ### Step 3: Build & Flash & Run the responders
 
@@ -45,7 +45,7 @@ Set following configurations under `Example Connection Configuration` Options:
 Set following configurations under `Example Configuration` Options:
 * Set `ESP-NOW mode` to `Responder Mode`
 
-When downloading the flash, it's recommend to use `erase_flash` to erase the entire flash memory (all the remaining data in ota_data partition will be deleted as well) for the first time, and then write the followings via a serial port:
+When downloading the flash, it's recommend to use `erase_flash` to erase the entire flash memory (all the remaining data in ota_data partition will be deleted as well) for the first time, and then write the following via a serial port:
 
 ```shell
 idf.py erase_flash flash
@@ -78,7 +78,7 @@ for e.g,
 http://192.168.0.3:8070/hello-world.bin
 ```
 
-When downloading the flash, it's recommend to use `erase_flash` to erase the entire flash memory (all the remaining data in ota_data partition will be deleted as well) for the first time, and then write the followings via a serial port:
+When downloading the flash, it's recommend to use `erase_flash` to erase the entire flash memory (all the remaining data in ota_data partition will be deleted as well) for the first time, and then write the following via a serial port:
 
 ```shell
 idf.py erase_flash flash

@@ -334,7 +334,7 @@ static int wifi_sniffer_func(int argc, char **argv)
                  CONFIG_SNIFFER_MOUNT_POINT, SNIFFER_DEFAULT_FILE_NAME);
     }
 
-    /* Determin file name */
+    /* Determine file name */
     if (create_packet_file() != ESP_OK) {
         return 1;
     }
