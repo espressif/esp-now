@@ -69,7 +69,15 @@ extern "C" {
 #endif
 #define ESPNOW_OTA_PROGRESS_MAX_SIZE           (ESPNOW_OTA_LEGACY_DATA_LEN - 30)  /**< Maximum length of the array which indicates the packet processed */
 #define ESPNOW_OTA_PACKET_MAX_SIZE             ((ESPNOW_OTA_LEGACY_DATA_LEN - 4) - (ESPNOW_OTA_LEGACY_DATA_LEN - 4) % 16)  /**< Maximum length of a single packet transmitted */
-#define ESPNOW_OTA_PACKET_MAX_NUM              (4 * 1024 * 1024/ ESPNOW_OTA_PACKET_MAX_SIZE) /**< The maximum number of packets */
+
+/**< Max OTA firmware the responder accepts, set via menuconfig
+     (CONFIG_ESPNOW_OTA_FIRMWARE_SIZE_MAX, default 4 MB; set to the OTA partition size).
+     Packets needed for it (ceil, matching the initiator's count). */
+#define ESPNOW_OTA_PACKET_MAX_NUM              ((CONFIG_ESPNOW_OTA_FIRMWARE_SIZE_MAX + ESPNOW_OTA_PACKET_MAX_SIZE - 1) / ESPNOW_OTA_PACKET_MAX_SIZE)
+/**< Whole ESPNOW_OTA_PROGRESS_MAX_SIZE-byte chunks of progress bitmap needed to
+     track those packets. progress_array rows are that size and are reported one
+     whole chunk at a time, so the byte count is rounded up to whole chunks. */
+#define ESPNOW_OTA_PROGRESS_CHUNK_NUM          (((ESPNOW_OTA_PACKET_MAX_NUM / 8 + 1) + ESPNOW_OTA_PROGRESS_MAX_SIZE - 1) / ESPNOW_OTA_PROGRESS_MAX_SIZE)
 
 /**
  * @brief Bit operations to get and modify a bit in an array

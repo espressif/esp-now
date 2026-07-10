@@ -31,6 +31,16 @@
 
 #define ESPNOW_OTA_STORE_CONFIG_KEY "upugrad_config"
 #define CONFIG_ESPNOW_OTA_SKIP_VERSION_CHECK
+
+/**< Usable capacity (in bytes) of status.progress_array, matching the g_ota_config
+     allocation of `sizeof(ota_config_t) + ESPNOW_OTA_PROGRESS_MAX_SIZE * ESPNOW_OTA_PROGRESS_CHUNK_NUM`.
+     The attacker-controlled packet_num is bounded against this to avoid a heap overflow. */
+#define ESPNOW_OTA_PROGRESS_ARRAY_CAPACITY (ESPNOW_OTA_PROGRESS_MAX_SIZE * ESPNOW_OTA_PROGRESS_CHUNK_NUM)
+#define ESPNOW_OTA_BITMAP_PACKET_LIMIT     (((ESPNOW_OTA_PROGRESS_ARRAY_CAPACITY) - 1) * 8)
+
+/**< packet_num is a 16-bit wire field; the configured firmware must not need more packets */
+_Static_assert(ESPNOW_OTA_PACKET_MAX_NUM <= 65535,
+               "CONFIG_ESPNOW_OTA_FIRMWARE_SIZE_MAX too large: OTA packet_num (uint16_t) would overflow");
 typedef struct {
     esp_ota_handle_t handle;      /**< OTA handle */
     const esp_partition_t *partition; /**< Pointer to partition structure obtained using
@@ -121,16 +131,33 @@ static esp_err_t espnow_ota_status_handle(const espnow_addr_t src_addr, const es
     ESP_PARAM_CHECK(status);
     ESP_PARAM_CHECK(size);
 
+    /**< Reject a truncated frame so status->packet_num is never read out of bounds */
+    ESP_ERROR_RETURN(size < sizeof(espnow_ota_status_t), ESP_ERR_INVALID_ARG,
+                     "OTA STATUS frame too short: %u < %u", (unsigned)size, (unsigned)sizeof(espnow_ota_status_t));
+
+    /**< Bound the attacker-controlled packet_num before it is used as a memset/storage
+         length over status.progress_array, otherwise packet_num up to 0xFFFF yields an
+         8 KB write into a ~2 KB region (remote unauthenticated heap overflow). */
+    ESP_ERROR_RETURN(status->packet_num > ESPNOW_OTA_BITMAP_PACKET_LIMIT, ESP_ERR_INVALID_ARG,
+                     "OTA packet_num %u exceeds bitmap capacity (max %u)",
+                     status->packet_num, (unsigned)ESPNOW_OTA_BITMAP_PACKET_LIMIT);
+
     esp_err_t ret        = ESP_ERR_NO_MEM;
     size_t response_size = sizeof(espnow_ota_status_t);
     uint8_t running_sha_256[32] = {0};
 
     if (!g_ota_config) {
-        size_t config_size = sizeof(ota_config_t) + ESPNOW_OTA_PROGRESS_MAX_SIZE * 10;
+        size_t config_size = sizeof(ota_config_t) + ESPNOW_OTA_PROGRESS_ARRAY_CAPACITY;
         g_ota_config   = ESP_CALLOC(1, config_size);
         ESP_ERROR_GOTO(!g_ota_config, EXIT, "<ESP_ERR_NO_MEM> g_ota_config");
 
         espnow_storage_get(ESPNOW_OTA_STORE_CONFIG_KEY, g_ota_config, 0);
+
+        /**< Discard an untrusted persisted session (e.g. written by an older, vulnerable
+             build) whose packet_num would overflow the progress bitmap during resume. */
+        if (g_ota_config->status.packet_num > ESPNOW_OTA_BITMAP_PACKET_LIMIT) {
+            memset(&g_ota_config->status, 0, sizeof(espnow_ota_status_t));
+        }
 
         g_ota_config->start_time = xTaskGetTickCount();
         g_ota_config->partition = esp_ota_get_next_update_partition(NULL);
@@ -267,6 +294,13 @@ static esp_err_t espnow_ota_write(const espnow_addr_t src_addr, const espnow_ota
 
         return ESP_OK;
     }
+
+    /**< Bound the attacker-controlled packet->seq before it indexes status.progress_array
+         (ESPNOW_OTA_GET_BITS/SET_BITS below), so a large seq cannot read/write outside the
+         bitmap regardless of total_size or the configured firmware size. */
+    ESP_ERROR_RETURN(packet->seq > ESPNOW_OTA_BITMAP_PACKET_LIMIT, ESP_ERR_INVALID_ARG,
+                     "OTA packet seq %u exceeds bitmap capacity (max %u)",
+                     packet->seq, (unsigned)ESPNOW_OTA_BITMAP_PACKET_LIMIT);
 
     ESP_ERROR_RETURN(packet->seq * ESPNOW_OTA_PACKET_MAX_SIZE > g_ota_config->status.total_size,
                      ESP_ERR_INVALID_ARG, "packet->seq: %d", packet->seq);
