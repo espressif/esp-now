@@ -30,7 +30,7 @@ extern "C" {
  * 230 bytes. The on-wire header layout is unchanged; see espnow_data_t in
  * espnow.c. */
 #if defined(ESP_NOW_MAX_DATA_LEN_V2)
-#define ESPNOW_PAYLOAD_LEN                  (ESP_NOW_MAX_DATA_LEN_V2 - 21) /* minus sizeof(espnow_data_t) */
+#define ESPNOW_PAYLOAD_LEN                  (ESP_NOW_MAX_DATA_LEN_V2 - 20) /* minus sizeof(espnow_data_t) */
 #else
 #define ESPNOW_PAYLOAD_LEN                  (230)
 #endif
