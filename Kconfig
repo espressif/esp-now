@@ -113,7 +113,24 @@ menu "ESP-NOW Configuration"
     endmenu
 
     menu "ESP-NOW OTA configuration"
-    
+
+    config ESPNOW_OTA_FIRMWARE_SIZE_MAX
+        int "Maximum OTA firmware size (bytes)"
+        range 65536 13631280
+        default 4194304
+        help
+            Largest firmware image (in bytes) the OTA responder will accept.
+            Set this to your OTA (app) partition size.
+
+            The responder sizes its packet-progress bitmap from this value, so a
+            larger setting supports bigger firmware at the cost of a little more
+            RAM during an upgrade, and a smaller setting saves RAM. Firmware
+            larger than this (or a malformed frame claiming more packets) is
+            rejected, which is what prevents the progress-bitmap heap overflow.
+
+            The upper bound (~13 MB) is limited by the 16-bit packet_num field in
+            the OTA wire protocol.
+
     config ESPNOW_OTA_RETRANSMISSION_TIMES
         int "Retransmission times when sending an ESP-NOW OTA package from the saved channel"
         range 1 15
