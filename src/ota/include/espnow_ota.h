@@ -53,10 +53,22 @@ extern "C" {
 #define ESP_EVENT_ESPNOW_OTA_SEND_FINISH       (ESP_EVENT_ESPNOW_OTA_BASE + 6) /**< Send the firmware to other devices to complete */
 
 /**
- * @brief Firmware subcontract upgrade
+ * @brief Firmware subcontract upgrade.
+ *
+ * OTA chunk sizes are pinned to the legacy 230-byte budget so frames remain
+ * byte-compatible with esp-now <= v2.5.3 and fit in the uint8_t
+ * espnow_ota_packet_t::size field. The wider ESP-NOW v2 frame budget
+ * benefits general application traffic; OTA does not require it and
+ * preserves interoperability with older responders by keeping the legacy
+ * sizing.
  */
-#define ESPNOW_OTA_PROGRESS_MAX_SIZE           (ESPNOW_DATA_LEN - 30)  /**< Maximum length of the array which indicates the packet processed */
-#define ESPNOW_OTA_PACKET_MAX_SIZE             ((ESPNOW_DATA_LEN - 4) - (ESPNOW_DATA_LEN -4) % 16)  /**< Maximum length of a single packet transmitted */
+#ifdef CONFIG_ESPNOW_APP_SECURITY
+#define ESPNOW_OTA_LEGACY_DATA_LEN             (218)  /* 230 - TAG_LEN(4) - IV_LEN(8) */
+#else
+#define ESPNOW_OTA_LEGACY_DATA_LEN             (230)
+#endif
+#define ESPNOW_OTA_PROGRESS_MAX_SIZE           (ESPNOW_OTA_LEGACY_DATA_LEN - 30)  /**< Maximum length of the array which indicates the packet processed */
+#define ESPNOW_OTA_PACKET_MAX_SIZE             ((ESPNOW_OTA_LEGACY_DATA_LEN - 4) - (ESPNOW_OTA_LEGACY_DATA_LEN - 4) % 16)  /**< Maximum length of a single packet transmitted */
 #define ESPNOW_OTA_PACKET_MAX_NUM              (4 * 1024 * 1024/ ESPNOW_OTA_PACKET_MAX_SIZE) /**< The maximum number of packets */
 
 /**

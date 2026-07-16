@@ -24,7 +24,16 @@ extern "C" {
 #endif /**< _cplusplus */
 
 #define ESPNOW_PACKED_STRUCT                __attribute__ ((packed))
+
+/* Maximum user payload per frame: follows ESP_NOW_MAX_DATA_LEN_V2 on
+ * ESP-NOW v2 capable SDKs (IDF >= v5.4), otherwise stays at the historical
+ * 230 bytes. The on-wire header layout is unchanged; see espnow_data_t in
+ * espnow.c. */
+#if defined(ESP_NOW_MAX_DATA_LEN_V2)
+#define ESPNOW_PAYLOAD_LEN                  (ESP_NOW_MAX_DATA_LEN_V2 - 21) /* minus sizeof(espnow_data_t) */
+#else
 #define ESPNOW_PAYLOAD_LEN                  (230)
+#endif
 
 #ifdef CONFIG_ESPNOW_APP_SECURITY
 #define ESPNOW_DATA_LEN                     ESPNOW_SEC_PACKET_MAX_SIZE
