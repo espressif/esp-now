@@ -183,10 +183,17 @@ static esp_err_t espnow_ctrl_responder_forward(uint8_t type, uint8_t *src_addr, 
     int retransmit_count = 0;
     espnow_ctrl_data_t *ctrl_data = (espnow_ctrl_data_t *)data;
     espnow_forward_data_t *espnow_data = ESP_MALLOC(sizeof(espnow_forward_data_t) + size);
+    if (!espnow_data) {
+        ESP_LOGE(TAG, "[%s, %d] OOM allocating forward buffer (%u B)",
+                 __func__, __LINE__, (unsigned)(sizeof(espnow_forward_data_t) + size));
+        return ESP_ERR_NO_MEM;
+    }
 
     espnow_data->type = type;
     espnow_data->version = ESPNOW_VERSION;
-    espnow_data->size = size;
+    /* 'size' is uint8_t for wire compatibility with esp-now <= v2.5.3; the
+     * authoritative length passed to esp_now_send is the size_t 'size' arg. */
+    espnow_data->size = (uint8_t)size;
     memcpy(&espnow_data->frame_head, &ctrl_data->frame_head, sizeof(espnow_frame_head_t));
     memcpy(espnow_data->dest_addr, ESPNOW_ADDR_BROADCAST, 6);
     memcpy(espnow_data->src_addr, src_addr, 6);
@@ -195,11 +202,12 @@ static esp_err_t espnow_ctrl_responder_forward(uint8_t type, uint8_t *src_addr, 
     esp_wifi_get_channel(&primary, &second);
     while (retransmit_count < g_self_country.nchan) {
         esp_wifi_set_channel(g_self_country.schan + retransmit_count, WIFI_SECOND_CHAN_NONE);
-        esp_now_send(ESPNOW_ADDR_BROADCAST, (uint8_t *)espnow_data, espnow_data->size + sizeof(espnow_forward_data_t));
+        esp_now_send(ESPNOW_ADDR_BROADCAST, (uint8_t *)espnow_data, sizeof(espnow_forward_data_t) + size);
         retransmit_count++;
     }
     esp_wifi_set_channel(primary, second);
 
+    ESP_FREE(espnow_data);
     return ESP_OK;
 }
 #endif
