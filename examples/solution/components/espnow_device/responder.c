@@ -186,7 +186,9 @@ static esp_err_t app_espnow_prov_initiator_recv_cb(uint8_t *src_addr, void *data
              MAC2STR(src_addr), rx_ctrl->channel, rx_ctrl->rssi,
              wifi_config->mode, wifi_config->sta.ssid, wifi_config->sta.password, wifi_config->token);
 
-    ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_STA, (wifi_config_t *)&wifi_config->sta));
+    wifi_config_t sta_config = {0};
+    sta_config.sta = wifi_config->sta;   /* copy out of packed struct to avoid unaligned address-of */
+    ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &sta_config));
     ESP_ERROR_CHECK(esp_wifi_connect());
     return ESP_OK;
 }
