@@ -21,6 +21,12 @@
 
 #include "espnow_mem.h"
 
+/* configRUN_TIME_COUNTER_TYPE was introduced in FreeRTOS v10.4.5. ESP-IDF earlier
+ * than v5.2 uses FreeRTOS v10.4.3, which lacks it, so provide a uint32_t fallback. */
+#ifndef configRUN_TIME_COUNTER_TYPE
+#define configRUN_TIME_COUNTER_TYPE uint32_t
+#endif
+
 typedef struct {
     void *ptr;
     int size;
