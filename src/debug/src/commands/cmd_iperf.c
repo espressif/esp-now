@@ -292,7 +292,11 @@ static void espnow_iperf_initiator_task(void *arg)
         iperf_recv_data_t recv_data = { 0 };
         if (g_iperf_queue && xQueueReceive(g_iperf_queue, &recv_data, pdMS_TO_TICKS(1000)) == pdPASS) {
             ret = ESP_OK;
-            memcpy(iperf_data, recv_data.data, recv_data.size);
+            /* recv_data.size is attacker-controlled: any RESERVED-type frame on the
+             * channel is queued by espnow_iperf_initiator_recv() with its full length,
+             * while iperf_data is only g_iperf_cfg.packet_len bytes. Clamp the copy to
+             * the destination so a longer frame cannot overflow the heap (CWE-787). */
+            memcpy(iperf_data, recv_data.data, MIN(recv_data.size, g_iperf_cfg.packet_len));
             memcpy(g_iperf_cfg.addr, recv_data.src_addr, 6);
             memcpy(&rx_ctrl, &recv_data.rx_ctrl, sizeof(wifi_pkt_rx_ctrl_t));
             ESP_FREE(recv_data.data);
@@ -346,6 +350,13 @@ static esp_err_t espnow_iperf_responder(uint8_t *src_addr, void *data,
     ESP_PARAM_CHECK(data);
     ESP_PARAM_CHECK(size);
     ESP_PARAM_CHECK(rx_ctrl);
+
+    /* Reject frames shorter than the fixed header before casting to
+     * espnow_iperf_data_t and dereferencing type/seq, otherwise a truncated
+     * RESERVED frame over-reads (and the STOP branch over-writes) the RX
+     * buffer (CWE-125/787). */
+    ESP_ERROR_RETURN(size < sizeof(espnow_iperf_data_t), ESP_ERR_INVALID_SIZE,
+                     "Received iperf frame too small");
 
     esp_err_t ret         = ESP_OK;
     espnow_iperf_data_t *iperf_data   = (espnow_iperf_data_t *)data;
@@ -472,7 +483,10 @@ static void espnow_iperf_ping_task(void *arg)
             iperf_recv_data_t recv_data = { 0 };
             if (g_iperf_queue && xQueueReceive(g_iperf_queue, &recv_data, pdMS_TO_TICKS(3000)) == pdPASS) {
                 ret = ESP_OK;
-                memcpy(iperf_data, recv_data.data, recv_data.size);
+                /* recv_data.size is attacker-controlled (see espnow_iperf_initiator_recv);
+                 * iperf_data is only g_iperf_cfg.packet_len bytes, so clamp the copy to
+                 * the destination to avoid a remote heap overflow (CWE-787). */
+                memcpy(iperf_data, recv_data.data, MIN(recv_data.size, g_iperf_cfg.packet_len));
                 memcpy(g_iperf_cfg.addr, recv_data.src_addr, 6);
                 memcpy(&rx_ctrl, &recv_data.rx_ctrl, sizeof(wifi_pkt_rx_ctrl_t));
                 recv_size = recv_data.size;
