@@ -38,6 +38,14 @@
 #define ESPNOW_OTA_PROGRESS_ARRAY_CAPACITY (ESPNOW_OTA_PROGRESS_MAX_SIZE * ESPNOW_OTA_PROGRESS_CHUNK_NUM)
 #define ESPNOW_OTA_BITMAP_PACKET_LIMIT     (((ESPNOW_OTA_PROGRESS_ARRAY_CAPACITY) - 1) * 8)
 
+/**< Minimum spacing between peer-triggered OTA (re)starts; each esp_ota_begin
+     erases the update partition, so a flood would cause flash wear and DoS.
+     Fallback applies only when the Kconfig value is not defined (0 disables). */
+#ifndef CONFIG_ESPNOW_OTA_RESTART_MIN_INTERVAL_MS
+#define CONFIG_ESPNOW_OTA_RESTART_MIN_INTERVAL_MS 1000
+#endif
+#define ESPNOW_OTA_RESTART_MIN_INTERVAL_MS CONFIG_ESPNOW_OTA_RESTART_MIN_INTERVAL_MS
+
 /**< packet_num is a 16-bit wire field; the configured firmware must not need more packets */
 _Static_assert(ESPNOW_OTA_PACKET_MAX_NUM <= 65535,
                "CONFIG_ESPNOW_OTA_FIRMWARE_SIZE_MAX too large: OTA packet_num (uint16_t) would overflow");
@@ -52,6 +60,7 @@ typedef struct {
 static const char *TAG = "espnow_ota_responder";
 static ota_config_t *g_ota_config = NULL;
 static bool g_ota_finished_flag        = false;
+static uint32_t g_ota_last_begin_time  = 0;  /**< tick of last esp_ota_begin, for restart rate-limiting */
 static espnow_frame_head_t g_frame_config = { .security = CONFIG_ESPNOW_OTA_SECURITY,
                                               .retransmit_count = CONFIG_ESPNOW_OTA_RETRANSMISSION_TIMES};
 static espnow_ota_config_t *g_espnow_ota_config = NULL;
@@ -101,6 +110,10 @@ static esp_err_t espnow_ota_info(const uint8_t *src_addr)
     size_t size = sizeof(espnow_ota_info_t) - 32 - 20;
     espnow_ota_info_t *info = ESP_MALLOC(sizeof(espnow_ota_info_t));
 
+    /* ESP_MALLOC returns NULL on failure; guard before the deref below,
+     * otherwise a pre-auth OTA REQUEST under heap pressure crashes the device. */
+    ESP_ERROR_RETURN(!info, ESP_ERR_NO_MEM, "espnow_ota_info malloc");
+
     info->type = ESPNOW_OTA_TYPE_INFO;
 
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
@@ -141,6 +154,12 @@ static esp_err_t espnow_ota_status_handle(const espnow_addr_t src_addr, const es
     ESP_ERROR_RETURN(status->packet_num > ESPNOW_OTA_BITMAP_PACKET_LIMIT, ESP_ERR_INVALID_ARG,
                      "OTA packet_num %u exceeds bitmap capacity (max %u)",
                      status->packet_num, (unsigned)ESPNOW_OTA_BITMAP_PACKET_LIMIT);
+
+    /**< Reject total_size == 0: esp_ota_begin(0) succeeds as OTA_SIZE_UNKNOWN,
+         arming the DATA path for a later divide-by-zero in the progress calc.
+         A real firmware image always has a non-zero size. */
+    ESP_ERROR_RETURN(status->total_size == 0, ESP_ERR_INVALID_ARG,
+                     "OTA STATUS frame with zero total_size");
 
     esp_err_t ret        = ESP_ERR_NO_MEM;
     size_t response_size = sizeof(espnow_ota_status_t);
@@ -213,6 +232,17 @@ static esp_err_t espnow_ota_status_handle(const espnow_addr_t src_addr, const es
     g_ota_config->partition  = update;
     g_ota_config->start_time = xTaskGetTickCount();
 
+    /**< Rate-limit OTA (re)starts from untrusted peers before esp_ota_begin
+         re-erases the update partition (flash wear / DoS). */
+    uint32_t now = xTaskGetTickCount();
+    if (g_ota_last_begin_time != 0
+            && (now - g_ota_last_begin_time) < pdMS_TO_TICKS(ESPNOW_OTA_RESTART_MIN_INTERVAL_MS)) {
+        ret = ESP_ERR_INVALID_STATE;
+        ESP_LOGW(TAG, "OTA restart rate-limited (min interval %d ms)", ESPNOW_OTA_RESTART_MIN_INTERVAL_MS);
+        goto EXIT;
+    }
+    g_ota_last_begin_time = now;
+
     /**< Commence an OTA update writing to the specified partition. */
     ret = esp_ota_begin(update, g_ota_config->status.total_size, &g_ota_config->handle);
     ESP_ERROR_GOTO(ret != ESP_OK, EXIT, "esp_ota_begin failed");
@@ -233,6 +263,9 @@ EXIT:
     if (g_ota_config->status.written_size
             && g_ota_config->status.written_size != g_ota_config->status.total_size) {
         espnow_ota_status_t *tmp_status = ESP_MALLOC(sizeof(espnow_ota_status_t) + ESPNOW_OTA_PROGRESS_MAX_SIZE);
+        /**< Reached from a remote STATUS frame; a failed allocation under memory
+             pressure must not be dereferenced by the memcpy below (CWE-476). */
+        ESP_ERROR_RETURN(!tmp_status, ESP_ERR_NO_MEM, "ESP_MALLOC tmp_status");
         memcpy(tmp_status, &g_ota_config->status, sizeof(espnow_ota_status_t));
         espnow_frame_head_t frame_head = ESPNOW_FRAME_CONFIG_DEFAULT();
         frame_head.security = CONFIG_ESPNOW_OTA_SECURITY;
@@ -277,6 +310,14 @@ static esp_err_t espnow_ota_write(const espnow_addr_t src_addr, const espnow_ota
 
     esp_err_t ret = ESP_OK;
 
+    /**< The frame is cast to espnow_ota_packet_t and packet->seq / packet->size
+         (offsets 1..3) are dereferenced below before the payload-length guard.
+         Reject a frame shorter than the fixed header first, otherwise a truncated
+         DATA frame over-reads the RX buffer (CWE-125). The header length is
+         sizeof(espnow_ota_packet_t) minus the trailing data[] array. */
+    ESP_ERROR_RETURN(size < sizeof(espnow_ota_packet_t) - ESPNOW_OTA_PACKET_MAX_SIZE,
+                     ESP_ERR_INVALID_ARG, "OTA DATA frame too short for header: %u", (unsigned)size);
+
     /* Return if not recv status or firmware has been upgraded */
     if (!g_ota_config || g_ota_config->status.error_code == ESP_ERR_ESPNOW_OTA_FINISH) {
         return ESP_OK;
@@ -311,6 +352,14 @@ static esp_err_t espnow_ota_write(const espnow_addr_t src_addr, const espnow_ota
         return ESP_OK;
     }
 
+    /**< packet->size is attacker-controlled and used as the esp_partition_write
+         source length. Reject a size beyond the per-packet capacity or the bytes
+         actually received, otherwise the write over-reads the RX buffer into flash. */
+    ESP_ERROR_RETURN(packet->size > ESPNOW_OTA_PACKET_MAX_SIZE
+                     || size < (sizeof(espnow_ota_packet_t) - ESPNOW_OTA_PACKET_MAX_SIZE) + packet->size,
+                     ESP_ERR_INVALID_ARG, "OTA DATA size %u inconsistent with frame len %u",
+                     (unsigned)packet->size, (unsigned)size);
+
     /**< Write firmware data to the update partition */
     ret = esp_partition_write(g_ota_config->partition, packet->seq * ESPNOW_OTA_PACKET_MAX_SIZE,
                               packet->data, packet->size);
@@ -323,7 +372,8 @@ static esp_err_t espnow_ota_write(const espnow_addr_t src_addr, const espnow_ota
     /**< Save OTA status periodically, it can be used to
          resumable data transfers from breakpoint after system reset */
     static uint32_t s_next_written_percentage = 0;
-    if (g_espnow_ota_config->progress_report_interval) {
+    /**< Never divide by total_size unless it is non-zero. */
+    if (g_espnow_ota_config->progress_report_interval && g_ota_config->status.total_size) {
         uint32_t written_percentage = g_ota_config->status.written_size * 100 / g_ota_config->status.total_size;
 
         if (!s_next_written_percentage) {
@@ -473,6 +523,7 @@ esp_err_t espnow_ota_responder_start(const espnow_ota_config_t *config)
     ESP_PARAM_CHECK(config);
 
     g_espnow_ota_config = ESP_MALLOC(sizeof(espnow_ota_config_t));
+    ESP_ERROR_RETURN(!g_espnow_ota_config, ESP_ERR_NO_MEM, "ESP_MALLOC g_espnow_ota_config");
     memcpy(g_espnow_ota_config, config, sizeof(espnow_ota_config_t));
     espnow_set_config_for_data_type(ESPNOW_DATA_TYPE_OTA_DATA, 1, espnow_ota_responder_data_process);
 
