@@ -186,6 +186,21 @@ menu "ESP-NOW Configuration"
         range 100 10000
         help
             The ESP-NOW OTA will wait for respond for maximum given time
+
+    config ESPNOW_OTA_RESTART_MIN_INTERVAL_MS
+        int "Minimum interval between peer-triggered OTA restarts (ms, 0 disables)"
+        default 1000
+        range 0 60000
+        help
+            Minimum spacing between OTA session (re)starts triggered by an incoming
+            STATUS frame on the responder. Each restart runs esp_ota_begin, which
+            erases the whole update partition, so without a floor an unauthenticated
+            STATUS flood can wear out flash and deny service.
+
+            A legitimate upgrade begins once per firmware, so this floor does not
+            affect normal upgrades. It only rejects restarts that arrive closer
+            together than this interval; a manual retry after a failed upgrade should
+            use an interval at least this long, or set 0 to disable the limit.
     endmenu
 
     config ESPNOW_AUTO_RESTORE_CHANNEL
