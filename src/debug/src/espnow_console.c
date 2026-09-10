@@ -188,10 +188,21 @@ static esp_err_t console_espnow_handle(uint8_t *src_addr, void *data,
     extern uint8_t g_src_addr[ESPNOW_ADDR_LEN];
 
     if (g_running_flag) {
+        /* 'data' is attacker-controlled and not guaranteed NUL-terminated, but
+         * esp_console_run() treats it as a C string; run on a bounded, explicitly
+         * NUL-terminated copy to avoid over-reading the RX buffer (CWE-125). */
+        char *cmdline = ESP_MALLOC(size + 1);
+        if (!cmdline) {
+            return ESP_ERR_NO_MEM;
+        }
+        memcpy(cmdline, data, size);
+        cmdline[size] = '\0';
+
         memcpy(&g_rx_ctrl, rx_ctrl, sizeof(wifi_pkt_rx_ctrl_t));
         memcpy(g_src_addr, src_addr, 6);
 
-        esp_err_t err = esp_console_run(data, &ret);
+        esp_err_t err = esp_console_run(cmdline, &ret);
+        ESP_FREE(cmdline);
 
         if (err == ESP_ERR_NOT_FOUND) {
             ESP_LOGE(TAG, "Unrecognized command");
