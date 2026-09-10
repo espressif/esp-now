@@ -311,6 +311,13 @@ static esp_err_t verify_response1(session_t *session, SessionData *resp)
     uint8_t check_buf[PUBLIC_KEY_LEN];
     Sec1Payload *in = (Sec1Payload *) resp->sec1;
 
+    /* The msg check does not guarantee the payload oneof is set to sr1, so a
+     * malformed response could leave in->sr1 NULL. Validate before dereferencing. */
+    if (in->payload_case != SEC1_PAYLOAD__PAYLOAD_SR1 || in->sr1 == NULL) {
+        ESP_LOGE(TAG, "Invalid/absent sr1 payload");
+        return ESP_ERR_INVALID_ARG;
+    }
+
     if (in->sr1->device_verify_data.len != PUBLIC_KEY_LEN) {
         ESP_LOGE(TAG, "Invalid device verifier len: %u", (unsigned)in->sr1->device_verify_data.len);
         return ESP_ERR_INVALID_ARG;
@@ -381,6 +388,13 @@ static esp_err_t verify_response0(session_t *session, SessionData *resp, const p
     int ret = 0;
  #endif
     Sec1Payload *in = (Sec1Payload *) resp->sec1;
+
+    /* The msg check does not guarantee the payload oneof is set to sr0, so a
+     * malformed response could leave in->sr0 NULL. Validate before dereferencing. */
+    if (in->payload_case != SEC1_PAYLOAD__PAYLOAD_SR0 || in->sr0 == NULL) {
+        ESP_LOGE(TAG, "Invalid/absent sr0 payload");
+        return ESP_ERR_INVALID_ARG;
+    }
 
     if (in->sr0->device_pubkey.len != PUBLIC_KEY_LEN) {
         ESP_LOGE(TAG, "Device public key length as not as expected");
