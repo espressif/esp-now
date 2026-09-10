@@ -43,6 +43,28 @@ menu "ESP-NOW Configuration"
         help
             Enable to secure the provisioning data.
 
+    config ESPNOW_SEC_SCAN_MAX_NUM
+        int "Maximum responders recorded per security scan"
+        range 1 1024
+        default 256
+        help
+            Upper bound on the number of distinct responders stored during a
+            single security scan on the initiator.
+
+            ESP-NOW has no source authentication, so without a ceiling a flood
+            of INFO frames from spoofed, distinct source MACs would grow the
+            initiator's scan list once per frame and could exhaust the heap.
+            This cap bounds that transient allocation. The list is grown
+            dynamically (one ~12-byte entry per discovered responder), so a
+            small deployment pays only for the devices it actually finds; the
+            cap merely limits how large a single scan may grow.
+
+            The default of 256 covers large fleets discovered in one scan.
+            Raise it only if a single scan must legitimately discover more
+            responders than the default (up to 1024, ~12 KB worst case);
+            lower it to tighten the anti-flood ceiling on memory-constrained
+            targets.
+
     endmenu
 
     menu "ESP-NOW Light Sleep Configuration"

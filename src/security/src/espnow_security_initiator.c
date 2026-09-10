@@ -54,6 +54,13 @@ static espnow_sec_responder_t *g_info_list = NULL;
 #define CONFIG_ESPNOW_SEC_SEND_FORWARD_RSSI     -65
 #endif
 
+/* Upper bound on responders recorded during a single security scan, so an
+ * unauthenticated flood of distinct-MAC INFO frames cannot grow g_info_list
+ * without bound. Fallback applies only when built without the Kconfig value. */
+#ifndef CONFIG_ESPNOW_SEC_SCAN_MAX_NUM
+#define CONFIG_ESPNOW_SEC_SCAN_MAX_NUM          256
+#endif
+
 static bool addrs_remove(uint8_t addrs_list[][ESPNOW_ADDR_LEN],
                          size_t *addrs_num, const uint8_t addr[6])
 {
@@ -80,6 +87,11 @@ static esp_err_t espnow_sec_info(uint8_t *src_addr, void *data,
 {
     espnow_sec_info_t *recv_data = (espnow_sec_info_t *)data;
 
+    /* Reject truncated frames before dereferencing recv_data fields, which would
+     * otherwise read past the end of the payload buffer. */
+    ESP_ERROR_RETURN(size < sizeof(espnow_sec_info_t), ESP_ERR_INVALID_SIZE,
+                     "Received sec info too small");
+
     for (int i = 0; i < g_scan_num; ++i) {
         if (ESPNOW_ADDR_IS_EQUAL((g_info_list)[i].mac, src_addr)) {
             return ESP_OK;
@@ -95,7 +107,17 @@ static esp_err_t espnow_sec_info(uint8_t *src_addr, void *data,
         return ESP_OK;
     }
 
-    g_info_list = ESP_REALLOC(g_info_list, (g_scan_num + 1) * sizeof(espnow_sec_responder_t));
+    /* Cap the list so a flood of distinct-MAC INFO frames cannot exhaust the heap. */
+    if (g_scan_num >= CONFIG_ESPNOW_SEC_SCAN_MAX_NUM) {
+        return ESP_OK;
+    }
+
+    /* ESP_REALLOC returns NULL on failure without freeing the old block, so use a
+     * temporary: on failure the existing list stays intact and we bail out instead
+     * of leaking it and NULL-dereferencing g_info_list below. */
+    espnow_sec_responder_t *info_list = ESP_REALLOC(g_info_list, (g_scan_num + 1) * sizeof(espnow_sec_responder_t));
+    ESP_ERROR_RETURN(!info_list, ESP_ERR_NO_MEM, "espnow_sec_responder realloc");
+    g_info_list = info_list;
     (g_info_list)[g_scan_num].channel = rx_ctrl->channel;
     (g_info_list)[g_scan_num].rssi    = rx_ctrl->rssi;
     memcpy((g_info_list)[g_scan_num].mac, src_addr, 6);
@@ -212,6 +234,14 @@ static esp_err_t espnow_initiator_sec_process(uint8_t *src_addr, void *data,
     ESP_PARAM_CHECK(size);
     ESP_PARAM_CHECK(rx_ctrl);
 
+    /* Reject oversized frames: the consumer copies size bytes into a fixed
+     * ESPNOW_DATA_LEN buffer, so an unbounded length would overflow it. */
+    if (size > ESPNOW_DATA_LEN) {
+        ESP_LOGW(TAG, "[%s, %d] Drop security frame with invalid size: %u",
+                 __func__, __LINE__, (unsigned)size);
+        return ESP_FAIL;
+    }
+
     if (g_sec_queue) {
         espnow_sec_data_t sec_data = { 0 };
         sec_data.data = ESP_MALLOC(size);
@@ -242,6 +272,11 @@ static esp_err_t protocomm_espnow_initiator_start(const protocomm_security_t *pr
     uint8_t src_addr[6] = {0};
     espnow_sec_packet_t *req_data = ESP_MALLOC(ESPNOW_DATA_LEN);
     espnow_sec_packet_t *response_data = ESP_MALLOC(ESPNOW_DATA_LEN);
+    if (!req_data || !response_data) {
+        ESP_FREE(req_data);
+        ESP_FREE(response_data);
+        return ESP_ERR_NO_MEM;
+    }
     espnow_sec_result_t *result = res;
     ssize_t  response_size = 0;
     ssize_t  outlen = 0;
@@ -266,15 +301,43 @@ static esp_err_t protocomm_espnow_initiator_start(const protocomm_security_t *pr
     if (!res) {
         result = ESP_CALLOC(1, sizeof(espnow_sec_result_t));
     }
+    /* Guard the result allocation before dereferencing it (CWE-476). */
+    if (!result) {
+        ESP_FREE(req_data);
+        ESP_FREE(response_data);
+        return ESP_ERR_NO_MEM;
+    }
     result->successed_addr = ESP_CALLOC(addrs_num, ESPNOW_ADDR_LEN);
     result->unfinished_num  = addrs_num;
     result->unfinished_addr = ESP_CALLOC(result->unfinished_num, ESPNOW_ADDR_LEN);
+    /* Guard both list allocations before the memcpy below (CWE-476). */
+    if (!result->successed_addr || !result->unfinished_addr) {
+        ESP_FREE(req_data);
+        ESP_FREE(response_data);
+        if (!res) {
+            espnow_sec_initiator_result_free(result);
+            ESP_FREE(result);
+        }
+        return ESP_ERR_NO_MEM;
+    }
     memcpy(result->unfinished_addr, addrs_list, result->unfinished_num * ESPNOW_ADDR_LEN);
 
     for (int i = 0; i < retry_count && result->unfinished_num > 0 && g_sec_initiator_flag; i++) {
         size_t current_addrs_num = (result->unfinished_num > MAX_NUM) ? MAX_NUM : result->unfinished_num ;
         espnow_addr_t *current_addrs_list = ESP_CALLOC(current_addrs_num, ESPNOW_ADDR_LEN);
         protocomm_security_handle_t *current_session_list = ESP_CALLOC(current_addrs_num, sizeof(protocomm_security_handle_t));
+        /* Tracks sessions the encrypted APP key was actually sent to, so a
+         * spoofed/replayed KEY_RESP cannot be honored. */
+        bool *key_sent = ESP_CALLOC(current_addrs_num, sizeof(bool));
+        /* Guard the per-iteration allocations before they are dereferenced by the
+         * memcpy / session init below (CWE-476). ESP_FREE tolerates NULL. */
+        if (!current_addrs_list || !current_session_list || !key_sent) {
+            ESP_FREE(current_addrs_list);
+            ESP_FREE(current_session_list);
+            ESP_FREE(key_sent);
+            ret = ESP_ERR_NO_MEM;
+            break;
+        }
         memcpy(current_addrs_list, result->unfinished_addr, current_addrs_num * ESPNOW_ADDR_LEN);
         size_t success_addrs_num = 0;
         wait_ticks = pdMS_TO_TICKS(1200 + 300 * current_addrs_num);
@@ -328,6 +391,19 @@ static esp_err_t protocomm_espnow_initiator_start(const protocomm_security_t *pr
                 ESP_ERROR_CONTINUE(session_id < 0, "addr " MACSTR " not searched", MAC2STR(src_addr));
 
                 if (req_data->type == ESPNOW_SEC_TYPE_KEY_RESP) {
+                    /* Only honor a KEY_RESP for a session the key was actually sent to,
+                     * and consume the gate so a replayed/spoofed frame cannot double-count. */
+                    if (session_id >= (int32_t)current_addrs_num || !key_sent[session_id]) {
+                        ESP_LOGW(TAG, "Unexpected KEY_RESP from " MACSTR " (no key sent for session %d)",
+                                 MAC2STR(src_addr), session_id);
+                        continue;
+                    }
+                    key_sent[session_id] = false;
+
+                    /* Never write past the successed_addr buffer. */
+                    if (result->successed_num >= addrs_num) {
+                        continue;
+                    }
                     ESP_LOGD(TAG, "Session %d successful, mac "MACSTR"", session_id, MAC2STR(src_addr));
                     addrs_remove(result->unfinished_addr, &result->unfinished_num, src_addr);
                     memcpy(result->successed_addr[result->successed_num], src_addr, ESPNOW_ADDR_LEN);
@@ -336,6 +412,18 @@ static esp_err_t protocomm_espnow_initiator_start(const protocomm_security_t *pr
                         break;
                     }
                 } else if (req_data->type == ESPNOW_SEC_TYPE_HANDSHAKE){
+                    /* The on-wire req_data->size byte is attacker-controlled and
+                     * independent of the received length; it is passed as inlen to
+                     * the protobuf unpack, so bound it against sec_data.size or the
+                     * unpack over-reads req_data. The || short-circuits so
+                     * req_data->size is read only once the header is present. */
+                    if (sec_data.size < sizeof(espnow_sec_packet_t)
+                            || req_data->size > sec_data.size - sizeof(espnow_sec_packet_t)) {
+                        ESP_LOGW(TAG, "Drop malformed HANDSHAKE from " MACSTR ": recv=%u req_size=%u",
+                                 MAC2STR(src_addr), (unsigned)sec_data.size,
+                                 (unsigned)((sec_data.size >= sizeof(espnow_sec_packet_t)) ? req_data->size : 0));
+                        continue;
+                    }
                     ret = proto_sec->security_req_handler(current_session_list[session_id], pop, session_id, req_data->data, req_data->size, &outbuf, &outlen, NULL);
 
                     if (ret != ESP_OK) {
@@ -343,6 +431,14 @@ static esp_err_t protocomm_espnow_initiator_start(const protocomm_security_t *pr
                         ESP_FREE(outbuf);
                         continue;
                     } else if (outbuf && outlen) {
+                        /* Defense-in-depth: outlen is protocomm-generated (bounded by
+                         * the security1 protocol), but never copy past the fixed
+                         * response buffer (CWE-787). */
+                        if ((size_t)outlen > ESPNOW_DATA_LEN - sizeof(espnow_sec_packet_t)) {
+                            ESP_LOGW(TAG, "Drop oversized handshake response: outlen=%d", (int)outlen);
+                            ESP_FREE(outbuf);
+                            continue;
+                        }
                         response_data->type = ESPNOW_SEC_TYPE_HANDSHAKE;
                         response_data->size = outlen;
                         memcpy(response_data->data, outbuf, outlen);
@@ -361,6 +457,13 @@ static esp_err_t protocomm_espnow_initiator_start(const protocomm_security_t *pr
 
                             if (ret != ESP_OK) {
                                 ESP_LOGE(TAG, "Encryption of data failed for session id %d", session_id);
+                                ESP_FREE(enc_resp);
+                                continue;
+                            }
+                            /* Defense-in-depth: bound the encrypted key length to the
+                             * response buffer before copying (CWE-787). */
+                            if (outlen < 0 || (size_t)outlen > ESPNOW_DATA_LEN - sizeof(espnow_sec_packet_t)) {
+                                ESP_LOGW(TAG, "Drop oversized encrypted key: outlen=%d", (int)outlen);
                                 ESP_FREE(enc_resp);
                                 continue;
                             }
@@ -389,6 +492,9 @@ static esp_err_t protocomm_espnow_initiator_start(const protocomm_security_t *pr
                     ret = espnow_send(ESPNOW_DATA_TYPE_SECURITY, src_addr, response_data, response_size, &frame_head, portMAX_DELAY);
                     if (ret != ESP_OK) {
                         ESP_LOGW(TAG, "espnow-session send failed");
+                    } else if (response_data->type == ESPNOW_SEC_TYPE_KEY) {
+                        /* Mark the key as sent so a later KEY_RESP can be honored. */
+                        key_sent[session_id] = true;
                     }
 
                     espnow_del_peer(src_addr);
@@ -404,6 +510,7 @@ exit_init:
 
         ESP_FREE(current_addrs_list);
         ESP_FREE(current_session_list);
+        ESP_FREE(key_sent);
 
     }
 
@@ -455,10 +562,15 @@ esp_err_t espnow_sec_initiator_start(uint8_t key_info[APP_KEY_LEN], const char *
 
     espnow_set_config_for_data_type(ESPNOW_DATA_TYPE_SECURITY, 0, NULL);
     if (g_sec_queue) {
-        espnow_sec_data_t *tmp_data = NULL;
+        /* The queue stores espnow_sec_data_t by value (sizeof > sizeof(void*)).
+         * Receiving into a pointer variable would let xQueueReceive copy the full
+         * struct over a single stack slot (stack overflow) and then dereference an
+         * attacker-influenced src_addr as tmp_data->data (wild/arbitrary free).
+         * Drain into a full struct instead. */
+        espnow_sec_data_t tmp_data = { 0 };
 
         while (xQueueReceive(g_sec_queue, &tmp_data, 0)) {
-            ESP_FREE(tmp_data->data);
+            ESP_FREE(tmp_data.data);
         }
 
         vQueueDelete(g_sec_queue);
