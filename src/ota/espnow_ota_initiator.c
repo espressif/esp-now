@@ -86,25 +86,51 @@ static esp_err_t espnow_ota_info(uint8_t *src_addr, void *data,
 {
     espnow_ota_info_t *recv_data = (espnow_ota_info_t *)data;
 
+    /* The frame length is attacker-controlled, so a fixed sizeof(esp_app_desc_t)
+     * copy could over-read the buffer. A full-struct gate is not usable because
+     * the responder intentionally sends a truncated app_desc (strips the trailing
+     * sha256 + reserv2), so require the header and copy only the received app_desc
+     * bytes, clamped to the destination size. */
+    const size_t hdr_size = sizeof(espnow_ota_info_t) - sizeof(esp_app_desc_t);
+    ESP_ERROR_RETURN(size <= hdr_size, ESP_ERR_INVALID_SIZE,
+                     "OTA INFO frame too short: %u <= %u",
+                     (unsigned)size, (unsigned)hdr_size);
+    size_t desc_size = size - hdr_size;
+    if (desc_size > sizeof(esp_app_desc_t)) {
+        desc_size = sizeof(esp_app_desc_t);
+    }
+
     for (int i = 0; i < g_scan_num; ++i) {
         if (ESPNOW_ADDR_IS_EQUAL((g_info_list)[i].mac, src_addr)) {
             return ESP_OK;
         }
     }
 
-    g_info_list = ESP_REALLOC(g_info_list, (g_scan_num + 1) * sizeof(espnow_ota_responder_t));
-    (g_info_list)[g_scan_num].channel = rx_ctrl->channel;
-    (g_info_list)[g_scan_num].rssi    = rx_ctrl->rssi;
-    memcpy((g_info_list)[g_scan_num].mac, src_addr, 6);
-    memcpy(&((g_info_list)[g_scan_num].app_desc), &recv_data->app_desc, sizeof(esp_app_desc_t));
+    /* ESP_REALLOC returns NULL on failure without freeing the old block, so use a
+     * temporary: on failure the existing list stays intact and we bail out instead
+     * of leaking it and NULL-dereferencing g_info_list below. */
+    espnow_ota_responder_t *info_list = ESP_REALLOC(g_info_list, (g_scan_num + 1) * sizeof(espnow_ota_responder_t));
+    ESP_ERROR_RETURN(!info_list, ESP_ERR_NO_MEM, "espnow_ota_responder realloc");
+    g_info_list = info_list;
+
+    espnow_ota_responder_t *entry = &(g_info_list)[g_scan_num];
+    entry->channel = rx_ctrl->channel;
+    entry->rssi    = rx_ctrl->rssi;
+    memcpy(entry->mac, src_addr, 6);
+    /* Zero the destination first so a truncated frame leaves the un-received
+     * app_desc tail empty rather than uninitialized, then copy the received bytes. */
+    memset(&entry->app_desc, 0, sizeof(esp_app_desc_t));
+    memcpy(&entry->app_desc, &recv_data->app_desc, desc_size);
     g_scan_num++;
 
+    /* Log from the bounded destination copy, not recv_data, so a truncated frame
+     * cannot drive these reads past the RX buffer. */
     ESP_LOGV(TAG, "Application information:");
-    ESP_LOGV(TAG, "Project name:     %s", recv_data->app_desc.project_name);
-    ESP_LOGV(TAG, "App version:      %s", recv_data->app_desc.version);
-    ESP_LOGV(TAG, "Secure version:   %d", recv_data->app_desc.secure_version);
-    ESP_LOGV(TAG, "Compile time:     %s %s", recv_data->app_desc.date, recv_data->app_desc.time);
-    ESP_LOGV(TAG, "ESP-IDF:          %s", recv_data->app_desc.idf_ver);
+    ESP_LOGV(TAG, "Project name:     %s", entry->app_desc.project_name);
+    ESP_LOGV(TAG, "App version:      %s", entry->app_desc.version);
+    ESP_LOGV(TAG, "Secure version:   %d", entry->app_desc.secure_version);
+    ESP_LOGV(TAG, "Compile time:     %s %s", entry->app_desc.date, entry->app_desc.time);
+    ESP_LOGV(TAG, "ESP-IDF:          %s", entry->app_desc.idf_ver);
 
     return ESP_OK;
 }
@@ -121,6 +147,18 @@ static esp_err_t espnow_ota_status_handle(uint8_t *src_addr, void *data, size_t 
     ESP_PARAM_CHECK(src_addr);
     ESP_PARAM_CHECK(data);
     ESP_PARAM_CHECK(size);
+
+    /* The OTA STATUS frame is attacker-controlled: a remote peer can send a
+     * plaintext frame of arbitrary length (the RX security filter only drops
+     * security frames). Validate the length at this single queueing source so
+     * the downstream copy into the fixed ESPNOW_DATA_LEN buffer in
+     * espnow_ota_request_status() cannot overflow (CWE-787) and the status
+     * struct is never read from uninitialized memory (CWE-125). */
+    if (size < sizeof(espnow_ota_status_t) || size > ESPNOW_DATA_LEN) {
+        ESP_LOGW(TAG, "[%s, %d] Drop OTA status frame with invalid size: %u",
+                 __func__, __LINE__, (unsigned)size);
+        return ESP_FAIL;
+    }
 
     if (g_ota_queue) {
         espnow_ota_data_t ota_data = { 0 };
@@ -225,6 +263,7 @@ static esp_err_t espnow_ota_request_status(uint8_t (*progress_array)[ESPNOW_OTA_
     esp_err_t ret       = ESP_OK;
     uint8_t src_addr[6] = {0};
     espnow_ota_status_t *response_data = ESP_MALLOC(ESPNOW_DATA_LEN);
+    ESP_ERROR_RETURN(!response_data, ESP_ERR_NO_MEM, "ESP_MALLOC response_data");
     espnow_ota_data_t ota_data = { 0 };
 
     result->requested_num = 0;
@@ -392,6 +431,13 @@ esp_err_t espnow_ota_initiator_send(const uint8_t addrs_list[][6], size_t addrs_
     espnow_ota_packet_t *packet = ESP_MALLOC(sizeof(espnow_ota_packet_t));
     uint8_t (*progress_array)[ESPNOW_OTA_PROGRESS_MAX_SIZE] = ESP_MALLOC(status.packet_num / 8 + 1);
     espnow_ota_result_t *result = ESP_CALLOC(1, sizeof(espnow_ota_result_t));
+    /**< EXIT frees all three (ESP_FREE tolerates NULL); bail before any is
+         dereferenced if an allocation failed (CWE-476). */
+    if (!packet || !progress_array || !result) {
+        ret = ESP_ERR_NO_MEM;
+        ESP_LOGE(TAG, "Failed to allocate OTA send buffers");
+        goto EXIT;
+    }
     g_ota_send_running_flag = true;
 
     espnow_frame_head_t frame_head = {
@@ -413,6 +459,11 @@ esp_err_t espnow_ota_initiator_send(const uint8_t addrs_list[][6], size_t addrs_
 
         result->unfinished_num  = info_num;
         result->unfinished_addr = ESP_MALLOC(result->unfinished_num * ESPNOW_ADDR_LEN);
+        if (info_num && !result->unfinished_addr) {
+            espnow_ota_initiator_scan_result_free();
+            ret = ESP_ERR_NO_MEM;
+            goto EXIT;
+        }
 
         for (size_t i = 0; i < info_num; i++) {
             memcpy(result->unfinished_addr[i], info_list[i].mac, ESPNOW_ADDR_LEN);
@@ -422,6 +473,10 @@ esp_err_t espnow_ota_initiator_send(const uint8_t addrs_list[][6], size_t addrs_
     } else {
         result->unfinished_num  = addrs_num;
         result->unfinished_addr = ESP_CALLOC(result->unfinished_num, ESPNOW_ADDR_LEN);
+        if (!result->unfinished_addr) {
+            ret = ESP_ERR_NO_MEM;
+            goto EXIT;
+        }
         memcpy(result->unfinished_addr, addrs_list, result->unfinished_num * ESPNOW_ADDR_LEN);
     }
 
@@ -469,26 +524,32 @@ EXIT:
 
     espnow_set_config_for_data_type(ESPNOW_DATA_TYPE_OTA_STATUS, 0, NULL);
     if (g_ota_queue) {
-        espnow_ota_data_t *tmp_data = NULL;
+        /* The queue stores espnow_ota_data_t by value (sizeof > sizeof(void*)).
+         * Receiving into a pointer variable would let xQueueReceive copy the full
+         * struct over a single stack slot (stack overflow) and then dereference an
+         * attacker-influenced src_addr as tmp_data->data (wild/arbitrary free).
+         * Drain into a full struct instead. */
+        espnow_ota_data_t tmp_data = { 0 };
 
         while (xQueueReceive(g_ota_queue, &tmp_data, 0)) {
-            ESP_FREE(tmp_data->data);
+            ESP_FREE(tmp_data.data);
         }
 
         vQueueDelete(g_ota_queue);
         g_ota_queue = NULL;
     }
 
-    if (result->unfinished_num > 0) {
+    /**< result may be NULL if allocation failed above; guard every deref here. */
+    if (result && result->unfinished_num > 0 && result->unfinished_addr) {
         espnow_set_group(result->unfinished_addr, result->unfinished_num, ESPNOW_ADDR_GROUP_OTA, NULL, false, portMAX_DELAY);
         ret = ESP_ERR_ESPNOW_OTA_FIRMWARE_INCOMPLETE;
     }
 
     g_ota_send_running_flag = false;
 
-    if (res) {
+    if (result && res) {
         memcpy(res, result, sizeof(espnow_ota_result_t));
-    } else {
+    } else if (result) {
         espnow_ota_initiator_result_free(result);
     }
 
