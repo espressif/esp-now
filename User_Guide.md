@@ -114,14 +114,16 @@ ESP-NOW can be used to receive the running log for debugging. It can be used in 
 
 ### Data Encryption
 
-ESP-NOW can protect the data security with ECDH and AES128-CCM.
+ESP-NOW can encrypt the application data payload with AES128-CCM using an application key distributed through an ECDH handshake.
 
 1. **Quick Configuration**: 16 devices can be configured in 5 seconds.
 2. **Multiple Devices Handshake**: ESP-NOW initiator can support multiple devices handshake at same time.
-3. **Safety**:
+3. **Mechanism**:
     - ECDH and Proof of Possession (PoP) string used to authorize session and derive shared key
     - AES256-CTR mode encryption for the configuration data
     - AES128-CCM mode encryption for ESP-NOW data
+
+**Scope.** Encryption covers the application payload only and proves possession of the application key. It does not authenticate the outer frame fields, provide anti-replay or verify OTA images, and the key handshake is a commissioning step. The security options default to off so that existing deployments keep interoperating; the examples keep the defaults and are lab demos. The recommended security configuration and these limits are documented in `espnow.h`: the `espnow_config_t` note (configuration list and recommended usage) and the `espnow_set_key` note (what encryption protects).
 
 ## Resources
 - [ESP-NOW API guide](https://docs.espressif.com/projects/esp-idf/en/latest/esp32c3/api-reference/network/esp_now.html)

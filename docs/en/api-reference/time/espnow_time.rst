@@ -161,19 +161,23 @@ The time sync module posts events to the ``ESP_EVENT_ESPNOW`` event loop:
 +----------------------------------------+------------------------------------------+
 | Event                                  | Description                              |
 +========================================+==========================================+
-| ``ESP_EVENT_ESPNOW_TIMESYNC_STARTED``  | Time sync module started                 |
+| ``ESP_EVENT_ESPNOW_TIMESYNC_STARTED``  | Reserved, not posted by this version     |
 +----------------------------------------+------------------------------------------+
-| ``ESP_EVENT_ESPNOW_TIMESYNC_STOPPED``  | Time sync module stopped                 |
+| ``ESP_EVENT_ESPNOW_TIMESYNC_STOPPED``  | Reserved, not posted by this version     |
 +----------------------------------------+------------------------------------------+
 | ``ESP_EVENT_ESPNOW_TIMESYNC_SYNCED``   | Time synchronized (responder only)       |
 +----------------------------------------+------------------------------------------+
-| ``ESP_EVENT_ESPNOW_TIMESYNC_TIMEOUT``  | Time sync request timeout                |
+| ``ESP_EVENT_ESPNOW_TIMESYNC_TIMEOUT``  | Reserved, not posted by this version:    |
+|                                        | a request is not timed, use an           |
+|                                        | application timer (see below)            |
 +----------------------------------------+------------------------------------------+
 
 Event Handler Example
 ^^^^^^^^^^^^^^^^^^^^^
 
 .. code-block:: c
+
+    static esp_timer_handle_t sync_timeout_timer;
 
     static void timesync_event_handler(void *arg, esp_event_base_t base,
                                         int32_t event_id, void *event_data)
@@ -183,19 +187,30 @@ Event Handler Example
                 espnow_timesync_event_t *evt = (espnow_timesync_event_t *)event_data;
                 ESP_LOGI(TAG, "Time synced from " MACSTR ", drift: %d ms",
                          MAC2STR(evt->src_addr), evt->drift_ms);
+                esp_timer_stop(sync_timeout_timer);
+                espnow_time_responder_stop();   // close the receive window
                 break;
             }
-            case ESP_EVENT_ESPNOW_TIMESYNC_TIMEOUT:
-                ESP_LOGW(TAG, "Time sync timeout");
-                break;
             default:
                 break;
         }
     }
 
-    // Register event handler
+    // No timeout event is posted: close the window from an application timer
+    static void sync_timeout_cb(void *arg)
+    {
+        ESP_LOGW(TAG, "No time broadcast received");
+        espnow_time_responder_stop();
+    }
+
+    // Register event handler, then request a broadcast with a bounded wait
     esp_event_handler_register(ESP_EVENT_ESPNOW, ESP_EVENT_ANY_ID,
                                timesync_event_handler, NULL);
+    const esp_timer_create_args_t timer_args = { .callback = sync_timeout_cb, .name = "sync_to" };
+    esp_timer_create(&timer_args, &sync_timeout_timer);
+    espnow_time_responder_start(NULL);
+    esp_timer_start_once(sync_timeout_timer, 3 * 1000 * 1000);
+    espnow_time_responder_request();
 
 Comparison with Other Modules
 -----------------------------
