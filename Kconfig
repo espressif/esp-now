@@ -166,6 +166,16 @@ menu "ESP-NOW Configuration"
         help
             The channel sequence used for ESP-NOW package sending is [1, 6, 11, 1, 6, 11, 2, 3, 4, 5, 7, 8, 9, 10, 12, 13] by default.
 
+            With this option the initiator learns the channel to send on from
+            the ACK frames of responders and stores it in NVS (key "ch_key",
+            written only when the value changes). ACK is a plaintext frame with
+            no authentication, and the initiator keeps accepting it after the
+            send completes, so any device in range can set the channel the next
+            control frame is sent on, which makes that frame miss the real
+            responders until they answer again. Leave this option off where
+            that is a concern; the default channel sequence does not depend on
+            received frames.
+
     config ESPNOW_CONTROL_WAIT_ACK_DURATION
         int "Duration to wait for ACK"
         range 3 100

@@ -80,8 +80,11 @@ esp_err_t espnow_storage_erase(const char *key)
         ret = nvs_erase_key(handle, key);
     }
 
-    /**< Write any pending changes to non-volatile storage */
-    nvs_commit(handle);
+    /**< Write any pending changes to non-volatile storage; an erase that is not
+     *   committed is not stored, so report that failure as well */
+    if (ret == ESP_OK) {
+        ret = nvs_commit(handle);
+    }
 
     /**< Close the storage handle and free any allocated resources */
     nvs_close(handle);
@@ -108,8 +111,11 @@ esp_err_t espnow_storage_set(const char *key, const void *value, size_t length)
     /**< set variable length binary value for given key */
     ret = nvs_set_blob(handle, key, value, length);
 
-    /**< Write any pending changes to non-volatile storage */
-    nvs_commit(handle);
+    /**< Write any pending changes to non-volatile storage; a value that is not
+     *   committed is not stored, so report that failure as well */
+    if (ret == ESP_OK) {
+        ret = nvs_commit(handle);
+    }
 
     /**< Close the storage handle and free any allocated resources */
     nvs_close(handle);
