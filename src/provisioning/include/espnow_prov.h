@@ -66,7 +66,8 @@ typedef struct espnow_prov_wifi_s {
         wifi_ap_config_t  ap;  /**< Configuration of AP */
         wifi_sta_config_t sta; /**< Configuration of STA */
     };
-    char token[32];            /**< Token of the WiFi configuration */
+    char token[32];            /**< Token of the WiFi configuration. Not checked by the library;
+                                    see espnow_prov_initiator_send() */
     uint8_t custom_size;       /**< Customer data size */
     uint8_t custom_data[0];    /**< Customer data */
 } ESPNOW_PACKED_STRUCT espnow_prov_wifi_t;
@@ -110,6 +111,34 @@ esp_err_t espnow_prov_initiator_scan(espnow_addr_t responder_addr, espnow_prov_r
 /**
  * @brief  Initiator sends information to request WiFi configuration
  *
+ * @note The WIFI reply is accepted from any address, not only responder_addr: a
+ *       device in range that answers first can hand the initiator its own Wi-Fi
+ *       credentials. Without CONFIG_ESPNOW_PROV_SECURITY the reply is plaintext
+ *       and cannot be told apart. To provision only from trusted responders, run
+ *       the security handshake first and enable CONFIG_ESPNOW_PROV_SECURITY with
+ *       CONFIG_ESPNOW_SEC_REJECT_PLAINTEXT, so that only a key holder can produce
+ *       a reply that is accepted.
+ *
+ * @note Design limitation: the WIFI reply is not bound to the request, so a
+ *       reply recorded earlier, even encrypted, can be replayed into a later
+ *       window without the key. It carries the credentials valid at recording
+ *       time: nothing is disclosed, but the initiator can be handed an old
+ *       network or password. Recommended usage: call this only on an explicit
+ *       user action with a short wait_ticks, never automatically after a
+ *       connection failure; the responder puts a provisioning generation in
+ *       wifi_config->token, incremented whenever the credentials change, and
+ *       the initiator's cb returns an error for a reply that is not newer (the
+ *       window then stays open); credentials that fail to connect are not
+ *       stored. Within this usage a replay can only delay one provisioning run.
+ *
+ * @note cb runs in the ESP-NOW task. A reply counts only for the call whose cb
+ *       accepted it, and only if cb returned ESP_OK before that call ended. A
+ *       cb that is still running when the call times out is not interrupted:
+ *       the call returns an error, the result of cb is discarded and does not
+ *       complete a following call, which waits for a reply accepted by its own
+ *       cb. What cb itself did with the configuration (stored it, started a
+ *       connection) is not undone, so keep cb short compared to wait_ticks.
+ *
  * @param[in]  responder_addr  mac address of responder
  * @param[in]  initiator_info  information of initiator
  * @param[in]  cb  WiFi configuration callback function
@@ -124,6 +153,30 @@ esp_err_t espnow_prov_initiator_send(const espnow_addr_t responder_addr, const e
 
 /**
  * @brief  Responder starts to send provision beacon, receives initiator request and send WiFi configuration
+ *
+ * @note cb is the authentication point: wifi_config is sent to every initiator for
+ *       which it returns ESP_OK, and the request's source address is not
+ *       authenticated. A NULL cb approves every request, so any device in range
+ *       receives the credentials; the application must
+ *       register a callback. Without CONFIG_ESPNOW_PROV_SECURITY the WIFI reply is also
+ *       plaintext; to keep the credentials confidential, run the security
+ *       handshake first and provision only key holders
+ *       (CONFIG_ESPNOW_PROV_SECURITY encrypts the frames; plaintext requests are
+ *       only rejected with CONFIG_ESPNOW_SEC_REJECT_PLAINTEXT). The examples keep
+ *       both options off and are lab demos only.
+ *
+ * @note The initiator's DEVICE frame (including device_secret / product_secret /
+ *       cert_secret) is plaintext, so a static secret in those fields is readable
+ *       and replayable by any device in range, so cb cannot authenticate on them.
+ *       Approve in cb only during a user-triggered window, for a bounded number
+ *       of devices, with a short wait_ticks.
+ *
+ * @note Calling this again while a session is running replaces wifi_config and
+ *       cb and extends the window. A request that the previous cb was
+ *       authenticating at that moment is not answered (its approval applied to
+ *       the previous credentials, not the new ones); the initiator retries.
+ *       Likewise a request still being authenticated when the window expires
+ *       gets no reply.
  *
  * @param[in]  responder_info  information of responder
  * @param[in]  wait_ticks  provision beacon sending time in ticks

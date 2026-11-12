@@ -53,14 +53,14 @@ static esp_err_t app_espnow_prov_recv_cb(uint8_t *src_addr, void *data,
     ESP_PARAM_CHECK(rx_ctrl);
 
     espnow_prov_initiator_t *initiator_info = (espnow_prov_initiator_t *)data;
-    /**
-     * @brief Authenticate the device through the information of the initiator
-     */
+
     ESP_LOGI(TAG, "MAC: "MACSTR", Channel: %d, RSSI: %d, Product_id: %s, Device Name: %s, Auth Mode: %d, device_secret: %s",
              MAC2STR(src_addr), rx_ctrl->channel, rx_ctrl->rssi,
              initiator_info->product_id, initiator_info->device_name,
              initiator_info->auth_mode, initiator_info->device_secret);
 
+    /* Authentication point: credentials go to src_addr only if this returns ESP_OK.
+     * The example accepts every request; the application must authenticate here. */
     return ESP_OK;
 }
 
@@ -98,6 +98,9 @@ static esp_err_t app_espnow_prov_recv_cb(uint8_t *src_addr, void *data,
     ESP_LOGI(TAG, "MAC: "MACSTR", Channel: %d, RSSI: %d, wifi_mode: %d, ssid: %s, password: %s, token: %s",
              MAC2STR(src_addr), rx_ctrl->channel, rx_ctrl->rssi,
              wifi_config->mode, wifi_config->sta.ssid, wifi_config->sta.password, wifi_config->token);
+
+    /* The reply is matched only by the forgeable source address; verify
+     * wifi_config->token in the application. */
 
     /* Copy to avoid taking address of packed member */
     wifi_config_t sta_config = {0};

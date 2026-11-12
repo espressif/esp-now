@@ -104,14 +104,16 @@ static esp_err_t app_espnow_prov_responder_recv_cb(uint8_t *src_addr, void *data
     ESP_PARAM_CHECK(rx_ctrl);
 
     espnow_prov_initiator_t *initiator_info = (espnow_prov_initiator_t *)data;
-    /**
-     * @brief Authenticate the device through the information of the initiator
-     */
+
     ESP_LOGI(TAG, "MAC: "MACSTR", Channel: %d, RSSI: %d, Product_id: %s, Device Name: %s, Auth Mode: %d, device_secret: %s",
              MAC2STR(src_addr), rx_ctrl->channel, rx_ctrl->rssi,
              initiator_info->product_id, initiator_info->device_name,
              initiator_info->auth_mode, initiator_info->device_secret);
 
+    /* Lab demo only: sdkconfig.defaults leaves provisioning security and
+     * plaintext rejection disabled, so this accepts requests from any device in
+     * range. Enable the recommended security configuration (see the
+     * espnow_config_t note in espnow.h) and authenticate the requester here. */
     return ESP_OK;
 }
 
@@ -230,8 +232,9 @@ EXIT:
     ESP_FREE(dest_addr_list);
     espnow_sec_initiator_result_free(&espnow_sec_result);
 
-    vTaskDelete(NULL);
+    /* vTaskDelete(NULL) does not return: clear the handle first. */
     s_sec_task = NULL;
+    vTaskDelete(NULL);
 }
 #endif
 

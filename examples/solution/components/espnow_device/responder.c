@@ -228,8 +228,9 @@ static void app_espnow_prov_initiator_init(void *arg)
     }
 
     ESP_LOGI(TAG, "provisioning initiator exit");
-    vTaskDelete(NULL);
+    /* vTaskDelete(NULL) does not return: clear the handle first. */
     s_prov_task = NULL;
+    vTaskDelete(NULL);
 }
 
 esp_err_t app_espnow_prov_responder_start(void)

@@ -321,8 +321,9 @@ static void provisioning_initiator(void *arg)
     }
 
     ESP_LOGI(TAG, "provisioning initiator exit");
-    vTaskDelete(NULL);
+    /* vTaskDelete(NULL) does not return: clear the handle first. */
     s_prov_task = NULL;
+    vTaskDelete(NULL);
 }
 
 /**
