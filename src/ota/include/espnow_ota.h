@@ -188,6 +188,13 @@ typedef esp_err_t (* espnow_ota_initiator_data_cb_t)(size_t src_offset, void *ds
  *
  * @attention Only called at the root
  *
+ * @note STATUS replies are matched on the unauthenticated source address
+ *       (see the espnow_set_key note), so a replayed STATUS frame can mark a
+ *       device as finished or stopped. The result is a progress indication,
+ *       not proof of installation: verify the running version on each
+ *       responder and rerun for any device that did not update. A replayed
+ *       STATUS frame cannot change what a responder installs.
+ *
  * @param[in]  addrs_list  destination node mac list
  * @param[in]  addrs_num  number of destination nodes
  * @param[in]  sha_256  SHA-256 digest for the upgrade partition
@@ -268,6 +275,31 @@ esp_err_t espnow_ota_responder_stop();
 
 /**
  * @brief Start upgrading
+ *
+ * @note The responder installs any image that passes the OTA security check
+ *       (CONFIG_ESPNOW_OTA_SECURITY) and the header check; it does not verify the
+ *       project name, the header check only rejects the version that is already
+ *       running, and the initiator's address list is not an authorization. The
+ *       library does not verify image authenticity: a deployment using espnow_ota
+ *       must enable Secure Boot v2, Flash Encryption and
+ *       CONFIG_BOOTLOADER_APP_ANTI_ROLLBACK. OTA frames can be replayed like any
+ *       other frame (see the espnow_set_key note): a recorded session can
+ *       reinstall a different older image while its secure_version is still
+ *       accepted (the running image is rejected by hash, an equal version only
+ *       when skip_version_check is false), so increment secure_version with
+ *       every release. Replaying STATUS frames of two different images in turn
+ *       erases the update partition once per
+ *       CONFIG_ESPNOW_OTA_RESTART_MIN_INTERVAL_MS. All devices sharing one
+ *       application key form a single trust domain; use a distinct key per
+ *       product line.
+ *
+ * @note Recommended usage: the responder runs only during an upgrade. Start it
+ *       when an upgrade is expected, refuse to start if esp_secure_boot_enabled()
+ *       is false, and afterwards call espnow_ota_responder_stop() followed by
+ *       espnow_set_config_for_data_type(ESPNOW_DATA_TYPE_OTA_DATA, false, NULL)
+ *       (stop alone leaves the handler registered). Leaving the responder running
+ *       for the whole uptime is not recommended: the replays above then remain
+ *       possible at any time.
  *
  * @param[in] config upgrade configuration
  * 
