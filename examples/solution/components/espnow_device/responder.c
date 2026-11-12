@@ -269,6 +269,12 @@ void app_espnow_responder()
         espnow_set_dec_key(key_info);
     }
 
+    /* The default PoP is public; warn so it is not shipped. */
+    if (strcmp(pop_data, "espnow_pop") == 0) {
+        ESP_LOGW(TAG, "Using the public example PoP: set a per-deployment secret of at least %d characters before deployment",
+                 ESPNOW_SEC_POP_RECOMMENDED_LEN);
+    }
+
     /* If responder handshake with initiator succeed, espnow_set_key will be executed again. */
     espnow_sec_responder_start(pop_data);
 #endif

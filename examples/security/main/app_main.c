@@ -53,7 +53,7 @@ static void app_espnow_event_handler(void *handler_args, esp_event_base_t base, 
 
     case ESP_EVENT_ESPNOW_SEC_FAIL:
         /* Demo only: fall back to plaintext after a failed handshake. Any device in
-         * range can trigger this event with a bogus handshake frame, so a product
+         * range can trigger this event with a bogus handshake frame, so an application
          * must keep using an already installed key here instead of clearing it. */
         ESP_LOGI(TAG, "ESP_EVENT_ESPNOW_SEC_FAIL [" MACSTR "]", MAC2STR((uint8_t *)event_data));
         s_sec_flag = false;
@@ -179,11 +179,17 @@ void app_main()
 
     espnow_set_config_for_data_type(ESPNOW_DATA_TYPE_DATA, true, app_uart_write_handle);
 
+    /* The default PoP is public; warn so it is not shipped. */
+    if (strcmp(pop_data, "espnow_pop") == 0) {
+        ESP_LOGW(TAG, "Using the public example PoP: set a per-deployment secret of at least %d characters before deployment",
+                 ESPNOW_SEC_POP_RECOMMENDED_LEN);
+    }
+
 #ifdef CONFIG_APP_ESPNOW_SEC_INITIATOR
     uint8_t key_info[APP_KEY_LEN];
 
     /* Demo only: a stored key is installed but frames stay plaintext until this
-     * boot's handshake completes. A product that holds a key should encrypt at
+     * boot's handshake completes. An application that holds a key should encrypt at
      * once (set s_sec_flag here). */
     if (espnow_get_key(key_info) != ESP_OK) {
         esp_fill_random(key_info, APP_KEY_LEN);
@@ -232,7 +238,7 @@ EXIT:
      * encrypted only when it is sent with the security bit set, which this
      * example does while s_sec_flag is set.
      * Demo only: frames stay plaintext until ESP_EVENT_ESPNOW_SEC_OK arrives, which
-     * needs a new handshake on this boot. A product that holds a key should encrypt
+     * needs a new handshake on this boot. An application that holds a key should encrypt
      * at once (set s_sec_flag here). */
     if (espnow_get_key(key_info) == ESP_OK) {
         espnow_set_key(key_info);

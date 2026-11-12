@@ -1074,32 +1074,98 @@ static struct {
     struct arg_lit *erase;
     struct arg_int *find;
     struct arg_str *send;
+    struct arg_str *pop;
     struct arg_end *end;
 } sec_args;
+
+typedef struct {
+    char *pop;      /**< Proof of Possession given by the operator */
+    char *addrs;    /**< Comma separated "xx:xx:xx:xx:xx:xx" list */
+} sec_send_arg_t;
+
+static void sec_send_arg_free(sec_send_arg_t *send_arg)
+{
+    if (send_arg) {
+        ESP_FREE(send_arg->pop);
+        ESP_FREE(send_arg->addrs);
+        ESP_FREE(send_arg);
+    }
+}
 
 static void sec_send_task(void *arg)
 {
     size_t addrs_num = 0;
     espnow_sec_result_t sec_result = {0};
     uint32_t start_time = xTaskGetTickCount();
+    sec_send_arg_t *send_arg = (sec_send_arg_t *)arg;
     uint8_t (* addrs_list)[ESPNOW_ADDR_LEN] = ESP_MALLOC(ESPNOW_ADDR_LEN);
+    if (!addrs_list) {
+        ESP_LOGE(TAG, "No memory for the address list");
+        sec_send_arg_free(send_arg);
+        vTaskDelete(NULL);
+        return;
+    }
 
-    for (const char *tmp = (char *)arg;; tmp++) {
+    /* Every non-empty token must be a complete "xx:xx:xx:xx:xx:xx": exactly 17
+     * characters (`tmp - 17` on a shorter first token would read before the start
+     * of the string), fully converted, and printing back to the same text —
+     * sscanf() alone leaves unparsed fields zero ("aa:bb:cc:dd:gg:ff" ->
+     * aa:bb:cc:dd:00:00) and accepts a sign or a stray character inside a field.
+     * One malformed token rejects the whole list so the key is never offered to a
+     * partially parsed address or to only part of the intended devices. Grow the
+     * list only when another token follows, and keep the old buffer if the
+     * reallocation fails. */
+    for (const char *tmp = send_arg->addrs, *start = send_arg->addrs;; tmp++) {
         if (*tmp == ',' || *tmp == ' ' || *tmp == '|' || *tmp == '.' || *tmp == '\0') {
-            espnow_mac_str2hex(tmp - 17, addrs_list[addrs_num]);
-            addrs_num++;
+            bool converted = (tmp - start > 0);
+            if (converted) {
+                char check[18] = {0};
+                bool valid = (tmp - start == 17) && espnow_mac_str2hex(start, addrs_list[addrs_num]);
+                if (valid) {
+                    snprintf(check, sizeof(check), MACSTR, MAC2STR(addrs_list[addrs_num]));
+                    valid = (strncasecmp(check, start, 17) == 0);
+                }
+                if (!valid) {
+                    ESP_LOGE(TAG, "Invalid MAC address \"%.*s\" in the list, nothing sent. Please enter the format as xx:xx:xx:xx:xx:xx",
+                             (int)MIN(tmp - start, 32), start);
+                    ESP_FREE(addrs_list);
+                    sec_send_arg_free(send_arg);
+                    vTaskDelete(NULL);
+                    return;
+                }
+                addrs_num++;
+            }
+            start = tmp + 1;
 
             if (*tmp == '\0' || *(tmp + 1) == '\0') {
                 break;
             }
 
-            addrs_list = ESP_REALLOC(addrs_list, ESPNOW_ADDR_LEN * (addrs_num + 1));
+            if (converted) {
+                uint8_t (* new_list)[ESPNOW_ADDR_LEN] = ESP_REALLOC(addrs_list, ESPNOW_ADDR_LEN * (addrs_num + 1));
+                if (!new_list) {
+                    ESP_LOGE(TAG, "No memory for the address list");
+                    ESP_FREE(addrs_list);
+                    sec_send_arg_free(send_arg);
+                    vTaskDelete(NULL);
+                    return;
+                }
+                addrs_list = new_list;
+            }
         }
+    }
+
+    if (addrs_num == 0) {
+        ESP_LOGE(TAG, "No MAC address given. Please enter the format as xx:xx:xx:xx:xx:xx");
+        ESP_FREE(addrs_list);
+        sec_send_arg_free(send_arg);
+        vTaskDelete(NULL);
+        return;
     }
 
     uint8_t key_info[APP_KEY_LEN];
     espnow_get_key(key_info);
-    espnow_sec_initiator_start(key_info, "espnow_pop", addrs_list, addrs_num, &sec_result);
+    espnow_sec_initiator_start(key_info, send_arg->pop, addrs_list, addrs_num, &sec_result);
 
     ESP_LOGI(TAG, "App key is sent to the device to complete, Spend time: %dms",
              (xTaskGetTickCount() - start_time) * portTICK_PERIOD_MS);
@@ -1108,7 +1174,9 @@ static void sec_send_task(void *arg)
 
     ESP_FREE(addrs_list);
     espnow_sec_initiator_result_free(&sec_result);
-    ESP_FREE(arg);
+    ESP_FREE(send_arg->pop);
+    ESP_FREE(send_arg->addrs);
+    ESP_FREE(send_arg);
 
     vTaskDelete(NULL);
 }
@@ -1162,16 +1230,48 @@ static int sec_func(int argc, char **argv)
     if (sec_args.send->count) {
         ESP_LOGI(TAG, "Security initiator start: %s", sec_args.send->sval[0]);
 
+        /* Debug tool: without -p the public example PoP is used, which lets
+         * anyone in range obtain the key. Say so, but keep the old behaviour. */
+        const char *pop = "espnow_pop";
+        if (sec_args.pop->count) {
+            pop = sec_args.pop->sval[0];
+            if (strlen(pop) < ESPNOW_SEC_POP_MIN_LEN) {
+                ESP_LOGE(TAG, "-p/--pop must be at least %d characters", ESPNOW_SEC_POP_MIN_LEN);
+                return ESP_ERR_INVALID_ARG;
+            }
+        } else {
+            ESP_LOGW(TAG, "Using the public example PoP \"espnow_pop\": anyone in range can obtain the key; "
+                     "pass -p/--pop with a per-deployment secret of at least %d characters", ESPNOW_SEC_POP_RECOMMENDED_LEN);
+        }
+
         uint8_t key_info[APP_KEY_LEN];
         if(espnow_get_key(key_info) != ESP_OK) {
             ESP_LOGE(TAG, "Secure key is not set");
             return ESP_FAIL;
         };
 
-        char *addrs_list = ESP_CALLOC(1, strlen(sec_args.send->sval[0]) + 1);
-        strcpy(addrs_list, sec_args.send->sval[0]);
+        /* The task owns send_arg and frees it on every exit path; here every
+         * failure frees what was allocated so far and returns. */
+        sec_send_arg_t *send_arg = ESP_CALLOC(1, sizeof(sec_send_arg_t));
+        if (!send_arg) {
+            ESP_LOGE(TAG, "No memory for the security send task");
+            return ESP_ERR_NO_MEM;
+        }
+        send_arg->pop   = ESP_CALLOC(1, strlen(pop) + 1);
+        send_arg->addrs = ESP_CALLOC(1, strlen(sec_args.send->sval[0]) + 1);
+        if (!send_arg->pop || !send_arg->addrs) {
+            ESP_LOGE(TAG, "No memory for the security send task");
+            sec_send_arg_free(send_arg);
+            return ESP_ERR_NO_MEM;
+        }
+        strcpy(send_arg->pop, pop);
+        strcpy(send_arg->addrs, sec_args.send->sval[0]);
 
-        xTaskCreate(sec_send_task, "sec_send", 8 * 1024, addrs_list, tskIDLE_PRIORITY + 1, NULL);
+        if (xTaskCreate(sec_send_task, "sec_send", 8 * 1024, send_arg, tskIDLE_PRIORITY + 1, NULL) != pdPASS) {
+            ESP_LOGE(TAG, "Failed to create the security send task");
+            sec_send_arg_free(send_arg);
+            return ESP_ERR_NO_MEM;
+        }
     }
 
     return ESP_OK;
@@ -1185,6 +1285,7 @@ static void register_security()
     sec_args.erase   = arg_lit0("e", "erase", "Erase the key in flash and restart");
     sec_args.find = arg_int0("f", "find", "<wait_s>", "Find devices waiting to get key");
     sec_args.send   = arg_str0("s", "send", "<<xx:xx:xx:xx:xx:xx>,<xx:xx:xx:xx:xx:xx>>", "Security handshake with responder devices and send security key");
+    sec_args.pop    = arg_str0("p", "pop", "<pop>", "Proof of Possession shared with the responders (>= 8 characters; defaults to the public example PoP, debug use only)");
     sec_args.end   = arg_end(8);
 
     const esp_console_cmd_t cmd = {

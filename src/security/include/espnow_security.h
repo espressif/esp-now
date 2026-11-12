@@ -24,6 +24,11 @@
 extern "C" {
 #endif /**< _cplusplus */
 
+/**
+ * @brief AES-128-CCM parameters: 4-byte tag (forgery 2^-32 per attempt) and
+ *        8-byte random nonce (may repeat near 2^32 frames). Rotate the key before
+ *        2^32 frames and never act irreversibly on a single frame.
+ */
 #define APP_KEY_LEN                         32      /**< Exchanged key length */
 #define KEY_LEN                             16      /**< Secret key length */
 #define IV_LEN                              8       /**< The initialization vector (nonce) length */

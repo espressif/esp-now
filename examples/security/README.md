@@ -25,8 +25,12 @@ Open the project configuration menu (`idf.py menuconfig`) to configure the Proof
 idf.py menuconfig
     Example Configuration  --->
         Proof of Possession  --->
-            "espnow_pop"
+            "espnow_pop"   (demonstration only, see below)
 ```
+
+> The PoP is the only secret protecting the application key; anyone who knows or guesses it can obtain the key. The default `espnow_pop` is public and for demonstration only (the example warns at startup). Before deployment, use a per-deployment random value of at least 16 characters.
+>
+> This example is a lab demo: it encrypts what it sends only after a successful handshake (before that, and after a handshake failure, it falls back to plaintext) and keeps the library default `CONFIG_ESPNOW_SEC_REJECT_PLAINTEXT=n`, so plaintext frames are still accepted. The recommended security configuration is listed in the `espnow_config_t` note in `espnow.h`.
 
 ## How to Use the Example
 

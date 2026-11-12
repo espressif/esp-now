@@ -79,6 +79,10 @@ menu "Example Configuration"
         help
             Proof of Possession (PoP) string used to authorize session and derive shared key.
 
+            The only secret protecting the application key. The default
+            "espnow_pop" is public and for demonstration only; before deployment,
+            use a per-deployment random value of at least 16 characters.
+
     config APP_POST_LOG_TO_HTTP_SERVER
         bool "Post flash log to HTTP server"
         default n
