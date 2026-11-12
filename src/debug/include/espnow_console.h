@@ -27,7 +27,15 @@ extern "C" {
 typedef struct espnow_console_config_s {
     struct {
         bool uart;                  /**< Receiving command from uart */
-        bool espnow;                /**< Receiving command from espnow */
+        bool espnow;                /**< Receiving command from espnow. Debug facility without access
+                                         control of its own: every received DEBUG_COMMAND frame is executed
+                                         (restart, reset, wifi_config, ota, ...). Unless the frames are
+                                         encrypted (CONFIG_ESPNOW_DEBUG_SECURITY and sec_enable) and plaintext
+                                         ones are rejected (CONFIG_ESPNOW_SEC_REJECT_PLAINTEXT), any device in
+                                         range can run them; espnow_console_init() then logs a warning. Debug
+                                         use only: even encrypted, a recorded command frame (e.g. `reset`, which
+                                         erases NVS) can be replayed without the key. The recommended
+                                         configuration keeps it false. */
     } monitor_command;              /**< Command monitor configuration */
     struct {
         const char *base_path;      /**< Path where partition should be registered (e.g. "/spiflash") */
@@ -42,8 +50,13 @@ typedef struct espnow_console_config_s {
  *          - Initialize filesystem
  *          - Create console handle task
  *
+ * @note With monitor_command.espnow set, the DEBUG_COMMAND handler is registered
+ *       and ESP_OK returned even when the frames are not protected; only an
+ *       error is logged. The application must keep monitor_command.espnow
+ *       false in production builds.
+ *
  * @param[in]  config  pointer to the console configuration structure
- * 
+ *
  * @return
  *     - ESP_OK
  *     - ESP_FAIL

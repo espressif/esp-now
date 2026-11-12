@@ -51,6 +51,75 @@ static const char *TAG = "espnow_cmd";
 wifi_pkt_rx_ctrl_t g_rx_ctrl = {0};
 uint8_t g_src_addr[ESPNOW_ADDR_LEN] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0XFF};
 
+/* Separators accepted between the addresses of a console MAC list. */
+#define CONSOLE_MAC_LIST_SEPARATORS ", |."
+
+/**
+ * @brief Parse one "xx:xx:xx:xx:xx:xx" token of `len` characters into `mac`.
+ *
+ * `espnow_mac_str2hex()` alone is not enough: sscanf() fills what it could parse
+ * and leaves the rest zero ("aa:bb:cc:dd:gg:ff" -> aa:bb:cc:dd:00:00), and it
+ * accepts a sign or a stray character inside a field ("…:fZ" -> 0f). The token
+ * is therefore accepted only when it is exactly 17 characters, converts fully
+ * and prints back to the same text.
+ */
+static bool console_mac_parse(const char *token, size_t len, uint8_t mac[ESPNOW_ADDR_LEN])
+{
+    char check[18] = {0};
+
+    if (len != 17 || !espnow_mac_str2hex(token, mac)) {
+        return false;
+    }
+    snprintf(check, sizeof(check), MACSTR, MAC2STR(mac));
+    return strncasecmp(check, token, 17) == 0;
+}
+
+/**
+ * @brief Parse a separator-delimited list of MAC addresses from the console.
+ *
+ * Empty tokens are skipped (e.g. the trailing '|' of the list printed by
+ * `ota -f`). Every other token must be a well-formed MAC; one malformed token
+ * rejects the whole list so a command is never sent to a partially parsed
+ * address or to only part of the intended targets. On success the caller
+ * owns `*list` (`*num` >= 1).
+ */
+static esp_err_t console_mac_list_parse(const char *str, espnow_addr_t **list, size_t *num)
+{
+    size_t count = 0;
+    espnow_addr_t *addrs = NULL;
+
+    for (const char *p = str; *p; p += (*p != '\0')) {
+        size_t len = strcspn(p, CONSOLE_MAC_LIST_SEPARATORS);
+        count += (len > 0);
+        p += len;
+    }
+
+    if (count == 0) {
+        ESP_LOGE(TAG, "No MAC address given. Please enter the format as xx:xx:xx:xx:xx:xx");
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    addrs = ESP_MALLOC(count * sizeof(espnow_addr_t));
+    ESP_ERROR_RETURN(!addrs, ESP_ERR_NO_MEM, "No memory for the address list");
+
+    count = 0;
+    for (const char *p = str; *p; p += (*p != '\0')) {
+        size_t len = strcspn(p, CONSOLE_MAC_LIST_SEPARATORS);
+
+        if (len && !console_mac_parse(p, len, addrs[count++])) {
+            ESP_LOGE(TAG, "Invalid MAC address \"%.*s\" in the list, nothing sent. Please enter the format as xx:xx:xx:xx:xx:xx",
+                     (int)MIN(len, 32), p);
+            ESP_FREE(addrs);
+            return ESP_ERR_INVALID_ARG;
+        }
+        p += len;
+    }
+
+    *list = addrs;
+    *num  = count;
+    return ESP_OK;
+}
+
 static struct {
     struct arg_str *addr;
     struct arg_str *command;
@@ -75,23 +144,12 @@ static int command_func(int argc, char **argv)
 
     esp_err_t ret = ESP_OK;
     size_t addrs_num = 0;
-    espnow_addr_t *addr_list = ESP_MALLOC(sizeof(espnow_addr_t));
+    espnow_addr_t *addr_list = NULL;
 
-    for (const char *tmp = command_args.addr->sval[0];; tmp++) {
-        if (*tmp == ',' || *tmp == ' ' || *tmp == '|' || *tmp == '.' || *tmp == '\0') {
-            espnow_mac_str2hex(tmp - 17, addr_list[addrs_num]);
-            addrs_num++;
-
-            if (*tmp == '\0' || *(tmp + 1) == '\0') {
-                break;
-            }
-
-            addr_list = ESP_REALLOC(addr_list, sizeof(espnow_addr_t) * (addrs_num + 1));
-        }
+    ret = console_mac_list_parse(command_args.addr->sval[0], &addr_list, &addrs_num);
+    if (ret != ESP_OK) {
+        return ret;
     }
-
-    ESP_ERROR_RETURN(addrs_num <= 0, ESP_ERR_INVALID_ARG,
-                     "The format of the address is incorrect. Please enter the format as xx:xx:xx:xx:xx:xx");
 
     if (command_args.channel_all->count) {
         frame_head.channel = ESPNOW_CHANNEL_ALL;
@@ -191,7 +249,7 @@ static int scan_func(int argc, char **argv)
     }
 
     if (scan_args.addr->count) {
-        ESP_ERROR_RETURN(!espnow_mac_str2hex(scan_args.addr->sval[0], addr), ESP_ERR_INVALID_ARG,
+        ESP_ERROR_RETURN(!console_mac_parse(scan_args.addr->sval[0], strlen(scan_args.addr->sval[0]), addr), ESP_ERR_INVALID_ARG,
                          "The format of the address is incorrect. Please enter the format as xx:xx:xx:xx:xx:xx");
     }
 
@@ -365,9 +423,19 @@ static int provisioning_func(int argc, char **argv)
         };
 
         espnow_prov_wifi_t wifi_config = {0x0};
-        strcpy((char *)wifi_config.sta.ssid, prov_args.param->sval[0]);
-        if (prov_args.param->sval[1]) {
-            strcpy((char *)wifi_config.sta.password, prov_args.param->sval[1]);
+        /* Console arguments are not bounded; sta.ssid / sta.password are fixed-size
+         * and not C strings (a 32-byte SSID / 64-character PSK has no terminator),
+         * so reject longer input and copy the exact length instead of strlcpy(),
+         * which would silently drop the last character of such credentials. */
+        size_t ssid_len = strlen(prov_args.param->sval[0]);
+        ESP_ERROR_RETURN(ssid_len > sizeof(wifi_config.sta.ssid), ESP_ERR_INVALID_ARG,
+                         "SSID is longer than %u bytes", (unsigned)sizeof(wifi_config.sta.ssid));
+        memcpy(wifi_config.sta.ssid, prov_args.param->sval[0], ssid_len);
+        if (prov_args.param->count > 1 && prov_args.param->sval[1]) {
+            size_t password_len = strlen(prov_args.param->sval[1]);
+            ESP_ERROR_RETURN(password_len > sizeof(wifi_config.sta.password), ESP_ERR_INVALID_ARG,
+                             "Password is longer than %u characters", (unsigned)sizeof(wifi_config.sta.password));
+            memcpy(wifi_config.sta.password, prov_args.param->sval[1], password_len);
         }
 
         /* For a lot of devices will connect to different aps with same ssid and password */
@@ -387,7 +455,7 @@ void register_provisioning()
 {
     prov_args.erase = arg_lit0("e", "erase", "Reset WiFi provisioning information and restart");
     prov_args.responder = arg_lit0("r", "responder", "Responder devices start provisioning");
-    prov_args.initiator = arg_int0("i", "initiator", "<beacon_time(s)>", "Set provisioning beacon time");
+    prov_args.initiator = arg_int0("i", "initiator", "<beacon_time_ms>", "Set provisioning beacon time in milliseconds");
     prov_args.param = arg_strn(NULL, NULL, "<ap_ssid> <app_password>",
                                0, 2, "Configure network for devices");
     prov_args.end   = arg_end(3);
@@ -481,7 +549,8 @@ static int control_func(int argc, char **argv)
         espnow_addr_t dest_addr = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
 
         if (control_args.mac->count) {
-            espnow_mac_str2hex(control_args.mac->sval[0], dest_addr);
+            ESP_ERROR_RETURN(!console_mac_parse(control_args.mac->sval[0], strlen(control_args.mac->sval[0]), dest_addr), ESP_ERR_INVALID_ARG,
+                             "The format of the address is incorrect. Please enter the format as xx:xx:xx:xx:xx:xx");
         }
 
         ret = espnow_ctrl_send(dest_addr, &data, &frame_head, pdMS_TO_TICKS(1000));
@@ -570,7 +639,6 @@ static esp_err_t firmware_download(const char *url)
 
     esp_err_t ret       = ESP_OK;
     uint8_t *data       = ESP_MALLOC(OTA_DATA_PAYLOAD_LEN);
-    char name[32]       = {0x0};
     size_t total_size   = 0;
     int start_time      = 0;
     esp_ota_handle_t ota_handle = 0;
@@ -609,7 +677,6 @@ static esp_err_t firmware_download(const char *url)
     } while (ret != ESP_OK);
 
     total_size = esp_http_client_fetch_headers(client);
-    sscanf(url, "%*[^/]//%*[^/]/%[^.bin]", name);
 
     if (total_size <= 0) {
         ESP_LOGW(TAG, "Please check the address of the server");
@@ -675,30 +742,23 @@ EXIT:
     return ESP_OK;
 }
 
+/* Target list of `ota -s`, parsed and validated in ota_func() before the task
+ * exists; the task owns and frees it. */
+typedef struct {
+    espnow_addr_t *addrs_list;
+    size_t addrs_num;
+} ota_send_arg_t;
+
 static void ota_send_task(void *arg)
 {
-    size_t addrs_num = 0;
+    ota_send_arg_t *send_arg = (ota_send_arg_t *)arg;
     espnow_ota_result_t ota_result = {0};
     uint32_t start_time = xTaskGetTickCount();
-    uint8_t (* addrs_list)[ESPNOW_ADDR_LEN] = ESP_MALLOC(ESPNOW_ADDR_LEN);
-
-    for (const char *tmp = (char *)arg;; tmp++) {
-        if (*tmp == ',' || *tmp == ' ' || *tmp == '|' || *tmp == '.' || *tmp == '\0') {
-            espnow_mac_str2hex(tmp - 17, addrs_list[addrs_num]);
-            addrs_num++;
-
-            if (*tmp == '\0' || *(tmp + 1) == '\0') {
-                break;
-            }
-
-            addrs_list = ESP_REALLOC(addrs_list, ESPNOW_ADDR_LEN * (addrs_num + 1));
-        }
-    }
 
     uint8_t sha_256[32] = {0};
     esp_partition_get_sha256(g_ota_data_partition, sha_256);
     ESP_LOG_BUFFER_HEXDUMP(TAG, sha_256, 32, ESP_LOG_DEBUG);
-    espnow_ota_initiator_send(addrs_list, addrs_num, sha_256, g_ota_size,
+    espnow_ota_initiator_send(send_arg->addrs_list, send_arg->addrs_num, sha_256, g_ota_size,
                                     ota_initiator_data_cb, &ota_result);
 
     ESP_LOGI(TAG, "Firmware is sent to the device to complete, Spend time: %ds",
@@ -706,9 +766,9 @@ static void ota_send_task(void *arg)
     ESP_LOGI(TAG, "Devices upgrade completed, successed_num: %d, unfinished_num: %d",
                 ota_result.successed_num, ota_result.unfinished_num);
 
-    ESP_FREE(addrs_list);
     espnow_ota_initiator_result_free(&ota_result);
-    ESP_FREE(arg);
+    ESP_FREE(send_arg->addrs_list);
+    ESP_FREE(send_arg);
 
     vTaskDelete(NULL);
 }
@@ -765,8 +825,21 @@ static int ota_func(int argc, char **argv)
     if (ota_args.send->count) {
         ESP_LOGI(TAG, "Send firmware to selected device: %s", ota_args.send->sval[0]);
 
+        /* Validate the target list before anything else: a malformed address must
+         * not start a send task, and the task is only given parsed addresses. */
+        ota_send_arg_t *send_arg = ESP_CALLOC(1, sizeof(ota_send_arg_t));
+        ESP_ERROR_RETURN(!send_arg, ESP_ERR_NO_MEM, "No memory for the OTA send task");
+
+        ret = console_mac_list_parse(ota_args.send->sval[0], &send_arg->addrs_list, &send_arg->addrs_num);
+        if (ret != ESP_OK) {
+            ESP_FREE(send_arg);
+            return ret;
+        }
+
         if(!g_ota_data_partition && espnow_storage_get("binary_len", &g_ota_size, sizeof(size_t)) != ESP_OK){
             ESP_LOGE(TAG, "Firmware not downloaded");
+            ESP_FREE(send_arg->addrs_list);
+            ESP_FREE(send_arg);
             return ESP_FAIL;
         }
 
@@ -774,10 +847,12 @@ static int ota_func(int argc, char **argv)
             g_ota_data_partition  = esp_ota_get_next_update_partition(NULL);
         };
 
-        char *addrs_list = ESP_CALLOC(1, strlen(ota_args.send->sval[0]) + 1);
-        strcpy(addrs_list, ota_args.send->sval[0]);
-
-        xTaskCreate(ota_send_task, "ota_send", 8 * 1024, addrs_list, tskIDLE_PRIORITY + 1, NULL);
+        if (xTaskCreate(ota_send_task, "ota_send", 8 * 1024, send_arg, tskIDLE_PRIORITY + 1, NULL) != pdPASS) {
+            ESP_LOGE(TAG, "Failed to create the OTA send task");
+            ESP_FREE(send_arg->addrs_list);
+            ESP_FREE(send_arg);
+            return ESP_ERR_NO_MEM;
+        }
     }
 
     return ESP_OK;
@@ -786,7 +861,7 @@ static int ota_func(int argc, char **argv)
 void register_ota()
 {
     ota_args.download = arg_str0("d", "download", "<url>", "Firmware Download");
-    ota_args.find     = arg_int0("f", "find", "<wait_tick>", "Find upgradeable devices");
+    ota_args.find     = arg_int0("f", "find", "<wait_ms>", "Find upgradeable devices, scan time in milliseconds");
     ota_args.send     = arg_str0("s", "send", "<xx:xx:xx:xx:xx:xx>,<xx:xx:xx:xx:xx:xx>", "Send firmware to selected device");
     ota_args.end      = arg_end(3);
 
@@ -1183,7 +1258,7 @@ static int sec_func(int argc, char **argv)
 static void register_security()
 {
     sec_args.erase   = arg_lit0("e", "erase", "Erase the key in flash and restart");
-    sec_args.find = arg_int0("f", "find", "<wait_s>", "Find devices waiting to get key");
+    sec_args.find = arg_int0("f", "find", "<wait_ms>", "Find devices waiting to get key, scan time in milliseconds");
     sec_args.send   = arg_str0("s", "send", "<<xx:xx:xx:xx:xx:xx>,<xx:xx:xx:xx:xx:xx>>", "Security handshake with responder devices and send security key");
     sec_args.end   = arg_end(8);
 

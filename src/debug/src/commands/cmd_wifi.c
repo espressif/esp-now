@@ -169,12 +169,24 @@ static int wifi_config_func(int argc, char **argv)
     esp_err_t ret = ESP_OK;
     wifi_config_t wifi_config = {0x0};
 
+    /* The console line may be up to max_cmdline_length bytes; never let an
+     * argument overrun the fixed-size wifi_config_t fields on the stack.
+     * sta.ssid / sta.password are not C strings: a 32-byte SSID and a
+     * 64-character PSK fill the array with no terminator, so reject longer
+     * input and copy the exact length (the struct is zeroed, shorter values
+     * stay terminated). strlcpy() would silently drop the last character. */
     if (wifi_config_args.ssid->count) {
-        strcpy((char *)wifi_config.sta.ssid, wifi_config_args.ssid->sval[0]);
+        size_t len = strlen(wifi_config_args.ssid->sval[0]);
+        ESP_ERROR_RETURN(len > sizeof(wifi_config.sta.ssid), ESP_ERR_INVALID_ARG,
+                         "SSID is longer than %u bytes", (unsigned)sizeof(wifi_config.sta.ssid));
+        memcpy(wifi_config.sta.ssid, wifi_config_args.ssid->sval[0], len);
     }
 
     if (wifi_config_args.password->count) {
-        strcpy((char *)wifi_config.sta.password, wifi_config_args.password->sval[0]);
+        size_t len = strlen(wifi_config_args.password->sval[0]);
+        ESP_ERROR_RETURN(len > sizeof(wifi_config.sta.password), ESP_ERR_INVALID_ARG,
+                         "Password is longer than %u characters", (unsigned)sizeof(wifi_config.sta.password));
+        memcpy(wifi_config.sta.password, wifi_config_args.password->sval[0], len);
     }
 
     if (wifi_config_args.bssid->count) {
@@ -187,7 +199,8 @@ static int wifi_config_func(int argc, char **argv)
         ESP_ERROR_RETURN(ret != ESP_OK, ret, "esp_wifi_disconnect");
     }
 
-    if (strlen((char *)wifi_config.sta.ssid)) {
+    /* A full 32-byte SSID has no terminator, so do not strlen() the field. */
+    if (wifi_config_args.ssid->count && wifi_config.sta.ssid[0] != '\0') {
         ret = esp_wifi_set_config(WIFI_IF_STA, &wifi_config);
         ESP_ERROR_RETURN(ret != ESP_OK, ret, "esp_wifi_set_config");
 

@@ -76,6 +76,9 @@ CONFIG_LWIP_TCPIP_RECVMBOX_SIZE=64
 #  ESP-NOW debug
 #
 CONFIG_STORE_HISTORY=y
+# The flash log must fit the 32K `log_info` partition in partitions.csv
+# (the component default is 64K); two 16K files.
+CONFIG_ESPNOW_DEBUG_LOG_FILE_MAX_SIZE=32768
 
 #
 # Log output

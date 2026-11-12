@@ -1400,6 +1400,16 @@ EXIT:
     return ESP_FAIL;
 }
 
+esp_err_t espnow_get_config(espnow_config_t *config)
+{
+    ESP_PARAM_CHECK(config);
+    ESP_ERROR_RETURN(!g_espnow_config, ESP_ERR_ESPNOW_NOT_INIT, "ESPNOW is not initialized");
+
+    memcpy(config, g_espnow_config, sizeof(espnow_config_t));
+
+    return ESP_OK;
+}
+
 esp_err_t espnow_deinit(void)
 {
     ESP_ERROR_RETURN(!g_espnow_config, ESP_ERR_ESPNOW_NOT_INIT, "ESPNOW is not initialized");

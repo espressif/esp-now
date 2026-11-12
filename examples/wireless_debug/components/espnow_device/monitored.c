@@ -246,7 +246,14 @@ void app_espnow_monitored_device_start()
     espnow_console_init(&console_config);
     espnow_console_commands_register();
 
-    espnow_log_init(&log_config);
+    /* The flash sink needs a `log_info` partition of at least
+       CONFIG_ESPNOW_DEBUG_LOG_FILE_MAX_SIZE bytes (this example: 32 KB in
+       partitions.csv, matched by sdkconfig.defaults). If the init fails no log is
+       forwarded to flash or ESP-NOW, so say so instead of continuing silently. */
+    esp_err_t ret = espnow_log_init(&log_config);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "espnow_log_init failed (%s): logs are not forwarded to flash / ESP-NOW", esp_err_to_name(ret));
+    }
     esp_log_level_set("*", ESP_LOG_INFO);
 
     /**
