@@ -26,8 +26,16 @@
 #include "esp_log.h"
 #include "espnow.h"
 #include "esp_crc.h"
+#include "esp_mac.h"
 
 static const char *TAG = "espnow_group";
+
+/**< Bound the group list: unauthenticated GROUP frames can add groups remotely. */
+#ifndef CONFIG_ESPNOW_GROUP_COUNT_MAX
+#define ESPNOW_GROUP_COUNT_MAX 32
+#else
+#define ESPNOW_GROUP_COUNT_MAX CONFIG_ESPNOW_GROUP_COUNT_MAX
+#endif
 
 typedef struct espnow_group_item {
     espnow_group_t id;
@@ -36,25 +44,60 @@ typedef struct espnow_group_item {
 
 static SLIST_HEAD(group_item_list_, espnow_group_item) g_group_item_list;
 
+/**< Built-in groups bypass the cap and are never evicted. */
+static bool espnow_group_is_builtin(const espnow_group_t group_id)
+{
+    return !memcmp(group_id, ESPNOW_ADDR_GROUP_OTA, 6)
+           || !memcmp(group_id, ESPNOW_ADDR_GROUP_PROV, 6)
+           || !memcmp(group_id, ESPNOW_ADDR_GROUP_SEC, 6);
+}
+
 esp_err_t espnow_add_group(const espnow_group_t group_id)
 {
     espnow_group_item_t *item = NULL;
+    size_t group_count = 0;
 
     SLIST_FOREACH(item, &g_group_item_list, next) {
         if (!memcmp(item->id, group_id, 6)) {
             return ESP_OK;
         }
+        if (!espnow_group_is_builtin(item->id)) {
+            group_count++;
+        }
     }
 
-    espnow_group_item_t *list_first = SLIST_FIRST(&g_group_item_list);
-    item = ESP_MALLOC(sizeof(espnow_group_item_t));
-    memcpy(item->id, group_id, 6);
-
-    if (!list_first) {
-        SLIST_INSERT_HEAD(&g_group_item_list, item, next);
-    } else {
-        SLIST_INSERT_AFTER(list_first, item, next);
+    /**< Allocate the new item before evicting anything: a failed allocation
+         (reachable from a remote GROUP frame via espnow_recv_cb) must leave the
+         list exactly as it was, and must not be dereferenced below (CWE-476). */
+    espnow_group_item_t *new_item = ESP_MALLOC(sizeof(espnow_group_item_t));
+    if (!new_item) {
+        ESP_LOGE(TAG, "ESP_MALLOC group item failed");
+        return ESP_ERR_NO_MEM;
     }
+    memcpy(new_item->id, group_id, 6);
+
+    /**< Evict the oldest application group (the tail) rather than reject, so a
+         one-time flood cannot block later joins. */
+    if (group_count >= ESPNOW_GROUP_COUNT_MAX && !espnow_group_is_builtin(group_id)) {
+        espnow_group_item_t *victim = NULL;
+
+        SLIST_FOREACH(item, &g_group_item_list, next) {
+            if (!espnow_group_is_builtin(item->id)) {
+                victim = item;
+            }
+        }
+
+        if (victim) {
+            ESPNOW_LOG_RATE_LIMITED(ESP_LOGW, 1000, "Group list full (%u), evict oldest group_id " MACSTR,
+                                    (unsigned)group_count, MAC2STR(victim->id));
+            SLIST_REMOVE(&g_group_item_list, victim, espnow_group_item, next);
+            ESP_FREE(victim);
+        }
+    }
+
+    /**< Always insert at the head so the list is ordered newest to oldest and
+         the tail, which eviction removes, is the oldest application group. */
+    SLIST_INSERT_HEAD(&g_group_item_list, new_item, next);
 
     return ESP_OK;
 }

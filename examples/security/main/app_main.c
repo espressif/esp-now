@@ -52,6 +52,9 @@ static void app_espnow_event_handler(void *handler_args, esp_event_base_t base, 
         break;
 
     case ESP_EVENT_ESPNOW_SEC_FAIL:
+        /* Demo only: fall back to plaintext after a failed handshake. Any device in
+         * range can trigger this event with a bogus handshake frame, so a product
+         * must keep using an already installed key here instead of clearing it. */
         ESP_LOGI(TAG, "ESP_EVENT_ESPNOW_SEC_FAIL [" MACSTR "]", MAC2STR((uint8_t *)event_data));
         s_sec_flag = false;
         break;
@@ -179,6 +182,9 @@ void app_main()
 #ifdef CONFIG_APP_ESPNOW_SEC_INITIATOR
     uint8_t key_info[APP_KEY_LEN];
 
+    /* Demo only: a stored key is installed but frames stay plaintext until this
+     * boot's handshake completes. A product that holds a key should encrypt at
+     * once (set s_sec_flag here). */
     if (espnow_get_key(key_info) != ESP_OK) {
         esp_fill_random(key_info, APP_KEY_LEN);
     }
@@ -222,7 +228,12 @@ EXIT:
 #elif CONFIG_APP_ESPNOW_SEC_RESPONDER
     uint8_t key_info[APP_KEY_LEN];
 
-    /* If espnow_set_key succeed, sending and receiving will be in security mode */
+    /* Install the stored APP key. The key alone encrypts nothing: a frame is
+     * encrypted only when it is sent with the security bit set, which this
+     * example does while s_sec_flag is set.
+     * Demo only: frames stay plaintext until ESP_EVENT_ESPNOW_SEC_OK arrives, which
+     * needs a new handshake on this boot. A product that holds a key should encrypt
+     * at once (set s_sec_flag here). */
     if (espnow_get_key(key_info) == ESP_OK) {
         espnow_set_key(key_info);
         espnow_set_dec_key(key_info);

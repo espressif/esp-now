@@ -6,42 +6,115 @@ menu "ESP-NOW Configuration"
         bool "Secure application data"
         default y
         help
-            Enable to secure the application level data.
+            Compile support for encrypting the application data payload
+            (AES128-CCM) with the key distributed by the security handshake.
+            This option alone protects no frame: the recommended security
+            configuration is listed in the espnow_config_t note in espnow.h.
 
     config ESPNOW_ALL_SECURITY
-        bool "Secure all data"
+        bool "Secure all application data types (recommended)"
         default n
         depends on ESPNOW_APP_SECURITY
         help
-            Enable to secure all application data.
+            Equivalent to selecting all per-type ESPNOW_*_SECURITY options below.
+            It does not make espnow_send() encrypt the frames an application
+            sends itself: those are encrypted only when the caller passes a
+            frame head with security set (see the espnow_send note). On the
+            receive side DATA and RESERVED always count as secured types when
+            sec_enable is on; see espnow_set_security_required_for_data_type().
+            Plaintext frames of secured types are only rejected with
+            ESPNOW_SEC_REJECT_PLAINTEXT. GROUP frames stay plaintext: devices
+            must be grouped before a key can be distributed, so group membership
+            is not a security boundary.
+
+            Default n keeps every type in plaintext. Enable (recommended)
+            together with ESPNOW_SEC_REJECT_PLAINTEXT once every peer holds
+            the application key.
 
     config ESPNOW_CONTROL_SECURITY
-        bool "Secure control data"
+        bool "Secure control data (recommended)"
         default n
         depends on ESPNOW_APP_SECURITY && !ESPNOW_ALL_SECURITY
         help
-            Enable to secure the control data.
+            Enable to secure the control data. Default n keeps control frames
+            in plaintext: any device in range can bind to a responder during
+            the bind window and control it afterwards. Enable (recommended)
+            together with ESPNOW_SEC_REJECT_PLAINTEXT once every peer holds
+            the application key.
 
     config ESPNOW_DEBUG_SECURITY
-        bool "Secure debug data"
+        bool "Secure debug data (recommended)"
         default n
         depends on ESPNOW_APP_SECURITY && !ESPNOW_ALL_SECURITY
         help
-            Enable to secure the debug data.
+            Enable to secure the debug data (remote console and remote log).
+            Default n keeps them in plaintext: any device in range can run
+            remote console commands. The remote console is a debug
+            facility; if it must stay, enable (recommended) together
+            with ESPNOW_SEC_REJECT_PLAINTEXT once every peer holds the
+            application key.
 
     config ESPNOW_OTA_SECURITY
-        bool "Secure OTA data"
+        bool "Secure OTA data (recommended)"
         default n
         depends on ESPNOW_APP_SECURITY && !ESPNOW_ALL_SECURITY
         help
-            Enable to secure the OTA data.
+            Enable to secure the OTA data. Default n keeps OTA frames in
+            plaintext as in previous releases. This is NOT secure: any device
+            in range can push and boot firmware unless Secure Boot is enabled.
+            Enable this option (recommended) together with
+            ESPNOW_SEC_REJECT_PLAINTEXT as soon as every peer holds the
+            application key; the examples keep it off and are lab demos only.
+
+            The library does not verify image authenticity.
+
+            Requires sec_enable in espnow_config_t: with sec_enable off, OTA
+            frames are marked secured but never encrypted, so peers drop them
+            and OTA does not work.
 
     config ESPNOW_PROV_SECURITY
-        bool "Secure provisioning data"
+        bool "Secure provisioning data (recommended)"
         default n
         depends on ESPNOW_APP_SECURITY && !ESPNOW_ALL_SECURITY
         help
-            Enable to secure the provisioning data.
+            Enable to secure the provisioning data. Default n keeps
+            provisioning frames in plaintext: any device in range can obtain
+            the Wi-Fi credentials from a responder whose callback approves it,
+            or answer an initiator with forged credentials. Enable
+            (recommended) together with ESPNOW_SEC_REJECT_PLAINTEXT once every
+            peer holds the application key.
+
+    config ESPNOW_TIME_SECURITY
+        bool "Secure time synchronization data (recommended)"
+        default n
+        depends on ESPNOW_APP_SECURITY && !ESPNOW_ALL_SECURITY
+        help
+            Enable to secure the time synchronization data. Default n keeps
+            time sync frames in plaintext: any device in range can shift the
+            responder's clock. Enable (recommended) together with
+            ESPNOW_SEC_REJECT_PLAINTEXT once every peer holds the application
+            key.
+
+    config ESPNOW_SEC_REJECT_PLAINTEXT
+        bool "Reject plaintext frames of secured data types (recommended)"
+        default n
+        depends on ESPNOW_APP_SECURITY
+        help
+            When sec_enable is set, drop a received frame whose header marks it
+            as plaintext but whose data type is configured as secured
+            (CONFIG_ESPNOW_*_SECURITY, plus DATA and RESERVED). The frame is
+            dropped before the receive callback and before forwarding, and the
+            drop is logged at most once per second per type.
+
+            Default n keeps the previous behaviour: such plaintext frames are
+            accepted and handled exactly like authenticated ones. This is NOT
+            secure: any device in range can send an unencrypted control,
+            provisioning, OTA or data frame and bypass the AEAD check that the
+            encrypted path provides. Enable this option (recommended) as soon as
+            every peer sends these types encrypted, e.g. after all devices run
+            firmware with the same CONFIG_ESPNOW_*_SECURITY settings and hold the
+            application key. Per-type exceptions can be made at run time with
+            espnow_set_security_required_for_data_type().
 
     config ESPNOW_SEC_SCAN_MAX_NUM
         int "Maximum responders recorded per security scan"
@@ -203,6 +276,16 @@ menu "ESP-NOW Configuration"
             use an interval at least this long, or set 0 to disable the limit.
     endmenu
 
+    config ESPNOW_GROUP_COUNT_MAX
+        int "Maximum number of groups this device may join"
+        range 8 65535
+        default 32
+        help
+            Unauthenticated GROUP frames can add groups remotely, so an unbounded
+            list could exhaust the heap. When the cap is reached the oldest
+            application group is evicted. The built-in OTA/PROV/SEC groups do not
+            count and are never evicted.
+
     config ESPNOW_AUTO_RESTORE_CHANNEL
         bool "Restore primary channel at the end of ESP-NOW package sending"
         default n
@@ -274,13 +357,19 @@ menu "ESP-NOW Configuration"
         int "Continuous reboot interval(ms)"
         default 5000
         help
-        Continuous reboot interval.
+        A reset within this many milliseconds after boot counts as a continuous
+        reboot for ESPNOW_REBOOT_UNBROKEN_FALLBACK_COUNT; staying up longer
+        clears the counter. Deep sleep and brown-out resets do not count.
 
     config ESPNOW_REBOOT_UNBROKEN_FALLBACK_COUNT
         int "Continuous restart triggers version rollback"
         default 30
         help
-        Continuous restart triggers version rollback.
+        After this many continuous reboots the running app is marked invalid
+        and the firmware in the other OTA slot is booted. Enable
+        CONFIG_BOOTLOADER_APP_ANTI_ROLLBACK so repeated externally triggered
+        crashes cannot downgrade the device to an older image. 0 disables
+        the rollback.
     endmenu
 
     menu "ESP-NOW Debug Configuration" 

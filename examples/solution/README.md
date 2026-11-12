@@ -59,7 +59,7 @@ idf.py build
 
 You can find the firmware in `build/Resp.bin`.
 
-If the device runs for the first time, it doesn't have the APP key and can't encrypt/decrypt ESP-NOW data until getting key from initiator board. If the device has stored the APP key, it will read APP key from flash and use the key to encrypt/decrypt ESP-NOW data.
+If the device runs for the first time, it doesn't have the APP key and can't encrypt/decrypt ESP-NOW data until getting key from initiator board. If the device has stored the APP key, it will read APP key from flash and install it. The key only makes encryption possible; which frames are actually encrypted is described in Step 2.
 
 ### Step 2: Build & Flash & Run initiator board
 
@@ -71,7 +71,9 @@ If the initiator board runs for the first time, it will generate a random APP ke
 
 After handshake is success, responders will get APP key and store the key to flash.
 
-Then the initiator and responders can communicate ESP-NOW application data in security mode.
+Holding the APP key does not encrypt anything by itself. `CONFIG_ESPNOW_APP_SECURITY=y` only compiles the encryption support: `espnow_send()` encrypts a frame only when `espnow_config.sec_enable` is set and the sender passes an `espnow_frame_head_t` with `security` set (a NULL or `ESPNOW_FRAME_CONFIG_DEFAULT()` frame head is sent in plaintext). The built-in modules take that bit from their `CONFIG_ESPNOW_*_SECURITY` option, and every one of them defaults to `n`.
+
+This example is a lab demo that keeps these defaults and sends no frame with `security` set: its control, provisioning, time sync, OTA, console and log frames are sent in plaintext and plaintext frames are accepted, so any device in range can control a responder, read the Wi-Fi credentials, push firmware or run console commands. The recommended security configuration is listed in the `espnow_config_t` note in `espnow.h`. Finish Step 2 before pressing the buttons in Step 5.
 
 ### Step 3: WiFi Provision on initiator board
 

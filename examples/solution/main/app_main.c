@@ -24,6 +24,9 @@
 #ifdef CONFIG_APP_ESPNOW_TIMESYNC
 #include "espnow_time.h"
 #endif
+#ifdef CONFIG_APP_ESPNOW_SECURITY
+#include "espnow_security.h"
+#endif
 
 #ifdef CONFIG_APP_ESPNOW_CONTROL
 #include "espnow_ctrl.h"
@@ -189,7 +192,33 @@ static void app_timesync_event_handler(void *arg, esp_event_base_t event_base,
                  MAC2STR(evt->src_addr), evt->drift_ms);
     }
 }
+
+#if CONFIG_APP_ESPNOW_RESPONDER
+/* With CONFIG_ESPNOW_TIME_SECURITY the request needs the application key, which
+ * may not exist yet; a failure is expected and we retry once the key arrives. */
+static void app_timesync_request(const char *reason)
+{
+    esp_err_t ret = espnow_time_responder_request();
+
+    if (ret == ESP_OK) {
+        ESP_LOGI(TAG, "Time sync requested (%s)", reason);
+    } else {
+        ESP_LOGW(TAG, "Time sync request not sent (%s): %s; waiting for the application key",
+                 reason, esp_err_to_name(ret));
+    }
+}
+
+#ifdef CONFIG_APP_ESPNOW_SECURITY
+static void app_timesync_sec_event_handler(void *arg, esp_event_base_t event_base,
+                                           int32_t event_id, void *event_data)
+{
+    if (event_id == ESP_EVENT_ESPNOW_SEC_OK) {
+        app_timesync_request("application key received");
+    }
+}
 #endif
+#endif /* CONFIG_APP_ESPNOW_RESPONDER */
+#endif /* CONFIG_APP_ESPNOW_TIMESYNC */
 
 #ifdef CONFIG_APP_ESPNOW_CONTROL
 #if CONFIG_APP_ESPNOW_INITIATOR
@@ -500,16 +529,20 @@ void app_main()
     app_control_responder_init();
 #endif
 
+    app_espnow_responder();
+
 #ifdef CONFIG_APP_ESPNOW_TIMESYNC
+    /* After app_espnow_responder(), which restores the key and starts the handshake. */
     espnow_time_responder_config_t time_config = {
         .max_drift_ms = CONFIG_APP_ESPNOW_TIMESYNC_MAX_DRIFT_MS,
     };
     esp_event_handler_register(ESP_EVENT_ESPNOW, ESP_EVENT_ESPNOW_TIMESYNC_SYNCED, app_timesync_event_handler, NULL);
-    ESP_ERROR_CHECK(espnow_time_responder_start(&time_config));
-    ESP_ERROR_CHECK(espnow_time_responder_request());
-    ESP_LOGI(TAG, "Time sync responder started, max drift: %d ms", CONFIG_APP_ESPNOW_TIMESYNC_MAX_DRIFT_MS);
+#ifdef CONFIG_APP_ESPNOW_SECURITY
+    esp_event_handler_register(ESP_EVENT_ESPNOW, ESP_EVENT_ESPNOW_SEC_OK, app_timesync_sec_event_handler, NULL);
 #endif
-
-    app_espnow_responder();
+    ESP_ERROR_CHECK(espnow_time_responder_start(&time_config));
+    ESP_LOGI(TAG, "Time sync responder started, max drift: %d ms", CONFIG_APP_ESPNOW_TIMESYNC_MAX_DRIFT_MS);
+    app_timesync_request("boot");
+#endif
 #endif
 }

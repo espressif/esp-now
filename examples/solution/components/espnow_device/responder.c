@@ -260,7 +260,10 @@ void app_espnow_responder()
     const char *pop_data = CONFIG_APP_ESPNOW_SESSION_POP;
     uint8_t key_info[APP_KEY_LEN];
 
-    /* If espnow_set_key succeed, sending and receiving will be in security mode */
+    /* Install the stored APP key. This only makes encryption possible: a frame is
+     * encrypted when it is sent with the security bit set (the built-in modules
+     * take it from CONFIG_ESPNOW_*_SECURITY, default n), and plaintext frames are
+     * still accepted unless CONFIG_ESPNOW_SEC_REJECT_PLAINTEXT is enabled. */
     if (espnow_get_key(key_info) == ESP_OK) {
         espnow_set_key(key_info);
         espnow_set_dec_key(key_info);

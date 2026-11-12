@@ -112,6 +112,11 @@ esp_err_t espnow_sec_auth_encrypt(espnow_sec_t *sec, const uint8_t *input, size_
  *        Decryption with 128 bit AES-CCM
  *
  * @note  the tag must be appended to the ciphertext
+ *
+ * @note  An authentication failure (wrong tag, wrong key) is reported only
+ *        through the return value and is not logged by this function, because a
+ *        forged frame can produce it at wire rate; the caller decides how to
+ *        report it. Other failures are logged.
  * 
  * @param[in]   sec        the security info used for encryption.
  * @param[in]   input      the buffer for the input data

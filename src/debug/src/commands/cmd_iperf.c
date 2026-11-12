@@ -185,6 +185,7 @@ struct espnow_iperf_cfg {
     .report_interval = 3,
     .ping_count      = 64,
     .frame_head.group     = false,
+    .frame_head.security  = CONFIG_ESPNOW_DEBUG_SECURITY,
     .type            = ESPNOW_DATA_TYPE_RESERVED,
 };
 
@@ -210,6 +211,34 @@ typedef struct {
     size_t size;
     wifi_pkt_rx_ctrl_t rx_ctrl;
 } iperf_recv_data_t;
+
+static bool g_iperf_recv_owned = false;         /**< iperf holds the RESERVED receive handler */
+static bool g_iperf_responder = false;          /**< the running session is a responder (it has no task of its own) */
+static bool g_iperf_sec_required_saved = true;  /**< RESERVED setting to put back when iperf releases the type */
+
+/* RESERVED is secured by default; follow the debug setting while iperf owns it and
+ * put the previous setting back afterwards, so a later RESERVED handler of the
+ * application does not inherit the iperf exception. */
+static void espnow_iperf_recv_start(handler_for_data_t handle)
+{
+    if (!g_iperf_recv_owned) {
+        espnow_get_security_required_for_data_type(ESPNOW_DATA_TYPE_RESERVED, &g_iperf_sec_required_saved);
+        g_iperf_recv_owned = true;
+    }
+
+    espnow_set_security_required_for_data_type(ESPNOW_DATA_TYPE_RESERVED, CONFIG_ESPNOW_DEBUG_SECURITY);
+    espnow_set_config_for_data_type(ESPNOW_DATA_TYPE_RESERVED, 1, handle);
+}
+
+static void espnow_iperf_recv_stop(void)
+{
+    espnow_set_config_for_data_type(ESPNOW_DATA_TYPE_RESERVED, 0, NULL);
+
+    if (g_iperf_recv_owned) {
+        espnow_set_security_required_for_data_type(ESPNOW_DATA_TYPE_RESERVED, g_iperf_sec_required_saved);
+        g_iperf_recv_owned = false;
+    }
+}
 
 static esp_err_t espnow_iperf_initiator_recv(uint8_t *src_addr, void *data,
                       size_t size, wifi_pkt_rx_ctrl_t *rx_ctrl)
@@ -328,7 +357,7 @@ static void espnow_iperf_initiator_task(void *arg)
     ESP_FREE(iperf_data);
     g_iperf_cfg.finish = true;
 
-    espnow_set_config_for_data_type(ESPNOW_DATA_TYPE_RESERVED, 0, NULL);
+    espnow_iperf_recv_stop();
     if (g_iperf_queue) {
         iperf_recv_data_t tmp_data =  { 0 };
 
@@ -425,8 +454,11 @@ static esp_err_t espnow_iperf_responder(uint8_t *src_addr, void *data,
             iperf_data->type = IPERF_BANDWIDTH_STOP_ACK;
             ESP_LOGD(TAG, "iperf_data->seq: %d",  iperf_data->seq);
 
+            /* Protect the reply like the rest of the session: a plaintext reply is
+             * dropped by an initiator that rejects plaintext for this type. */
             espnow_frame_head_t frame_head = {
                 .filter_adjacent_channel = true,
+                .security                = g_iperf_cfg.frame_head.security,
             };
 
             espnow_add_peer(g_iperf_cfg.addr, NULL);
@@ -443,7 +475,8 @@ static esp_err_t espnow_iperf_responder(uint8_t *src_addr, void *data,
 
 static void espnow_iperf_responder_start(void)
 {
-    espnow_set_config_for_data_type(ESPNOW_DATA_TYPE_RESERVED, 1, espnow_iperf_responder);
+    espnow_iperf_recv_start(espnow_iperf_responder);
+    g_iperf_responder = true;
     ESP_LOGI(TAG, "[  Initiator MAC  ] Interval       Transfer     Bandwidth   RSSI");
 }
 
@@ -534,7 +567,7 @@ static void espnow_iperf_ping_task(void *arg)
         espnow_del_peer(g_iperf_cfg.addr);
     }
 
-    espnow_set_config_for_data_type(ESPNOW_DATA_TYPE_RESERVED, 0, NULL);
+    espnow_iperf_recv_stop();
     if (g_iperf_queue) {
         iperf_recv_data_t tmp_data =  { 0 };
 
@@ -575,6 +608,14 @@ static esp_err_t espnow_iperf_func(int argc, char **argv)
 
     if (espnow_iperf_args.abort->count) {
         g_iperf_cfg.finish = true;
+
+        /* An initiator task cleans up when it sees finish; the responder has no
+         * task, so release the RESERVED handler and its security setting here. */
+        if (g_iperf_responder) {
+            g_iperf_responder = false;
+            espnow_iperf_recv_stop();
+        }
+
         return ESP_OK;
     }
 
@@ -666,7 +707,7 @@ static esp_err_t espnow_iperf_func(int argc, char **argv)
 
         g_iperf_queue = xQueueCreate(IPERF_QUEUE_SIZE, sizeof(iperf_recv_data_t));
         ESP_ERROR_RETURN(!g_iperf_queue, ESP_FAIL, "Create espnow recv queue fail");
-        espnow_set_config_for_data_type(ESPNOW_DATA_TYPE_RESERVED, 1, espnow_iperf_initiator_recv);
+        espnow_iperf_recv_start(espnow_iperf_initiator_recv);
 
         if (espnow_iperf_args.ping->count) {
             xTaskCreate(espnow_iperf_ping_task, "espnow_iperf_ping", 4 * 1024,

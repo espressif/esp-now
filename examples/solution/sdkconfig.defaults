@@ -54,3 +54,12 @@ CONFIG_BT_NIMBLE_ENABLED=y
 CONFIG_COMPILER_OPTIMIZATION_SIZE=y
 
 CONFIG_ESP_PROTOCOMM_SUPPORT_SECURITY_VERSION_1=y
+
+#
+# ESP-NOW
+#
+# Lab demo: control, provisioning, time sync, OTA, remote console and log frames
+# keep the library defaults (plaintext, plaintext accepted). A deployment should
+# enable CONFIG_ESPNOW_{CONTROL,PROV,TIME,OTA,DEBUG}_SECURITY,
+# CONFIG_ESPNOW_SEC_REJECT_PLAINTEXT once every
+# device holds the application key; see the Kconfig help and README.md.

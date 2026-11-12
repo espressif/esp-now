@@ -100,6 +100,7 @@ typedef struct {
  */
 typedef struct {
     wifi_pkt_rx_ctrl_t rx_ctrl; /**< metadata header */
+    bool send_ack;              /**< Send the ESP-NOW ACK when the main task takes this frame off the queue */
     espnow_data_t data;
 } espnow_pkt_t;
 
@@ -145,6 +146,9 @@ static espnow_frame_head_t g_espnow_frame_head_default = ESPNOW_FRAME_CONFIG_DEF
 
 wifi_country_t g_self_country = {0};
 static SemaphoreHandle_t g_send_lock = NULL;
+static SemaphoreHandle_t g_sec_lock = NULL;  /**< Serializes key lookup, IV/key setup, AEAD encryption and espnow_set_key() on g_espnow_sec */
+static esp_err_t espnow_set_key_unlocked(const uint8_t key_info[APP_KEY_LEN]);
+static esp_err_t espnow_get_key_unlocked(uint8_t key_info[APP_KEY_LEN]);
 
 typedef struct espnow_recv_handle {
     espnow_data_type_t type;
@@ -154,6 +158,48 @@ typedef struct espnow_recv_handle {
 
 /* Keep the type order same with espnow_data_type_t */
 static espnow_recv_handle_t g_recv_handle[ESPNOW_DATA_TYPE_MAX];
+
+/* Types that must arrive encrypted when sec_enable is on: built-in types follow
+ * CONFIG_ESPNOW_*_SECURITY, DATA and RESERVED are always included. ACK, FORWARD,
+ * GROUP and SECURITY* stay plaintext by design. */
+#define ESPNOW_SEC_REQUIRED_TYPES_DEFAULT (0 \
+    | BIT(ESPNOW_DATA_TYPE_DATA) | BIT(ESPNOW_DATA_TYPE_RESERVED) \
+    | ESPNOW_SEC_REQUIRED_TYPES_CONTROL | ESPNOW_SEC_REQUIRED_TYPES_OTA \
+    | ESPNOW_SEC_REQUIRED_TYPES_PROV | ESPNOW_SEC_REQUIRED_TYPES_DEBUG \
+    | ESPNOW_SEC_REQUIRED_TYPES_TIMESYNC)
+
+#if CONFIG_ESPNOW_ALL_SECURITY || CONFIG_ESPNOW_CONTROL_SECURITY
+#define ESPNOW_SEC_REQUIRED_TYPES_CONTROL  (BIT(ESPNOW_DATA_TYPE_CONTROL_BIND) | BIT(ESPNOW_DATA_TYPE_CONTROL_DATA))
+#else
+#define ESPNOW_SEC_REQUIRED_TYPES_CONTROL  0
+#endif
+#if CONFIG_ESPNOW_ALL_SECURITY || CONFIG_ESPNOW_OTA_SECURITY
+#define ESPNOW_SEC_REQUIRED_TYPES_OTA      (BIT(ESPNOW_DATA_TYPE_OTA_STATUS) | BIT(ESPNOW_DATA_TYPE_OTA_DATA))
+#else
+#define ESPNOW_SEC_REQUIRED_TYPES_OTA      0
+#endif
+#if CONFIG_ESPNOW_ALL_SECURITY || CONFIG_ESPNOW_PROV_SECURITY
+#define ESPNOW_SEC_REQUIRED_TYPES_PROV     BIT(ESPNOW_DATA_TYPE_PROV)
+#else
+#define ESPNOW_SEC_REQUIRED_TYPES_PROV     0
+#endif
+#if CONFIG_ESPNOW_ALL_SECURITY || CONFIG_ESPNOW_DEBUG_SECURITY
+#define ESPNOW_SEC_REQUIRED_TYPES_DEBUG    (BIT(ESPNOW_DATA_TYPE_DEBUG_LOG) | BIT(ESPNOW_DATA_TYPE_DEBUG_COMMAND))
+#else
+#define ESPNOW_SEC_REQUIRED_TYPES_DEBUG    0
+#endif
+#if CONFIG_ESPNOW_ALL_SECURITY || CONFIG_ESPNOW_TIME_SECURITY
+#define ESPNOW_SEC_REQUIRED_TYPES_TIMESYNC BIT(ESPNOW_DATA_TYPE_TIMESYNC)
+#else
+#define ESPNOW_SEC_REQUIRED_TYPES_TIMESYNC 0
+#endif
+
+/* Bit n set: plaintext frames of data type n are dropped (CONFIG_ESPNOW_SEC_REJECT_PLAINTEXT).
+ * Any task may change a bit with espnow_set_security_required_for_data_type() while the
+ * Wi-Fi task reads the bitmap for every frame, so it is only accessed with atomic
+ * operations: two tasks that change different types cannot overwrite each other's bit,
+ * and the receive path never waits. */
+static uint32_t g_sec_required_types = ESPNOW_SEC_REQUIRED_TYPES_DEFAULT;
 
 static bool queue_over_write(espnow_msg_id_t msg_id, const void *const data, size_t data_len, void *arg, TickType_t xTicksToWait)
 {
@@ -175,6 +221,44 @@ static bool queue_over_write(espnow_msg_id_t msg_id, const void *const data, siz
         };
 
         return xQueueSend(g_espnow_queue, &espnow_event, xTicksToWait);
+    }
+}
+
+/* Build the ESP-NOW ACK that answers a received frame. The caller owns the buffer. */
+static espnow_data_t *espnow_ack_create(const espnow_data_t *espnow_data)
+{
+    espnow_data_t *ack_data = ESP_CALLOC(1, sizeof(espnow_data_t));
+    if (!ack_data) {
+        return NULL;
+    }
+
+    ack_data->version = ESPNOW_VERSION;
+    ack_data->type  = ESPNOW_DATA_TYPE_ACK;
+    ack_data->size  = 0;
+    memcpy(&ack_data->frame_head, &espnow_data->frame_head, sizeof(espnow_frame_head_t));
+    memcpy(ack_data->src_addr, ESPNOW_ADDR_SELF, 6);
+    memcpy(ack_data->dest_addr, espnow_data->src_addr, 6);
+
+    ack_data->frame_head.retransmit_count = 1;
+    ack_data->frame_head.broadcast = 1;
+
+    return ack_data;
+}
+
+/* Queue an ACK on its own, for a frame that takes no RECEIVE slot (duplicate of a
+ * frame that was already accepted). Runs in the Wi-Fi task: never block on a full
+ * queue. An ACK that does not fit is dropped and the sender retransmits. */
+static void espnow_recv_cb_queue_ack(const espnow_data_t *espnow_data)
+{
+    espnow_data_t *ack_data = espnow_ack_create(espnow_data);
+    if (!ack_data) {
+        return;
+    }
+
+    if (!g_espnow_queue || queue_over_write(ESPNOW_EVENT_SEND_ACK, ack_data, sizeof(espnow_data_t), NULL, 0) != pdPASS) {
+        /* Reachable by any flood: never log once per frame. */
+        ESPNOW_LOG_RATE_LIMITED(ESP_LOGW, 1000, "Send event queue failed (ack)");
+        ESP_FREE(ack_data);
     }
 }
 
@@ -244,34 +328,55 @@ void espnow_recv_cb(const uint8_t *addr, const uint8_t *data, int size)
         return;
     }
 
-    if (g_recv_handle[espnow_data->type].enable
-            && espnow_data->type != ESPNOW_DATA_TYPE_ACK && espnow_data->type != ESPNOW_DATA_TYPE_GROUP
-            && frame_head->ack && ESPNOW_ADDR_IS_SELF(espnow_data->dest_addr)) {
-        espnow_data_t *ack_data = ESP_CALLOC(1, sizeof(espnow_data_t));
-        if (!ack_data) {
-            return;
-        }
-        ack_data->version = ESPNOW_VERSION;
-        ack_data->type  = ESPNOW_DATA_TYPE_ACK;
-        ack_data->size  = 0;
-        memcpy(&ack_data->frame_head, frame_head, sizeof(espnow_frame_head_t));
-        memcpy(ack_data->src_addr, ESPNOW_ADDR_SELF, 6);
-        memcpy(ack_data->dest_addr, espnow_data->src_addr, 6);
+#if CONFIG_ESPNOW_SEC_REJECT_PLAINTEXT
+    /* A secured type must arrive encrypted, otherwise a plaintext frame would
+     * bypass AEAD verification. Log at most once per second per type.
+     * Compiled out by default so existing deployments keep accepting plaintext;
+     * see CONFIG_ESPNOW_SEC_REJECT_PLAINTEXT for why enabling it is recommended. */
+    if (g_espnow_config && g_espnow_config->sec_enable && !frame_head->security
+            && (__atomic_load_n(&g_sec_required_types, __ATOMIC_SEQ_CST) & BIT(espnow_data->type))) {
+        static uint32_t s_last_log_tick[ESPNOW_DATA_TYPE_MAX] = { 0 };
+        static uint32_t s_dropped_count[ESPNOW_DATA_TYPE_MAX] = { 0 };
+        uint32_t now = xTaskGetTickCount();
 
-        ack_data->frame_head.retransmit_count = 1;
-        ack_data->frame_head.broadcast = 1;
-
-        if (!g_espnow_queue || queue_over_write(ESPNOW_EVENT_SEND_ACK, ack_data, sizeof(espnow_data_t), NULL, g_espnow_config->send_max_timeout) != pdPASS) {
-            ESP_LOGW(TAG, "[%s, %d] Send event queue failed", __func__, __LINE__);
-            ESP_FREE(ack_data);
+        s_dropped_count[espnow_data->type]++;
+        if (s_last_log_tick[espnow_data->type] == 0
+                || now - s_last_log_tick[espnow_data->type] >= pdMS_TO_TICKS(1000)) {
+            ESP_LOGE(TAG, "Dropped %u plaintext frame(s) of secured type %d, latest from " MACSTR
+                     "; the sender must use the same security config and hold the key",
+                     (unsigned)s_dropped_count[espnow_data->type], espnow_data->type, MAC2STR(espnow_data->src_addr));
+            s_last_log_tick[espnow_data->type] = now ? now : 1;
+            s_dropped_count[espnow_data->type] = 0;
         }
+        return;
     }
+#endif /* CONFIG_ESPNOW_SEC_REJECT_PLAINTEXT */
+
+    /* An ACK makes the sender stop retransmitting, so it is only sent for a frame
+     * this device keeps. A new frame carries the request in its RECEIVE event: one
+     * queue slot for both, and the main task sends the ACK before it runs the
+     * handler. If that event cannot be queued, nothing is acked and the sender
+     * retransmits. A duplicate of a frame that was already accepted is acked on its own. */
+    bool need_ack = g_recv_handle[espnow_data->type].enable
+                    && espnow_data->type != ESPNOW_DATA_TYPE_ACK && espnow_data->type != ESPNOW_DATA_TYPE_GROUP
+                    && frame_head->ack && ESPNOW_ADDR_IS_SELF(espnow_data->dest_addr);
+    /* Set once this device has taken the frame for itself: its RECEIVE event is
+     * queued, or the group membership it carries has been applied. Such a frame
+     * is recorded as seen even if it cannot be forwarded afterwards, see
+     * FORWARD_DATA. */
+    bool accepted = false;
+    /* Set when the group membership the frame carries for this device could not
+     * be applied. Such a frame is recorded as seen only if it was forwarded. */
+    bool group_failed = false;
 
     if (!frame_head->security) {
         for (size_t i = 0, index = g_msg_magic_cache_next; i < ESPNOW_MSG_CACHE;
                 i++, index = (g_msg_magic_cache_next + i) % ESPNOW_MSG_CACHE) {
             if (g_msg_magic_cache[index].type == espnow_data->type
                     && g_msg_magic_cache[index].magic == frame_head->magic) {
+                if (need_ack) {
+                    espnow_recv_cb_queue_ack(espnow_data);
+                }
                 return ;
             }
         }
@@ -280,19 +385,22 @@ void espnow_recv_cb(const uint8_t *addr, const uint8_t *data, int size)
                 i++, index = (g_msg_magic_cache_next + i) % ESPNOW_MSG_CACHE) {
             if (g_msg_magic_sec_cache[index].type == espnow_data->type
                     && g_msg_magic_sec_cache[index].magic == frame_head->magic) {
+                if (need_ack) {
+                    espnow_recv_cb_queue_ack(espnow_data);
+                }
                 return ;
             }
         }
     }
 #if CONFIG_IDF_TARGET_ESP32C6
-    ESP_LOGD(TAG, "[%s, %d]: " MACSTR ", rssi: %d, channel: %d/%d, size: %u, %s, magic: 0x%x, ack: %d",
+    ESP_LOGD(TAG, "[%s, %d]: " MACSTR ", rssi: %d, channel: %d/%d, size: %u, magic: 0x%x, ack: %d",
              __func__, __LINE__, MAC2STR(espnow_data->dest_addr), rx_ctrl->rssi, rx_ctrl->channel,
-             rx_ctrl->second, (unsigned)real_size, espnow_data->payload,
+             rx_ctrl->second, (unsigned)real_size,
              frame_head->magic, espnow_data->frame_head.ack);
 #else
-    ESP_LOGD(TAG, "[%s, %d]: " MACSTR ", rssi: %d, channel: %d/%d, size: %u, %s, magic: 0x%x, ack: %d",
+    ESP_LOGD(TAG, "[%s, %d]: " MACSTR ", rssi: %d, channel: %d/%d, size: %u, magic: 0x%x, ack: %d",
              __func__, __LINE__, MAC2STR(espnow_data->dest_addr), rx_ctrl->rssi, rx_ctrl->channel,
-             rx_ctrl->secondary_channel, (unsigned)real_size, espnow_data->payload,
+             rx_ctrl->secondary_channel, (unsigned)real_size,
              frame_head->magic, espnow_data->frame_head.ack);
 #endif
 
@@ -314,18 +422,28 @@ void espnow_recv_cb(const uint8_t *addr, const uint8_t *data, int size)
                  MAC2STR(espnow_data->dest_addr));
 
         uint32_t *magic = ESP_MALLOC(sizeof(uint32_t));
+        /* ESP_MALLOC returns NULL on failure; guard before the deref below,
+         * otherwise a plaintext ACK under heap pressure crashes the device. */
+        if (!magic) {
+            return;
+        }
         *magic = frame_head->magic;
 
-        if (!g_ack_queue || queue_over_write(ESPNOW_EVENT_RECV_ACK, magic, sizeof(uint32_t), NULL, g_espnow_config->send_max_timeout) != pdPASS) {
-            ESP_LOGW(TAG, "[%s, %d] Send event queue failed", __func__, __LINE__);
+        /* Wi-Fi task context: do not block on a full queue. g_ack_queue is only
+         * drained while this device waits for an ack, so a spoofed ack flood could
+         * otherwise stall Wi-Fi for send_max_timeout per frame. */
+        if (!g_ack_queue || queue_over_write(ESPNOW_EVENT_RECV_ACK, magic, sizeof(uint32_t), NULL, 0) != pdPASS) {
+            ESPNOW_LOG_RATE_LIMITED(ESP_LOGW, 1000, "Send event queue failed (recv ack)");
             ESP_FREE(magic);
             return ;
         };
 
         goto EXIT;
     } else if (espnow_data->type == ESPNOW_DATA_TYPE_GROUP) {
-        if (size < (int)(sizeof(espnow_data_t) + sizeof(espnow_group_info_t))) {
-            ESP_LOGD(TAG, "[%s, %d] GROUP packet too short for group_info (size %d)", __func__, __LINE__, size);
+        /* addrs_list[0] is read unconditionally below, so require the frame to hold
+         * the header plus at least the first address entry to avoid an over-read. */
+        if (size < (int)(sizeof(espnow_data_t) + sizeof(espnow_group_info_t) + ESPNOW_ADDR_LEN)) {
+            ESP_LOGD(TAG, "[%s, %d] GROUP packet too short for group_info + addrs_list[0] (size %d)", __func__, __LINE__, size);
             return;
         }
 
@@ -359,10 +477,17 @@ void espnow_recv_cb(const uint8_t *addr, const uint8_t *data, int size)
         }
 
         if (set_group_flag) {
-            if (group_info->type) {
-                espnow_add_group(group_info->group_id);
+            /* espnow_add_group() fails when the list item cannot be allocated. The
+             * frame then does not count as taken: recorded as seen, it would make
+             * the retransmissions that follow drop out as duplicates and the device
+             * would stay out of the group after the memory is available again. */
+            esp_err_t ret = group_info->type ? espnow_add_group(group_info->group_id)
+                            : espnow_del_group(group_info->group_id);
+
+            if (ret == ESP_OK) {
+                accepted = true;
             } else {
-                espnow_del_group(group_info->group_id);
+                group_failed = true;
             }
         }
     } else {
@@ -372,6 +497,10 @@ void espnow_recv_cb(const uint8_t *addr, const uint8_t *data, int size)
         } else if (frame_head->group && !espnow_is_my_group(espnow_data->dest_addr)) {
             ESP_LOGD(TAG, "[%s, %d]: group_num: %d, group_id: " MACSTR,
                      __func__, __LINE__, espnow_get_group_num(), MAC2STR(espnow_data->dest_addr));
+            if (need_ack) {
+                /* Not delivered by design (not a member of the group), acked as before. */
+                espnow_recv_cb_queue_ack(espnow_data);
+            }
             goto FORWARD_DATA;
         }
 
@@ -382,17 +511,23 @@ void espnow_recv_cb(const uint8_t *addr, const uint8_t *data, int size)
             return;
         }
         memcpy(&q_data->rx_ctrl, rx_ctrl, sizeof(wifi_pkt_rx_ctrl_t));
+        q_data->send_ack = need_ack;
         memcpy(&q_data->data, espnow_data, size);
 
         if (frame_head->channel && frame_head->channel != ESPNOW_CHANNEL_ALL) {
             q_data->rx_ctrl.channel = frame_head->channel;
         }
 
-        if (queue_over_write(ESPNOW_EVENT_RECEIVE, q_data, sizeof(espnow_pkt_t) + real_size, NULL, g_espnow_config->send_max_timeout) != pdPASS) {
-            ESP_LOGW(TAG, "[%s, %d] Send event queue failed", __func__, __LINE__);
+        /* Wi-Fi task context: do not block on a full queue, or a flood would stall
+         * Wi-Fi for send_max_timeout per frame. Drop the frame instead (ESP-NOW is
+         * best effort). The frame is not acked and not recorded as seen, so the sender
+         * of an ack-requesting frame retransmits it. */
+        if (queue_over_write(ESPNOW_EVENT_RECEIVE, q_data, sizeof(espnow_pkt_t) + real_size, NULL, 0) != pdPASS) {
+            ESPNOW_LOG_RATE_LIMITED(ESP_LOGW, 1000, "Send event queue failed (receive)");
             ESP_FREE(q_data);
             return ;
         }
+        accepted = true;
     }
 
 FORWARD_DATA:
@@ -400,23 +535,42 @@ FORWARD_DATA:
     if (g_espnow_config->forward_enable && frame_head->forward_ttl > 0 && frame_head->broadcast
             && frame_head->forward_rssi <= rx_ctrl->rssi && !ESPNOW_ADDR_IS_SELF(espnow_data->dest_addr)
             && !ESPNOW_ADDR_IS_SELF(espnow_data->src_addr)) {
+        bool forwarded = false;
         espnow_data_t *q_data = ESP_MALLOC(size);
 
-        if (!q_data) {
-            return ;
-        }
+        if (q_data) {
+            memcpy(q_data, espnow_data, size);
 
-        memcpy(q_data, espnow_data, size);
-
-        if (frame_head->forward_ttl != ESPNOW_FORWARD_MAX_COUNT) {
+            /* Always decrement, so a frame with forward_ttl at the maximum cannot loop forever. */
             q_data->frame_head.forward_ttl--;
+
+            /* Wi-Fi task context: do not block on a full queue. Dropping a forward under
+             * congestion is the intended back-pressure and avoids stalling Wi-Fi for
+             * send_max_timeout per frame under a flood. */
+            if (g_espnow_queue && queue_over_write(ESPNOW_EVENT_FORWARD, q_data, size, NULL, 0) == pdPASS) {
+                forwarded = true;
+            } else {
+                ESPNOW_LOG_RATE_LIMITED(ESP_LOGW, 1000, "Send event queue failed (forward)");
+                ESP_FREE(q_data);
+            }
         }
 
-        if (!g_espnow_queue || queue_over_write(ESPNOW_EVENT_FORWARD, q_data, size, NULL, g_espnow_config->send_max_timeout) != pdPASS) {
-            ESP_LOGW(TAG, "[%s, %d] Send event queue failed", __func__, __LINE__);
-            ESP_FREE(q_data);
+        /* The forward was dropped (no memory, or the queue is full). A frame this
+         * device did not take for itself either is not recorded as seen, so its
+         * retransmission gets another chance to be forwarded, and a group change
+         * that could not be applied another chance to be applied. A frame it did
+         * take is recorded below all the same: its RECEIVE event is already queued,
+         * or its group change already applied, and a retransmission that is not
+         * recognized as a duplicate would run the application handler a second
+         * time, or re-apply a group change that a later frame has reverted. This
+         * device then does not forward that frame. */
+        if (!forwarded && !accepted) {
             return ;
         }
+    } else if (group_failed) {
+        /* Not to be forwarded, and the group change could not be applied: not
+         * recorded as seen either, so that a retransmission applies it. */
+        return ;
     }
 
 EXIT:
@@ -587,37 +741,54 @@ esp_err_t espnow_send(espnow_data_type_t type, const espnow_addr_t dest_addr, co
             ESP_LOGE(TAG, "Not enough memory!");
             return ret;
         }
+        /* Clear the fixed header so its reserved bits are not sent with heap garbage. */
+        memset(espnow_data, 0, sizeof(espnow_data_t));
         uint8_t key_info[APP_KEY_LEN];
         uint8_t iv_info[IV_LEN];
 
-        ret = espnow_get_key(key_info);
-        if (ret) {
+        /* Key lookup, IV generation, set_key and encrypt share g_espnow_sec and
+         * g_espnow_sec_key; keep them atomic per send and against espnow_set_key(),
+         * which the handshake calls from another task on re-key. The key is read
+         * inside the lock so a re-key that happened while waiting is not undone by
+         * re-installing (and persisting) the previous key.
+         * A dedicated lock is used on purpose: taking g_send_lock here as well leaves no
+         * unlocked window between back-to-back sends issued from a timer callback (for
+         * example the provisioning beacon), which starves other senders of g_send_lock. */
+        if (xSemaphoreTake(g_sec_lock, wait_ticks) != pdPASS) {
             ESP_FREE(espnow_data);
+            return ESP_ERR_TIMEOUT;
+        }
+        ret = espnow_get_key_unlocked(key_info);
+        if (ret != ESP_OK) {
             ESP_LOGE(TAG, "Get security key fail for encrypt, err_name: %s", esp_err_to_name(ret));
+        } else {
+            esp_fill_random(iv_info, IV_LEN);
+            memcpy(key_info + KEY_LEN, iv_info, IV_LEN);
+            ret = espnow_set_key_unlocked(key_info);
+        }
+        if (ret == ESP_OK) {
+            ret = espnow_sec_auth_encrypt(g_espnow_sec, data, size, espnow_data->payload, size + g_espnow_sec->tag_len, &enc_len, g_espnow_sec->tag_len);
+            if (ret != ESP_OK) {
+                ESP_LOGE(TAG, "Security encrypt return error");
+            }
+        }
+        xSemaphoreGive(g_sec_lock);
+        if (ret != ESP_OK) {
+            ESP_FREE(espnow_data);
             return ret;
         }
-
-        esp_fill_random(iv_info, IV_LEN);
-        memcpy(key_info + KEY_LEN, iv_info, IV_LEN);
-        espnow_set_key(key_info);
-
-        ret = espnow_sec_auth_encrypt(g_espnow_sec, data, size, espnow_data->payload, size + g_espnow_sec->tag_len, &enc_len, g_espnow_sec->tag_len);
         real_size = enc_len + IV_LEN;
         espnow_data->size = (uint8_t)real_size;
-        if (ret == ESP_OK) {
-            enc = 1;
-            memcpy(espnow_data->payload + enc_len, iv_info, IV_LEN);
-        } else {
-            ESP_FREE(espnow_data);
-            ESP_LOGE(TAG, "Security encrypt return error");
-            return ret;
-        }
+        enc = 1;
+        memcpy(espnow_data->payload + enc_len, iv_info, IV_LEN);
     } else {
         espnow_data = ESP_MALLOC(sizeof(espnow_data_t) + size);
         if (!espnow_data) {
             ESP_LOGE(TAG, "Not enough memory!");
             return ret;
         }
+        /* Clear the fixed header so its reserved bits are not sent with heap garbage. */
+        memset(espnow_data, 0, sizeof(espnow_data_t));
         real_size = size;
         espnow_data->size = (uint8_t)real_size;
         memcpy(espnow_data->payload, data, size);
@@ -651,12 +822,13 @@ esp_err_t espnow_send(espnow_data_type_t type, const espnow_addr_t dest_addr, co
     memcpy(espnow_data->dest_addr, dest_addr, sizeof(espnow_data->dest_addr));
     memcpy(espnow_data->src_addr, ESPNOW_ADDR_SELF, sizeof(espnow_data->src_addr));
 
-    ESP_LOGD(TAG, "[%s, %d] addr: " MACSTR", size: %u, count: %d, rssi: %d, data: %s, magic: 0x%x",
+    ESP_LOGD(TAG, "[%s, %d] addr: " MACSTR", size: %u, count: %d, rssi: %d, magic: 0x%x",
              __func__, __LINE__, MAC2STR(dest_addr), (unsigned)real_size, frame_head->retransmit_count,
-             frame_head->forward_rssi, espnow_data->payload, frame_head->magic);
+             frame_head->forward_rssi, frame_head->magic);
 
     /**< Wait for other tasks to be sent before send ESP-NOW data */
-    if (xSemaphoreTake(g_send_lock, pdMS_TO_TICKS(wait_ticks)) != pdPASS) {
+    /* wait_ticks is already in ticks (see espnow.h); do not convert it again. */
+    if (xSemaphoreTake(g_send_lock, wait_ticks) != pdPASS) {
         ESP_FREE(espnow_data);
         return ESP_ERR_TIMEOUT;
     }
@@ -760,6 +932,11 @@ esp_err_t espnow_set_group(const uint8_t addrs_list[][ESPNOW_ADDR_LEN], size_t a
     uint32_t start_ticks      = xTaskGetTickCount();
 
     espnow_data_t *espnow_data = ESP_MALLOC(addrs_num > 35 ? ESPNOW_PAYLOAD_LEN : sizeof(espnow_data_t) + sizeof(espnow_group_info_t) + addrs_num * ESPNOW_ADDR_LEN);
+    /* ESP_MALLOC returns NULL on failure; guard before the memset/derefs below so
+     * heap pressure cannot turn this into a NULL-deref crash (CWE-476). */
+    ESP_ERROR_RETURN(!espnow_data, ESP_ERR_NO_MEM, "ESP_MALLOC espnow_data");
+    /* Clear the fixed header so its reserved bits are not sent with heap garbage. */
+    memset(espnow_data, 0, sizeof(espnow_data_t));
     espnow_frame_head_t *frame_head = &espnow_data->frame_head;
     espnow_group_info_t *group_info = (espnow_group_info_t *) espnow_data->payload;
 
@@ -873,8 +1050,8 @@ static esp_err_t espnow_recv_process(espnow_pkt_t *q_data, size_t real_size)
         goto EXIT;
     }
 
-    ESP_LOGD(TAG, "[%s, %d], " MACSTR ", magic: 0x%04x, type: %d, size: %u, %s", __func__, __LINE__, MAC2STR(espnow_data->src_addr),
-             frame_head->magic, espnow_data->type, (unsigned)real_size, espnow_data->payload);
+    ESP_LOGD(TAG, "[%s, %d], " MACSTR ", magic: 0x%04x, type: %d, size: %u", __func__, __LINE__, MAC2STR(espnow_data->src_addr),
+             frame_head->magic, espnow_data->type, (unsigned)real_size);
 
     if (ret == ESP_OK) {
         /* Check security */
@@ -887,6 +1064,12 @@ static esp_err_t espnow_recv_process(espnow_pkt_t *q_data, size_t real_size)
                 if (g_espnow_dec && g_espnow_dec->state == ESPNOW_SEC_OVER) {
                     uint8_t key_info[APP_KEY_LEN];
 
+                    /* IV + tag only: not valid CCM; drop before the unrate-limited check in auth_decrypt. */
+                    if (real_size - IV_LEN <= g_espnow_dec->tag_len) {
+                        ESP_LOGD(TAG, "Encrypted payload too short for tag: %u", (unsigned)real_size);
+                        goto EXIT;
+                    }
+
                     ret = espnow_get_dec_key(key_info);
                     if (ret) {
                         ESP_LOGE(TAG, "Get security key fail for decrypt, err_name: %s", esp_err_to_name(ret));
@@ -896,9 +1079,16 @@ static esp_err_t espnow_recv_process(espnow_pkt_t *q_data, size_t real_size)
                     espnow_set_dec_key(key_info);
 
                     ret = espnow_sec_auth_decrypt(g_espnow_dec, espnow_data->payload, (real_size - IV_LEN), data, data_cap, &size, g_espnow_dec->tag_len);
-                    ESP_ERROR_GOTO(ret != ESP_OK, EXIT, "espnow_sec_auth_decrypt, err_name: %s", esp_err_to_name(ret));
+                    if (ret != ESP_OK) {
+                        /* Any forged frame with security=1 lands here; rate-limit. */
+                        ESPNOW_LOG_RATE_LIMITED(ESP_LOGW, 1000, "espnow_sec_auth_decrypt from " MACSTR ", err_name: %s",
+                                                MAC2STR(espnow_data->src_addr), esp_err_to_name(ret));
+                        goto EXIT;
+                    }
                 } else {
-                    ESP_LOGE(TAG, "Security key is not set");
+                    /* Reached for every security=1 frame until the handshake completes. */
+                    ESPNOW_LOG_RATE_LIMITED(ESP_LOGE, 1000, "Security key is not set, dropping encrypted frame from " MACSTR,
+                                            MAC2STR(espnow_data->src_addr));
                     goto EXIT;
                 }
             } else {
@@ -934,8 +1124,8 @@ static esp_err_t espnow_send_forward(espnow_data_t *espnow_data, size_t real_siz
     uint8_t primary           = 0;
     wifi_second_chan_t second = 0;
 
-    ESP_LOGD(TAG, "[%s, %d], " MACSTR ", size: %u, %s", __func__, __LINE__,
-            MAC2STR(espnow_data->src_addr), (unsigned)real_size, espnow_data->payload);
+    ESP_LOGD(TAG, "[%s, %d], " MACSTR ", size: %u", __func__, __LINE__,
+            MAC2STR(espnow_data->src_addr), (unsigned)real_size);
 
     espnow_frame_head_t *frame_head = &espnow_data->frame_head;
     const uint8_t *dest_addr = (frame_head->broadcast) ? ESPNOW_ADDR_BROADCAST : espnow_data->dest_addr;
@@ -981,7 +1171,7 @@ static esp_err_t espnow_send_forward(espnow_data_t *espnow_data, size_t real_siz
         }
     }
 
-    ESP_LOGD(TAG, "[%s, %d], " MACSTR ", size: %u, %s", __func__, __LINE__, MAC2STR(espnow_data->src_addr), (unsigned)real_size, espnow_data->payload);
+    ESP_LOGD(TAG, "[%s, %d], " MACSTR ", size: %u", __func__, __LINE__, MAC2STR(espnow_data->src_addr), (unsigned)real_size);
 
     if (frame_head->channel == ESPNOW_CHANNEL_ALL && g_set_channel_flag && g_espnow_config->forward_switch_channel) {
         esp_wifi_set_channel(primary, second);
@@ -1033,9 +1223,21 @@ static void espnow_main_task(void *arg)
         }
 
         if (evt_data.msg_id == ESPNOW_EVENT_RECEIVE) {
+            espnow_pkt_t *q_data = (espnow_pkt_t *)(evt_data.data);
             size_t real_size = (evt_data.data_len >= sizeof(espnow_pkt_t))
                                ? evt_data.data_len - sizeof(espnow_pkt_t) : 0;
-            if (espnow_recv_process((espnow_pkt_t *)(evt_data.data), real_size) != ESP_OK) {
+
+            if (q_data->send_ack) {
+                /* The ACK goes out before the handler runs, as when it had its own
+                 * event. If it cannot be built, the retransmission is a duplicate
+                 * and is acked from the receive callback. */
+                espnow_data_t *ack_data = espnow_ack_create(&q_data->data);
+                if (ack_data && espnow_send_forward(ack_data, 0) != ESP_OK) {
+                    ESP_LOGD(TAG, "espnow_send_forward failed (ack)");
+                }
+            }
+
+            if (espnow_recv_process(q_data, real_size) != ESP_OK) {
                 ESP_LOGD(TAG, "espnow_recv_process");
             }
             continue;
@@ -1122,14 +1324,17 @@ esp_err_t espnow_init(const espnow_config_t *config)
     }
 
     g_espnow_config = ESP_MALLOC(sizeof(espnow_config_t));
+    ESP_ERROR_RETURN(!g_espnow_config, ESP_FAIL, "Alloc espnow config fail");
     memcpy(g_espnow_config, config, sizeof(espnow_config_t));
 
     /**< Event group for espnow sent cb */
     g_event_group = xEventGroupCreate();
-    ESP_ERROR_RETURN(!g_event_group, ESP_FAIL, "Create event group fail");
+    ESP_ERROR_GOTO(!g_event_group, EXIT, "Create event group fail");
 
     g_send_lock = xSemaphoreCreateMutex();
-    ESP_ERROR_RETURN(!g_send_lock, ESP_FAIL, "Create send semaphore mutex fail");
+    ESP_ERROR_GOTO(!g_send_lock, EXIT, "Create send semaphore mutex fail");
+    g_sec_lock = xSemaphoreCreateMutex();
+    ESP_ERROR_GOTO(!g_sec_lock, EXIT, "Create security semaphore mutex fail");
 
     ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT, ESP_EVENT_ANY_ID, wifi_event_handler, NULL));
 
@@ -1169,6 +1374,30 @@ esp_err_t espnow_init(const espnow_config_t *config)
     xTaskCreate(espnow_main_task, "espnow_main", CONFIG_ESPNOW_TASK_STACK_SIZE, NULL, CONFIG_ESPNOW_TASK_PRIORITY, NULL);
 
     return ESP_OK;
+
+EXIT:
+    /* Nothing but these objects exists yet. Release them and clear g_espnow_config,
+     * otherwise the next espnow_init() takes the "already initialized" return above
+     * and reports ESP_OK for a driver that was never started. */
+    if (g_sec_lock) {
+        vSemaphoreDelete(g_sec_lock);
+        g_sec_lock = NULL;
+    }
+
+    if (g_send_lock) {
+        vSemaphoreDelete(g_send_lock);
+        g_send_lock = NULL;
+    }
+
+    if (g_event_group) {
+        vEventGroupDelete(g_event_group);
+        g_event_group = NULL;
+    }
+
+    ESP_FREE(g_espnow_config);
+    g_espnow_config = NULL;
+
+    return ESP_FAIL;
 }
 
 esp_err_t espnow_deinit(void)
@@ -1205,6 +1434,8 @@ esp_err_t espnow_deinit(void)
 
     vSemaphoreDelete(g_send_lock);
     g_send_lock = NULL;
+    vSemaphoreDelete(g_sec_lock);
+    g_sec_lock = NULL;
 
     vEventGroupDelete(g_event_group);
     g_event_group = NULL;
@@ -1242,28 +1473,66 @@ esp_err_t espnow_get_config_for_data_type(espnow_data_type_t type, bool *enable)
     return ESP_OK;
 }
 
-esp_err_t espnow_set_key(uint8_t key_info[APP_KEY_LEN])
+esp_err_t espnow_set_security_required_for_data_type(espnow_data_type_t type, bool required)
 {
-    ESP_PARAM_CHECK(g_espnow_sec);
-    ESP_PARAM_CHECK(key_info);
+    ESP_PARAM_CHECK(type >= ESPNOW_DATA_TYPE_ACK && type < ESPNOW_DATA_TYPE_MAX);
+    ESP_PARAM_CHECK(type != ESPNOW_DATA_TYPE_ACK && type != ESPNOW_DATA_TYPE_FORWARD
+                    && type != ESPNOW_DATA_TYPE_GROUP && type != ESPNOW_DATA_TYPE_SECURITY_STATUS
+                    && type != ESPNOW_DATA_TYPE_SECURITY && type != ESPNOW_DATA_TYPE_SECURITY_DATA);
 
+    /* One atomic step per call: a plain |= or &= is a read-modify-write of the whole
+     * bitmap, and a task preempted in the middle would write back the other types as
+     * it read them, undoing a change another task made meanwhile. */
+    if (required) {
+        __atomic_fetch_or(&g_sec_required_types, (uint32_t)BIT(type), __ATOMIC_SEQ_CST);
+    } else {
+        ESP_LOGW(TAG, "Plaintext frames of type %d are accepted even with sec_enable on", type);
+        __atomic_fetch_and(&g_sec_required_types, ~(uint32_t)BIT(type), __ATOMIC_SEQ_CST);
+    }
+
+#if !CONFIG_ESPNOW_SEC_REJECT_PLAINTEXT
+    static bool s_warned = false;
+    if (!s_warned) {
+        s_warned = true;
+        ESP_LOGW(TAG, "CONFIG_ESPNOW_SEC_REJECT_PLAINTEXT is disabled: plaintext frames of secured types are accepted regardless of this setting");
+    }
+#endif
+
+    return ESP_OK;
+}
+
+esp_err_t espnow_get_security_required_for_data_type(espnow_data_type_t type, bool *required)
+{
+    ESP_PARAM_CHECK(type >= ESPNOW_DATA_TYPE_ACK && type < ESPNOW_DATA_TYPE_MAX);
+    ESP_PARAM_CHECK(required);
+
+    *required = (__atomic_load_n(&g_sec_required_types, __ATOMIC_SEQ_CST) & BIT(type)) != 0;
+
+    return ESP_OK;
+}
+
+/* Every writer and reader of g_espnow_sec / g_espnow_sec_key goes through
+ * g_sec_lock: the public espnow_set_key() / espnow_get_key() / espnow_erase_key()
+ * take it, the *_unlocked() variants are for espnow_send(), which already holds
+ * it (the mutex is not recursive). g_sec_lock exists whenever g_espnow_sec does;
+ * it may be NULL when security is disabled, so the key accessors check it. */
+static esp_err_t espnow_set_key_unlocked(const uint8_t key_info[APP_KEY_LEN])
+{
     ESP_LOG_BUFFER_HEX_LEVEL(TAG, key_info, APP_KEY_LEN, ESP_LOG_DEBUG);
-    int ret = espnow_sec_setkey(g_espnow_sec, key_info);
+    int ret = espnow_sec_setkey(g_espnow_sec, (uint8_t *)key_info);
     ESP_ERROR_RETURN(ret != ESP_OK, ret, "espnow_sec_setkey %x", ret);
 
     if (memcmp(key_info, g_espnow_sec_key, KEY_LEN) == 0)
         return ret;
 
     memcpy(g_espnow_sec_key, key_info, APP_KEY_LEN);
-    ret = espnow_storage_set("key_info", key_info, APP_KEY_LEN);
+    ret = espnow_storage_set("key_info", (void *)key_info, APP_KEY_LEN);
 
     return ret;
 }
 
-esp_err_t espnow_get_key(uint8_t key_info[APP_KEY_LEN])
+static esp_err_t espnow_get_key_unlocked(uint8_t key_info[APP_KEY_LEN])
 {
-    ESP_PARAM_CHECK(key_info);
-
     if (g_read_from_nvs == false) {
         memcpy(key_info, g_espnow_sec_key, APP_KEY_LEN);
         return ESP_OK;
@@ -1277,11 +1546,46 @@ esp_err_t espnow_get_key(uint8_t key_info[APP_KEY_LEN])
     return ret;
 }
 
+esp_err_t espnow_set_key(uint8_t key_info[APP_KEY_LEN])
+{
+    ESP_PARAM_CHECK(g_espnow_sec);
+    ESP_PARAM_CHECK(key_info);
+
+    xSemaphoreTake(g_sec_lock, portMAX_DELAY);
+    esp_err_t ret = espnow_set_key_unlocked(key_info);
+    xSemaphoreGive(g_sec_lock);
+
+    return ret;
+}
+
+esp_err_t espnow_get_key(uint8_t key_info[APP_KEY_LEN])
+{
+    ESP_PARAM_CHECK(key_info);
+
+    if (g_sec_lock) {
+        xSemaphoreTake(g_sec_lock, portMAX_DELAY);
+    }
+    esp_err_t ret = espnow_get_key_unlocked(key_info);
+    if (g_sec_lock) {
+        xSemaphoreGive(g_sec_lock);
+    }
+
+    return ret;
+}
+
 esp_err_t espnow_erase_key(void)
 {
+    if (g_sec_lock) {
+        xSemaphoreTake(g_sec_lock, portMAX_DELAY);
+    }
     g_read_from_nvs = true;
     memset(g_espnow_sec_key, 0, APP_KEY_LEN);
-    return espnow_storage_erase("key_info");
+    esp_err_t ret = espnow_storage_erase("key_info");
+    if (g_sec_lock) {
+        xSemaphoreGive(g_sec_lock);
+    }
+
+    return ret;
 }
 
 esp_err_t espnow_set_dec_key(uint8_t key_info[APP_KEY_LEN])
