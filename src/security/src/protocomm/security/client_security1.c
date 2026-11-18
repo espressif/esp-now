@@ -745,18 +745,19 @@ static esp_err_t sec1_close_session(protocomm_security_handle_t handle, uint32_t
         return ESP_ERR_INVALID_STATE;
     }
 
-    if (cur_session->state == SESSION_STATE_DONE) {
-        /* Free AES context data */
+    /* Release the AES/PSA material on every close, not only DONE sessions: a
+     * handshake torn down in RESP1 (e.g. replaced by a new session) would
+     * otherwise leak the PSA key and cipher operation. These calls are safe
+     * no-ops on a freshly initialized (never set up) context. */
 #if ESPNOW_USE_PSA_CRYPTO
-        (void)psa_cipher_abort(&cur_session->ctx_aes);
-        if (cur_session->key_id != (psa_key_id_t)0) {
-            (void)psa_destroy_key(cur_session->key_id);
-            cur_session->key_id = (psa_key_id_t)0;
-        }
-#else
-        mbedtls_aes_free(&cur_session->ctx_aes);
-#endif
+    (void)psa_cipher_abort(&cur_session->ctx_aes);
+    if (cur_session->key_id != (psa_key_id_t)0) {
+        (void)psa_destroy_key(cur_session->key_id);
+        cur_session->key_id = (psa_key_id_t)0;
     }
+#else
+    mbedtls_aes_free(&cur_session->ctx_aes);
+#endif
 
     memset(cur_session, 0, sizeof(session_t));
     cur_session->id = -1;
@@ -965,6 +966,9 @@ static esp_err_t sec1_req_handler(protocomm_security_handle_t handle,
     if (cur_session->state == SESSION_STATE_DONE) {
         *outlen = 0;
         *outbuf = NULL;
+        /* Free the unpacked request before returning; this early-out otherwise
+         * leaks one SessionData per request received after the session is up. */
+        session_data__free_unpacked(req, NULL);
         return ESP_OK;
     }
 

@@ -89,8 +89,11 @@ static esp_err_t espnow_sec_info(uint8_t *src_addr, void *data,
 
     /* Reject truncated frames before dereferencing recv_data fields, which would
      * otherwise read past the end of the payload buffer. */
-    ESP_ERROR_RETURN(size < sizeof(espnow_sec_info_t), ESP_ERR_INVALID_SIZE,
-                     "Received sec info too small");
+    if (size < sizeof(espnow_sec_info_t)) {
+        ESPNOW_LOG_RATE_LIMITED(ESP_LOGW, 1000, "Drop truncated sec info from " MACSTR ": size=%u",
+                                MAC2STR(src_addr), (unsigned)size);
+        return ESP_ERR_INVALID_SIZE;
+    }
 
     for (int i = 0; i < g_scan_num; ++i) {
         if (ESPNOW_ADDR_IS_EQUAL((g_info_list)[i].mac, src_addr)) {
@@ -156,7 +159,7 @@ static esp_err_t espnow_sec_initiator_status_process(uint8_t *src_addr, void *da
             break;
     }
 
-    ESP_ERROR_RETURN(ret != ESP_OK, ret, "espnow_ota_handle");
+    /* Already logged (rate-limited) in espnow_sec_info. */
     return ret;
 }
 
@@ -237,8 +240,8 @@ static esp_err_t espnow_initiator_sec_process(uint8_t *src_addr, void *data,
     /* Reject oversized frames: the consumer copies size bytes into a fixed
      * ESPNOW_DATA_LEN buffer, so an unbounded length would overflow it. */
     if (size > ESPNOW_DATA_LEN) {
-        ESP_LOGW(TAG, "[%s, %d] Drop security frame with invalid size: %u",
-                 __func__, __LINE__, (unsigned)size);
+        ESPNOW_LOG_RATE_LIMITED(ESP_LOGW, 1000, "[%s, %d] Drop security frame with invalid size: %u",
+                                __func__, __LINE__, (unsigned)size);
         return ESP_FAIL;
     }
 
@@ -252,7 +255,7 @@ static esp_err_t espnow_initiator_sec_process(uint8_t *src_addr, void *data,
         sec_data.size = size;
         memcpy(sec_data.src_addr, src_addr, 6);
         if (xQueueSend(g_sec_queue, &sec_data, 0) != pdPASS) {
-            ESP_LOGW(TAG, "[%s, %d] Send sec queue failed", __func__, __LINE__);
+            ESPNOW_LOG_RATE_LIMITED(ESP_LOGW, 1000, "[%s, %d] Send sec queue failed", __func__, __LINE__);
             ESP_FREE(sec_data.data);
             return ESP_FAIL;
         }
@@ -419,15 +422,16 @@ static esp_err_t protocomm_espnow_initiator_start(const protocomm_security_t *pr
                      * req_data->size is read only once the header is present. */
                     if (sec_data.size < sizeof(espnow_sec_packet_t)
                             || req_data->size > sec_data.size - sizeof(espnow_sec_packet_t)) {
-                        ESP_LOGW(TAG, "Drop malformed HANDSHAKE from " MACSTR ": recv=%u req_size=%u",
-                                 MAC2STR(src_addr), (unsigned)sec_data.size,
-                                 (unsigned)((sec_data.size >= sizeof(espnow_sec_packet_t)) ? req_data->size : 0));
+                        ESPNOW_LOG_RATE_LIMITED(ESP_LOGW, 1000, "Drop malformed HANDSHAKE from " MACSTR ": recv=%u req_size=%u",
+                                                MAC2STR(src_addr), (unsigned)sec_data.size,
+                                                (unsigned)((sec_data.size >= sizeof(espnow_sec_packet_t)) ? req_data->size : 0));
                         continue;
                     }
                     ret = proto_sec->security_req_handler(current_session_list[session_id], pop, session_id, req_data->data, req_data->size, &outbuf, &outlen, NULL);
 
                     if (ret != ESP_OK) {
-                        ESP_LOGE(TAG, "espnow-session handler failed");
+                        ESPNOW_LOG_RATE_LIMITED(ESP_LOGE, 1000, "espnow-session handler failed for " MACSTR ": %s",
+                                                MAC2STR(src_addr), esp_err_to_name(ret));
                         ESP_FREE(outbuf);
                         continue;
                     } else if (outbuf && outlen) {
@@ -487,6 +491,9 @@ static esp_err_t protocomm_espnow_initiator_start(const protocomm_security_t *pr
                         }
                     }
 
+                    /* Only remove the peer if we added it here; src_addr is
+                     * forgeable and may name an existing long-lived peer. */
+                    bool peer_existed = esp_now_is_peer_exist(src_addr);
                     espnow_add_peer(src_addr, NULL);
 
                     ret = espnow_send(ESPNOW_DATA_TYPE_SECURITY, src_addr, response_data, response_size, &frame_head, portMAX_DELAY);
@@ -497,7 +504,9 @@ static esp_err_t protocomm_espnow_initiator_start(const protocomm_security_t *pr
                         key_sent[session_id] = true;
                     }
 
-                    espnow_del_peer(src_addr);
+                    if (!peer_existed) {
+                        espnow_del_peer(src_addr);
+                    }
                 }
             }
         }

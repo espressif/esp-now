@@ -90,13 +90,15 @@ ESP_EVENT_DECLARE_BASE(ESP_EVENT_ESPNOW);
  *       authentication:
  *       - sec_enable set and the key handshake completed before protected traffic;
  *       - CONFIG_ESPNOW_ALL_SECURITY, or CONFIG_ESPNOW_*_SECURITY for every protected type;
- *       - CONFIG_ESPNOW_SEC_REJECT_PLAINTEXT;
+ *       - CONFIG_ESPNOW_SEC_REJECT_PLAINTEXT and CONFIG_ESPNOW_SEC_IGNORE_REST;
  *       - forward_enable cleared unless unauthenticated multi-hop relay is needed;
  *       - a non-public, random PoP with enough entropy to be unpredictable, per
  *         deployment or per device, provisioned to both sides over a trusted
  *         channel, never the examples' public espnow_pop: the PoP is the only
- *         secret protecting the application key;
- *       - the handshake run as a commissioning step and every node verified afterwards;
+ *         secret protecting the application key. Use at least
+ *         ESPNOW_SEC_POP_RECOMMENDED_LEN random characters;
+ *       - the handshake run as a commissioning step and every node verified afterwards
+ *         (see the espnow_sec_initiator_start note);
  *       - espnow_sec_initiator_start called only with the addresses of responders
  *         that the application has approved. An address can be spoofed, so this
  *         narrows the handshake but does not replace the PoP;

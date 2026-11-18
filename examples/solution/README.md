@@ -75,6 +75,8 @@ Holding the APP key does not encrypt anything by itself. `CONFIG_ESPNOW_APP_SECU
 
 This example is a lab demo that keeps these defaults and sends no frame with `security` set: its control, provisioning, time sync, OTA, console and log frames are sent in plaintext and plaintext frames are accepted, so any device in range can control a responder, read the Wi-Fi credentials, push firmware or run console commands. The recommended security configuration is listed in the `espnow_config_t` note in `espnow.h`. Finish Step 2 before pressing the buttons in Step 5.
 
+> **Security notice.** The initiator re-keys every responder reporting `sec_ver == NONE` at each boot, so the handshake window re-opens on every initiator restart; see the `espnow_sec_initiator_start` note in `espnow_security_handshake.h`. Replace the default PoP `espnow_pop` before deployment.
+
 ### Step 3: WiFi Provision on initiator board
 
 If the device runs for the first time, it has not stored the router info and will not connect to AP. If it has stored the AP info, it will connect to router when WiFi start.

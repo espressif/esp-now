@@ -194,6 +194,12 @@ static void app_espnow_initiator_sec_task(void *arg)
     size_t num = 0;
     uint8_t key_info[APP_KEY_LEN];
 
+    /* The default PoP is public; warn so it is not shipped. */
+    if (strcmp(pop_data, "espnow_pop") == 0) {
+        ESP_LOGW(TAG, "Using the public example PoP: set a per-deployment secret of at least %d characters before deployment",
+                 ESPNOW_SEC_POP_RECOMMENDED_LEN);
+    }
+
     if (espnow_get_key(key_info) != ESP_OK) {
         esp_fill_random(key_info, APP_KEY_LEN);
     }

@@ -116,6 +116,26 @@ menu "ESP-NOW Configuration"
             application key. Per-type exceptions can be made at run time with
             espnow_set_security_required_for_data_type().
 
+    config ESPNOW_SEC_IGNORE_REST
+        bool "Ignore unauthenticated SECURITY REST frames (recommended)"
+        default n
+        depends on ESPNOW_APP_SECURITY
+        help
+            A SECURITY REST frame asks the responder to clear its security state
+            (sec_ver and the initiator it is paired with) so that a new key
+            handshake is accepted. The frame is plaintext and its source address
+            can be forged, so with this option disabled any device in range can
+            force a responder back into the handshake state at will: repeated
+            REST frames keep the network re-keying, and the half-open handshake
+            window they open can be abused to install a key the network does
+            not know. Nothing in this repository sends REST frames.
+
+            Default n keeps the previous behaviour unchanged: REST is honoured
+            and only logged at debug level, so a responder gives no visible
+            sign of being reset. Enable this option (recommended) unless your own
+            initiator relies on sending REST; clear the security state locally
+            with espnow_sec_responder_stop() / espnow_erase_key() instead.
+
     config ESPNOW_SEC_SCAN_MAX_NUM
         int "Maximum responders recorded per security scan"
         range 1 1024
@@ -137,6 +157,22 @@ menu "ESP-NOW Configuration"
             responders than the default (up to 1024, ~12 KB worst case);
             lower it to tighten the anti-flood ceiling on memory-constrained
             targets.
+
+    config ESPNOW_SEC_HANDSHAKE_TIMEOUT_MS
+        int "Half-open security handshake timeout on the responder (ms)"
+        range 1000 120000
+        default 10000
+        help
+            The responder serves one handshake at a time. After this long
+            without completion, a HANDSHAKE from another initiator closes the
+            stale session and takes over the slot, so a silent peer cannot hold
+            it forever. A normal handshake completes well within one second.
+
+            The frames are unauthenticated, so while the responder runs any
+            device in range can hold the slot for this long, repeatedly. Run
+            the responder only during commissioning and stop it on
+            ESP_EVENT_ESPNOW_SEC_OK, which is posted once the KEY_RESP has been
+            sent (see espnow_sec_responder_start / espnow_sec_responder_stop).
 
     endmenu
 
