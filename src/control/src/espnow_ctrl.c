@@ -95,7 +95,21 @@ static const espnow_frame_head_t g_initiator_frame = {
 static void espnow_load_bindlist(void)
 {
     if(!g_bindlist.is_init) {
-        espnow_storage_get("bindlist", &g_bindlist, sizeof(g_bindlist));
+        esp_err_t ret = espnow_storage_get("bindlist", &g_bindlist, sizeof(g_bindlist));
+
+        /* `size` indexes the fixed data[] array below; it comes from flash and a blob
+         * written by another firmware, a partial write or a bit flip must not turn
+         * into an out-of-bounds read/write. Start from an empty list in that case
+         * (a truncated blob also leaves the struct partially filled). */
+        if (ret != ESP_OK || g_bindlist.size > ESPNOW_BIND_LIST_MAX_SIZE) {
+            if (ret == ESP_OK) {
+                ESP_LOGW(TAG, "Stored bind list is corrupt (size %u > %d), discarding it",
+                         (unsigned)g_bindlist.size, ESPNOW_BIND_LIST_MAX_SIZE);
+                espnow_storage_erase("bindlist");
+            }
+            memset(&g_bindlist, 0, sizeof(g_bindlist));
+        }
+
         g_bindlist.is_init = true;
     }
 }
@@ -220,6 +234,11 @@ static esp_err_t espnow_ctrl_responder_bind_process(uint8_t *src_addr, void *dat
     ESP_PARAM_CHECK(size);
     ESP_PARAM_CHECK(rx_ctrl);
 
+    if (size < sizeof(espnow_ctrl_data_t)) {
+        ESPNOW_LOG_RATE_LIMITED(ESP_LOGW, 1000, "Received control bind frame too small: %u", (unsigned)size);
+        return ESP_ERR_INVALID_SIZE;
+    }
+
     espnow_ctrl_data_t *ctrl_data = (espnow_ctrl_data_t *)data;
 
 #ifdef CONFIG_ESPNOW_CONTROL_AUTO_CHANNEL_SENDING
@@ -229,8 +248,8 @@ static esp_err_t espnow_ctrl_responder_bind_process(uint8_t *src_addr, void *dat
 #endif
 
     if (ctrl_data->responder_value_b) {
-        ESP_LOGI(TAG, "bind, timestamp: %d, max timestamp: %d, rssi: %d, min rssi: %d, bindlist size: %d",
-                    esp_log_timestamp(), g_timestamp, rx_ctrl->rssi, g_rssi, g_bindlist.size);
+        ESPNOW_LOG_RATE_LIMITED(ESP_LOGI, 1000, "bind, timestamp: %d, max timestamp: %d, rssi: %d, min rssi: %d, bindlist size: %d",
+                                esp_log_timestamp(), g_timestamp, rx_ctrl->rssi, g_rssi, g_bindlist.size);
 
         bool bind_cb_flag = false;
 
@@ -302,6 +321,36 @@ esp_err_t espnow_ctrl_responder_bind(uint32_t wait_ms, int8_t rssi, espnow_ctrl_
     return ESP_OK;
 }
 
+/* Call the raw callback with a buffer that is as long as the header says.
+ *
+ * The callback gets no length: it may read responder_value_s up to
+ * responder_value_s_size and the NUL after it. The frame cannot be handed over
+ * as it is when it is shorter than that (an integer or float whose low 24 bits
+ * are 0, sent with the header only, has the bytes of a string header) or when
+ * it carries the string without the terminator (senders omit it). The copy is
+ * the header plus responder_value_s_size bytes plus the NUL; a string the
+ * frame does not hold completely reads as zeros, i.e. as an empty string.
+ *
+ * The buffer is on the stack of the espnow task, not on the heap: delivering a
+ * valid value never depends on an allocation. Kept out of line so that only
+ * this path pays for it. */
+static void __attribute__((noinline)) espnow_ctrl_raw_cb_padded(uint8_t *src_addr, const espnow_ctrl_data_t *ctrl_data,
+                                                                size_t size, wifi_pkt_rx_ctrl_t *rx_ctrl,
+                                                                espnow_ctrl_data_raw_cb_t raw_cb)
+{
+    union {
+        espnow_ctrl_data_t data;
+        uint8_t bytes[sizeof(espnow_ctrl_data_t) + UINT8_MAX + 1];   /**< responder_value_s_size is 8 bits */
+    } buf;
+    size_t str_size = ctrl_data->responder_value_s_size;
+    size_t carried  = (size >= sizeof(espnow_ctrl_data_t) + str_size) ? sizeof(espnow_ctrl_data_t) + str_size
+                      : sizeof(espnow_ctrl_data_t);
+
+    memcpy(buf.bytes, ctrl_data, carried);
+    memset(buf.bytes + carried, 0, sizeof(espnow_ctrl_data_t) + str_size + 1 - carried);
+    raw_cb(src_addr, &buf.data, rx_ctrl);
+}
+
 static esp_err_t espnow_ctrl_responder_data_process(uint8_t *src_addr, void *data,
                       size_t size, wifi_pkt_rx_ctrl_t *rx_ctrl)
 {
@@ -310,9 +359,27 @@ static esp_err_t espnow_ctrl_responder_data_process(uint8_t *src_addr, void *dat
     ESP_PARAM_CHECK(size);
     ESP_PARAM_CHECK(rx_ctrl);
 
+    if (size < sizeof(espnow_ctrl_data_t)) {
+        ESPNOW_LOG_RATE_LIMITED(ESP_LOGW, 1000, "Received control data frame too small: %u", (unsigned)size);
+        return ESP_ERR_INVALID_SIZE;
+    }
+
     espnow_ctrl_data_t *ctrl_data = (espnow_ctrl_data_t *)data;
     ESP_LOGD(TAG, "src_addr: "MACSTR", espnow_ctrl_responder_recv, value: %d",
                 MAC2STR(src_addr), ctrl_data->responder_value_i);
+
+    /* responder_value_s_size comes from the air and the raw callback gets no
+     * length. An integer (or float) whose low 24 bits are 0, e.g. 0x02000000
+     * or 2.0f, has the same bytes as a string header but is sent with the
+     * header length only; such a frame is delivered as the value it is
+     * instead of being dropped, and the raw callback still gets a buffer of
+     * the announced length (see espnow_ctrl_raw_cb_padded()). */
+    bool str_header = !ctrl_data->responder_value_s_flag && ctrl_data->responder_value_s_size;
+    size_t str_size = str_header ? ctrl_data->responder_value_s_size : 0;
+    if (size < sizeof(espnow_ctrl_data_t) + str_size) {
+        ESP_LOGD(TAG, "control value delivered as integer, string does not fit: size=%u str_size=%u",
+                 (unsigned)size, (unsigned)str_size);
+    }
 
 #ifdef CONFIG_ESPNOW_CONTROL_AUTO_CHANNEL_SENDING
     if (ctrl_data->frame_head.ack) {
@@ -325,8 +392,16 @@ static esp_err_t espnow_ctrl_responder_data_process(uint8_t *src_addr, void *dat
             g_data_cb(ctrl_data->initiator_attribute, ctrl_data->responder_attribute, ctrl_data->responder_value_i);
         }
 
-        if (g_data_raw_cb) {
-            g_data_raw_cb(src_addr, ctrl_data, rx_ctrl);
+        espnow_ctrl_data_raw_cb_t raw_cb = g_data_raw_cb;
+        if (raw_cb) {
+            /* A frame whose header announces no string, or one that holds the
+             * announced string and the NUL after it, is handed over as it is. */
+            if (!str_header
+                    || (size > sizeof(espnow_ctrl_data_t) + str_size && ctrl_data->responder_value_s[str_size] == '\0')) {
+                raw_cb(src_addr, ctrl_data, rx_ctrl);
+            } else {
+                espnow_ctrl_raw_cb_padded(src_addr, ctrl_data, size, rx_ctrl, raw_cb);
+            }
         }
 
 #ifdef CONFIG_ESPNOW_CONTROL_AUTO_CHANNEL_FORWARD
@@ -346,16 +421,35 @@ esp_err_t espnow_ctrl_responder_data(espnow_ctrl_data_cb_t cb)
 }
 
 #ifdef CONFIG_ESPNOW_CONTROL_AUTO_CHANNEL_SENDING
+/* Channel learned from the last ACK, mirrored from NVS so an ACK only causes a
+ * flash write when the value actually changes. 0 means "not loaded yet". */
+static uint8_t g_saved_channel = 0;
+
 static esp_err_t espnow_ctrl_initiator_ack(uint8_t *src_addr, void *data,
                       size_t size, wifi_pkt_rx_ctrl_t *rx_ctrl)
 {
     espnow_frame_head_t *frame_head = (espnow_frame_head_t *)data;
 
+    /* ACK is a plaintext, unauthenticated control-plane frame and the handler
+     * stays registered after the first send, so any device in range can move
+     * the channel used for the next send (see the help text of
+     * CONFIG_ESPNOW_CONTROL_AUTO_CHANNEL_SENDING). The value is accepted as
+     * before; only the NVS write is skipped when it does not change. */
     uint8_t channel = frame_head ? frame_head->channel : 1;
 
     ESP_LOGI(TAG, "src_addr: "MACSTR", %s, channel: %d", MAC2STR(src_addr), __func__, channel);
 
-    espnow_storage_set(ESPNOW_CHANNEL_KEY, &channel, sizeof(channel));
+    if (channel != g_saved_channel) {
+        /* Mirror the value only once it is in NVS: after a failed write the next
+         * ACK with the same channel retries instead of being filtered out by a
+         * cache that NVS does not match. The channel itself is used as before. */
+        esp_err_t ret = espnow_storage_set(ESPNOW_CHANNEL_KEY, &channel, sizeof(channel));
+        if (ret == ESP_OK) {
+            g_saved_channel = channel;
+        } else {
+            ESPNOW_LOG_RATE_LIMITED(ESP_LOGW, 1000, "Failed to save channel %d: %s", channel, esp_err_to_name(ret));
+        }
+    }
 
     if (g_bind_sem) {
         xSemaphoreGive(g_bind_sem);
@@ -380,6 +474,7 @@ static esp_err_t espnow_ctrl_initiator_handle(espnow_data_type_t type, espnow_at
     bool timer_wakeup_enabled = false;
 #endif
     espnow_storage_get(ESPNOW_CHANNEL_KEY, &channel, sizeof(channel));
+    g_saved_channel = channel;
     espnow_ctrl_data_t data = {
         .frame_head = {
             .broadcast                  = true,

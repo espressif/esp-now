@@ -39,7 +39,7 @@ I (40550) app_main: bind, uuid: 7c:df:a1:76:42:38, initiator_type: 513
 
 Single click the `BOOT` button on the initiator device, this device will send the control command. When other devices receive the control command, the status of `RGB LED` (ON/OFF) will be controlled by the initiator device, and the color will be white.
 
-> Note: The device can only control the bound devices, so it must be bound before control.
+> Note: The device can only control the bound devices, so it must be bound before control. Binding is matched on the frame source address and is not sender authentication; see the `espnow_ctrl_responder_bind` note in `espnow_ctrl.h`.
 
 Output sample from the initiator:
 

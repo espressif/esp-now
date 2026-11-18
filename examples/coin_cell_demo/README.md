@@ -48,7 +48,7 @@ Refer to [V1](./switch/docs/SCH_Cell_button_switch_ESP32C2_V1.pdf) and [V2](./sw
 
 ### switch
 
-> **Note:** The device can only control the bound devices, so it must be bound before control.
+> **Note:** The device can only control the bound devices, so it must be bound before control. Binding is matched on the frame source address and is not sender authentication; see the `espnow_ctrl_responder_bind` note in `espnow_ctrl.h`.
 
 #### ESP32 series DevKit
 
