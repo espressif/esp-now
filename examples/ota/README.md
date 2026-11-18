@@ -10,6 +10,8 @@ This example can run on any ESP32 series boards and at least two development boa
 
 Open the project configuration menu (`idf.py menuconfig`) to configure the OTA mode and firmware upgrade URL (Refer to Kconfig file).
 
+> **Security note:** this example uses plaintext OTA frames (the library default, `CONFIG_ESPNOW_OTA_SECURITY=n`), so any device in range can push firmware to the responder. It is a lab demo only. A deployment should enable `CONFIG_ESPNOW_OTA_SECURITY` and `CONFIG_ESPNOW_SEC_REJECT_PLAINTEXT`, set `sec_enable`, distribute the application key with the security handshake (see `examples/solution`) and enable Secure Boot v2, Flash Encryption and `CONFIG_BOOTLOADER_APP_ANTI_ROLLBACK` (see the `espnow_config_t` note in `espnow.h`).
+
 ## How to Use the Example
 
 <img src="../../docs/_static/en/OTA_workflow.png" width="550">

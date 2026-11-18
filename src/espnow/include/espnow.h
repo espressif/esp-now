@@ -79,14 +79,78 @@ ESP_EVENT_DECLARE_BASE(ESP_EVENT_ESPNOW);
 
 /**
  * @brief Initialize the configuration of espnow
+ *
+ * @note ESP-NOW does not authenticate the sender address. The library only
+ *       verifies possession of the application key (AES128-CCM on the payload),
+ *       so a plaintext data type accepts frames from any device in range and all
+ *       key holders form one trust domain. There is no anti-replay; see the
+ *       espnow_set_key note.
+ *
+ *       Recommended security configuration; without all of it the library provides no
+ *       authentication:
+ *       - sec_enable set and the key handshake completed before protected traffic;
+ *       - CONFIG_ESPNOW_ALL_SECURITY, or CONFIG_ESPNOW_*_SECURITY for every protected type;
+ *       - CONFIG_ESPNOW_SEC_REJECT_PLAINTEXT;
+ *       - forward_enable cleared unless unauthenticated multi-hop relay is needed;
+ *       - a non-public, random PoP with enough entropy to be unpredictable, per
+ *         deployment or per device, provisioned to both sides over a trusted
+ *         channel, never the examples' public espnow_pop: the PoP is the only
+ *         secret protecting the application key;
+ *       - the handshake run as a commissioning step and every node verified afterwards;
+ *       - espnow_sec_initiator_start called only with the addresses of responders
+ *         that the application has approved. An address can be spoofed, so this
+ *         narrows the handshake but does not replace the PoP;
+ *       - Flash Encryption (the application key is stored in NVS in plaintext),
+ *         plus Secure Boot v2 and CONFIG_BOOTLOADER_APP_ANTI_ROLLBACK when
+ *         espnow_ota is used;
+ *       - the ESP-NOW debug console disabled (espnow_console_config_t
+ *         monitor_command.espnow cleared);
+ *       - log level at most INFO (DEBUG prints the key).
+ *
+ *       Design limitations and recommended usage. ESP-NOW frames have no sequence
+ *       number and the header is not authenticated, so a recorded frame can be
+ *       replayed and its type or source address rewritten (espnow_set_key note);
+ *       GROUP and ACK are plaintext by design (espnow_set_group and
+ *       espnow_frame_head_t notes). The recommended usage within these limits:
+ *       - application data carries its own type tag and counter in the payload;
+ *       - built-in protocols are used only for what they are designed for:
+ *         espnow_ctrl for reversible convenience control, espnow_time for
+ *         non-security time, groups configured locally, ACK as a transport hint;
+ *       - every receive window (handshake, bind, OTA, provisioning request and
+ *         reply, time sync) is open only for the operation it serves, on an
+ *         explicit action, and closed afterwards; a recorded encrypted frame
+ *         can be replayed without the key, so an open window is the exposure.
+ *       Using the library outside this usage (for example unlock or alarm
+ *       control over espnow_ctrl, a handshake responder left running after
+ *       commissioning, over-the-air grouping outside commissioning) is not
+ *       recommended and is not protected.
+ *
+ *       The recommended security configuration is both parts of this note, the
+ *       build options and the usage. The examples, including examples/solution,
+ *       are lab demos that implement neither (plaintext defaults, public PoP,
+ *       handlers registered for the whole uptime, no token or counter checks);
+ *       building one with the options above does not make it the recommended
+ *       configuration. Behaviour reproduced on an example is a property of the
+ *       example, not of the library under the recommended configuration.
  */
 typedef struct {
     const uint8_t pmk[16];                  /**< Primary master key */
-    bool forward_enable             : 1;    /**< Forward when packets are received */
+    bool forward_enable             : 1;    /**< Forward when packets are received. A broadcast frame is relayed before it
+                                                 is decrypted or authenticated, bounded by forward_ttl and retransmit_count,
+                                                 so any device in range can make the network repeat a frame. Clear it when
+                                                 multi-hop relay is not needed. */
     bool forward_switch_channel     : 1;    /**< Forward data packet with exchange channel */
-    bool sec_enable                 : 1;    /**< Encrypt ESP-NOW data payload when send and decrypt when receive */
+    bool sec_enable                 : 1;    /**< Enable ESP-NOW data payload encryption when send and decryption when receive.
+                                                 It encrypts nothing by itself: a frame is encrypted only when it is sent with
+                                                 a frame head that has security set (see the espnow_send note).
+                                                 With CONFIG_ESPNOW_SEC_REJECT_PLAINTEXT (recommended) plaintext frames of
+                                                 types built with CONFIG_ESPNOW_*_SECURITY, DATA and RESERVED are rejected;
+                                                 see espnow_set_security_required_for_data_type(). */
     uint8_t reserved1               : 5;    /**< Reserved */
-    uint8_t qsize;                          /**< Size of packet buffer queue */
+    uint8_t qsize;                          /**< Size of packet buffer queue. A received frame takes one entry to be handled
+                                                 by this device and one more to be forwarded. A frame that needs both while
+                                                 only one is free is handled and not forwarded, so use at least 2 together
+                                                 with forward_enable. */
     uint8_t send_retry_num;                 /**< Number of retransmissions */
     uint32_t send_max_timeout;              /**< Maximum timeout */
     struct {
@@ -177,9 +241,14 @@ typedef struct espnow_frame_head_s {
      */
     bool broadcast              : 1;  /**< Packet sent in broadcast mode or unicast mode */
     bool group                  : 1;  /**< Only the group set as broadcast transmission mode is valid */
-    bool ack                    : 1;  /**< Wait for the receiving device to return ack to ensure transmission reliability */
+    bool ack                    : 1;  /**< Wait for the receiving device to return ack to ensure transmission reliability.
+                                           ACK frames are plaintext and matched on magic only: they signal delivery, not
+                                           that the peer holds the key. By design a forged ACK (the magic is readable)
+                                           can stop retransmission; ACK is a transport hint only. Using it as an
+                                           application-level confirmation is not recommended: require a secured
+                                           application reply when delivery matters. */
     uint16_t retransmit_count   : 5;  /**< Too many packet retransmissions will lead to network congestion */
-    uint8_t forward_ttl         : 5;  /**< Number of hops in data transfer */
+    uint8_t forward_ttl         : 5;  /**< Remaining hops; decremented on every forward, dropped at 0 */
     int8_t forward_rssi         : 8;  /**< When the data packet signal received by the receiving device is lower than forward_rssi, it will not be transferred,
                                            in order to avoid network congestion caused by packet transfer */
 } ESPNOW_PACKED_STRUCT espnow_frame_head_t;
@@ -213,6 +282,12 @@ esp_err_t espnow_del_peer(const espnow_addr_t addr);
 /**
  * @brief   Send ESP-NOW data
  *
+ * @note With sec_enable set, the payload is encrypted only if frame_config->security
+ *       is true. A frame head without the bit is sent in plaintext without error,
+ *       and so is a NULL frame_config: ESPNOW_FRAME_CONFIG_DEFAULT leaves the bit
+ *       clear whatever CONFIG_ESPNOW_*_SECURITY is set to. Always pass a frame head
+ *       with security set for data that must be encrypted.
+ *
  * @param[in]   type  ESP-NOW data type defined by espnow_data_type_t
  * @param[in]   dest_addr  destination mac address
  * @param[in]   data  the sending data which must not be NULL
@@ -231,6 +306,11 @@ esp_err_t espnow_send(espnow_data_type_t type, const espnow_addr_t dest_addr, co
 
 /**
  * @brief   ESP-NOW data receive callback function for the corresponding data type
+ *
+ * @note src_addr and the data type come from the unauthenticated header, even for
+ *       an encrypted frame (see the espnow_set_key note): never authorize on
+ *       src_addr alone, start every encrypted payload with its own type tag, and
+ *       check tag and length before using any field.
  *
  * @param[in]  src_addr  peer MAC address
  * @param[in]  data  received data
@@ -292,6 +372,42 @@ esp_err_t espnow_set_config_for_data_type(espnow_data_type_t type, bool enable, 
 esp_err_t espnow_get_config_for_data_type(espnow_data_type_t type, bool *enable);
 
 /**
+ * @brief Set whether frames of a data type must arrive encrypted when sec_enable is on
+ *
+ * With sec_enable set, a plaintext frame of a required type is dropped before the
+ * receive callback, which cannot tell a forged plaintext frame from an encrypted one.
+ * Built-in types default to their CONFIG_ESPNOW_*_SECURITY option; DATA and RESERVED
+ * default to required. ACK, FORWARD, GROUP and SECURITY* are plaintext by design.
+ *
+ * @note The drop only happens when CONFIG_ESPNOW_SEC_REJECT_PLAINTEXT is enabled
+ *       (default n, recommended y). Without it this setting is recorded but has
+ *       no effect and plaintext frames of every type are accepted.
+ *
+ * @note May be called from any task. Calls for different data types do not affect
+ *       each other's setting; for one data type the last call wins.
+ *
+ * @param[in]  type  data type defined by espnow_data_type_t
+ * @param[in]  required  true - drop plaintext frames of this type, false - accept them
+ *
+ * @return
+ *    - ESP_OK
+ *    - ESP_ERR_INVALID_ARG
+ */
+esp_err_t espnow_set_security_required_for_data_type(espnow_data_type_t type, bool required);
+
+/**
+ * @brief Get whether frames of a data type must arrive encrypted when sec_enable is on
+ *
+ * @param[in]  type  data type defined by espnow_data_type_t
+ * @param[out]  required  current setting for this data type
+ *
+ * @return
+ *    - ESP_OK
+ *    - ESP_ERR_INVALID_ARG
+ */
+esp_err_t espnow_get_security_required_for_data_type(espnow_data_type_t type, bool *required);
+
+/**
  * @brief      Set group ID addresses
  *
  * @param[in]  group_id  pointer to new group ID addresses
@@ -344,6 +460,17 @@ bool espnow_is_my_group(const espnow_group_t group_id);
 /**
  * @brief       Dynamically set the grouping of devices through commands
  *
+ * @note GROUP frames are plaintext and unauthenticated, because devices must be
+ *       grouped before any key is distributed. Any device in range can change
+ *       group membership, and can evict an application group once the list is full;
+ *       this exposes no data and grants no control, but it interrupts the current
+ *       and later group traffic until membership is restored. Do not use membership
+ *       for access control. Recommended usage: configure groups locally with
+ *       espnow_add_group() and clear receive_enable.group so no GROUP frame is
+ *       processed. Over-the-air grouping is a commissioning convenience; keeping
+ *       it enabled afterwards is not recommended, and an application that does
+ *       must resend membership before each group session and fall back to unicast.
+ *
  * @param[in]   addrs_list  MAC address list of the grouping devices
  * @param[in]   addrs_num  number of the grouping devices
  * @param[in]   group_id  pointer to the specified group ID addresses
@@ -366,6 +493,25 @@ esp_err_t espnow_set_group(const espnow_addr_t *addrs_list, size_t addrs_num,
  *
  * @attention Set sec_enable in espnow_config to true when ESP-NOW initializes, or the function will return failed.
  *
+ * @note Encryption covers the payload only and there is no anti-replay (random
+ *       IV). The outer type, magic, source and destination address are not
+ *       authenticated: a device without the key can record an encrypted frame,
+ *       rewrite them (including the source address) and replay it. The key proves
+ *       who created a payload, not who sent this frame. Put sender identity and a
+ *       sequence number inside the payload where either matters, and prefer
+ *       absolute values over relative ones.
+ *
+ *       These are design limitations of the frame format: the 32-entry duplicate
+ *       cache is filled before authentication and is not anti-replay, and the
+ *       AEAD has no associated data, so a ciphertext of one type is accepted
+ *       under another. Recommended usage: application data carries a type tag
+ *       and a monotonic counter or receiver challenge inside the encrypted
+ *       payload and rejects stale values (see handler_for_data_t); no
+ *       irreversible action is triggered from a single frame; the key is rotated
+ *       (new handshake) to invalidate recordings. The built-in protocols are
+ *       designed for uses where a replay is harmless or the receive window is
+ *       closed; see the recommended usage in the espnow_config_t note.
+ *
  * @param[in]  key_info  security key info
  *
  *    - ESP_OK
@@ -376,6 +522,9 @@ esp_err_t espnow_set_key(uint8_t key_info[APP_KEY_LEN]);
 /**
  * @brief Get the security key info stored in flash
  *        If no security key info is stored in flash, the function will return failed.
+ *
+ * @note The key is stored in NVS in plaintext and is shared by the whole trust
+ *       domain: enable Flash Encryption, and re-key when a device is lost.
  *
  * @param[out]  key_info  security key info
  *

@@ -1,6 +1,6 @@
 # Security Example
 
-This example demonstrates how to use ESP-NOW security feature to configure encryption key to devices, so the transmitted ESP-NOW data will be encrypted automatically.
+This example demonstrates how to use ESP-NOW security feature to configure encryption key to devices and to send ESP-NOW data encrypted with it. The key alone encrypts nothing: a frame is encrypted only when it is sent with an `espnow_frame_head_t` that has `security` set, which this example does once the handshake has succeeded.
 
 The basic functionality is same as get_start, but just have this extra security enhancement.
 

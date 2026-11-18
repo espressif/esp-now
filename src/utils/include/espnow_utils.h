@@ -106,6 +106,30 @@ typedef struct espnow_time_config_s {
     } while(0)
 
 /**
+ * @brief Emit a log line at most once per `interval_ms` from this call site.
+ *
+ * Use for logs an unauthenticated frame can trigger: with espnow_log enabled
+ * every line is broadcast and written to flash. The suppressed count is appended.
+ *
+ * @param log_macro    ESP_LOGE / ESP_LOGW / ESP_LOGI
+ * @param interval_ms  minimum spacing between emitted lines
+ * @param format       string literal, followed by its arguments
+ */
+#define ESPNOW_LOG_RATE_LIMITED(log_macro, interval_ms, format, ...) do { \
+        static uint32_t s_espnow_rl_last_ms = 0; \
+        static uint32_t s_espnow_rl_suppressed = 0; \
+        uint32_t s_espnow_rl_now = esp_log_timestamp(); \
+        if (s_espnow_rl_last_ms == 0 \
+                || (uint32_t)(s_espnow_rl_now - s_espnow_rl_last_ms) >= (uint32_t)(interval_ms)) { \
+            log_macro(TAG, format " (%u similar suppressed)", ##__VA_ARGS__, (unsigned)s_espnow_rl_suppressed); \
+            s_espnow_rl_last_ms = s_espnow_rl_now ? s_espnow_rl_now : 1; \
+            s_espnow_rl_suppressed = 0; \
+        } else { \
+            s_espnow_rl_suppressed++; \
+        } \
+    } while (0)
+
+/**
  * @brief Reboot the chip after a delay
  *
  * This API just starts an esp_timer and executes a reboot from that.

@@ -213,7 +213,12 @@ esp_err_t espnow_sec_auth_decrypt(espnow_sec_t *sec, const uint8_t *input, size_
                                        output, output_len,
                                        &out_len);
     if (st != PSA_SUCCESS) {
-        ESP_LOGE(TAG, "psa_aead_decrypt failed: %d", (int)st);
+        /* A wrong tag is the normal outcome for a forged or foreign-key frame and
+         * can arrive at wire rate, so it is not logged here; the caller reports it
+         * rate-limited. Anything else is a local fault and worth a line. */
+        if (st != PSA_ERROR_INVALID_SIGNATURE) {
+            ESP_LOGE(TAG, "psa_aead_decrypt failed: %d", (int)st);
+        }
         return ESP_FAIL;
     }
     *olen = out_len;
@@ -227,7 +232,10 @@ esp_err_t espnow_sec_auth_decrypt(espnow_sec_t *sec, const uint8_t *input, size_
     *olen = ilen;
 
     if (ret != 0) {
-        ESP_LOGE(TAG, "Failed at mbedtls_ccm_auth_decrypt with error code : %d", ret);
+        /* See the PSA branch: an authentication failure is left to the caller. */
+        if (ret != MBEDTLS_ERR_CCM_AUTH_FAILED) {
+            ESP_LOGE(TAG, "Failed at mbedtls_ccm_auth_decrypt with error code : %d", ret);
+        }
         return ESP_FAIL;
     }
 
