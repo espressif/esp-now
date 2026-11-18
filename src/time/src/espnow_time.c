@@ -58,11 +58,21 @@ static espnow_time_initiator_config_t g_initiator_config;
 static espnow_time_responder_config_t g_responder_config;
 static TimerHandle_t g_initiator_timer = NULL;
 static int64_t g_time_offset_us = 0;  /* Offset from initiator time */
+/* Time (ms) of the last failed reply to a REQUEST; 0 when the last reply succeeded. */
+static uint32_t g_req_fail_ms = 0;
+
+/* After a reply to a REQUEST fails, REQUESTs are ignored for this long. */
+#define ESPNOW_TIME_REQ_FAIL_HOLD_MS  1000
 
 /**
  * @brief Send time packet
+ *
+ * @param type    packet type
+ * @param remote  true when sending in reply to a received (unauthenticated) REQUEST:
+ *                the failure log is rate-limited so a flood of REQUESTs cannot log
+ *                per packet. Application and periodic broadcasts log every failure.
  */
-static esp_err_t espnow_time_send_packet(uint8_t type)
+static esp_err_t espnow_time_send_packet(uint8_t type, bool remote)
 {
     espnow_time_packet_t pkt = {
         .version = ESPNOW_TIME_VERSION,
@@ -87,7 +97,11 @@ static esp_err_t espnow_time_send_packet(uint8_t type)
     esp_err_t ret = espnow_send(ESPNOW_DATA_TYPE_TIMESYNC, ESPNOW_ADDR_BROADCAST,
                                  &pkt, sizeof(pkt), &frame_head, pdMS_TO_TICKS(1000));
     if (ret != ESP_OK) {
-        ESP_LOGW(TAG, "Failed to send time packet: %s", esp_err_to_name(ret));
+        if (remote) {
+            ESPNOW_LOG_RATE_LIMITED(ESP_LOGW, 1000, "Failed to send time packet: %s", esp_err_to_name(ret));
+        } else {
+            ESP_LOGW(TAG, "Failed to send time packet: %s", esp_err_to_name(ret));
+        }
     }
 
     return ret;
@@ -102,15 +116,16 @@ static esp_err_t espnow_time_recv_handler(uint8_t *src_addr, void *data,
     ESP_PARAM_CHECK(src_addr);
     ESP_PARAM_CHECK(data);
 
+    /* TIME frames may be plaintext; rate-limit remotely triggerable logs. */
     if (size < sizeof(espnow_time_packet_t)) {
-        ESP_LOGW(TAG, "Invalid time packet size: %d", size);
+        ESPNOW_LOG_RATE_LIMITED(ESP_LOGW, 1000, "Invalid time packet size: %d", size);
         return ESP_ERR_INVALID_SIZE;
     }
 
     espnow_time_packet_t *pkt = (espnow_time_packet_t *)data;
 
     if (pkt->version != ESPNOW_TIME_VERSION) {
-        ESP_LOGW(TAG, "Unsupported time packet version: %d", pkt->version);
+        ESPNOW_LOG_RATE_LIMITED(ESP_LOGW, 1000, "Unsupported time packet version: %d", pkt->version);
         return ESP_ERR_NOT_SUPPORTED;
     }
 
@@ -120,8 +135,27 @@ static esp_err_t espnow_time_recv_handler(uint8_t *src_addr, void *data,
         case ESPNOW_TIME_ROLE_INITIATOR:
             /* Initiator: respond to time requests by broadcasting time */
             if (pkt->type == ESPNOW_TIME_TYPE_REQUEST) {
+                /* The REQUEST is unauthenticated. While replies fail (for example
+                 * CONFIG_ESPNOW_TIME_SECURITY is on and no application key is set
+                 * yet) hold the reply path for ESPNOW_TIME_REQ_FAIL_HOLD_MS so a
+                 * flood of REQUESTs cannot drive the failing send path, and its
+                 * diagnostics in espnow_send(), once per packet. Successful replies
+                 * are not limited. */
+                uint32_t now_ms = esp_log_timestamp();
+                if (g_req_fail_ms && (uint32_t)(now_ms - g_req_fail_ms) < ESPNOW_TIME_REQ_FAIL_HOLD_MS) {
+                    break;
+                }
                 ESP_LOGD(TAG, "Received time request, broadcasting time");
-                espnow_time_send_packet(ESPNOW_TIME_TYPE_BROADCAST);
+                if (espnow_time_send_packet(ESPNOW_TIME_TYPE_BROADCAST, true) == ESP_OK) {
+                    g_req_fail_ms = 0;
+                } else {
+                    /* The hold starts when the send has failed, not when the REQUEST
+                     * arrived: espnow_send() may have blocked for up to its 1000 ms
+                     * timeout waiting for the send lock, and a hold measured from the
+                     * arrival time would already be over for the next queued REQUEST. */
+                    uint32_t fail_ms = esp_log_timestamp();
+                    g_req_fail_ms = fail_ms ? fail_ms : 1;
+                }
             }
             /* Initiator never adjusts its time */
             break;
@@ -138,7 +172,7 @@ static esp_err_t espnow_time_recv_handler(uint8_t *src_addr, void *data,
                 /* Only adjust if drift exceeds threshold */
                 if (abs(drift_ms) > g_responder_config.max_drift_ms) {
                     g_time_offset_us = remote_time_us - local_time_us;
-                    ESP_LOGI(TAG, "Time adjusted by %" PRId32 " ms", drift_ms);
+                    ESPNOW_LOG_RATE_LIMITED(ESP_LOGI, 1000, "Time adjusted by %" PRId32 " ms", drift_ms);
                 }
 
                 /* Post event to notify application */
@@ -152,7 +186,7 @@ static esp_err_t espnow_time_recv_handler(uint8_t *src_addr, void *data,
             break;
 
         default:
-            ESP_LOGW(TAG, "Time sync not started, ignoring packet");
+            ESPNOW_LOG_RATE_LIMITED(ESP_LOGW, 1000, "Time sync not started, ignoring packet");
             break;
     }
 
@@ -165,7 +199,7 @@ static esp_err_t espnow_time_recv_handler(uint8_t *src_addr, void *data,
 static void espnow_time_timer_cb(TimerHandle_t timer)
 {
     if (g_time_role == ESPNOW_TIME_ROLE_INITIATOR) {
-        espnow_time_send_packet(ESPNOW_TIME_TYPE_BROADCAST);
+        espnow_time_send_packet(ESPNOW_TIME_TYPE_BROADCAST, false);
     }
 }
 
@@ -206,6 +240,7 @@ esp_err_t espnow_time_initiator_start(const espnow_time_initiator_config_t *conf
     }
 
     g_time_role = ESPNOW_TIME_ROLE_INITIATOR;
+    g_req_fail_ms = 0;
 
     return ESP_OK;
 }
@@ -237,7 +272,7 @@ esp_err_t espnow_time_initiator_broadcast(void)
     }
 
     ESP_LOGD(TAG, "Broadcasting time");
-    return espnow_time_send_packet(ESPNOW_TIME_TYPE_BROADCAST);
+    return espnow_time_send_packet(ESPNOW_TIME_TYPE_BROADCAST, false);
 }
 
 esp_err_t espnow_time_responder_start(const espnow_time_responder_config_t *config)
@@ -288,7 +323,7 @@ esp_err_t espnow_time_responder_request(void)
     }
 
     /* Send time request to trigger initiator broadcast */
-    esp_err_t ret = espnow_time_send_packet(ESPNOW_TIME_TYPE_REQUEST);
+    esp_err_t ret = espnow_time_send_packet(ESPNOW_TIME_TYPE_REQUEST, false);
     if (ret != ESP_OK) {
         return ret;
     }

@@ -114,14 +114,16 @@ ESP-NOW 可以用来接收设备运行时的日志，便于设备调试。它适
 
 ### 数据加密
 
-ESP-NOW 可以通过 ECDH 和 AES128-CCM 来保护数据安全。
+ESP-NOW 可以使用通过 ECDH 握手分发的应用密钥，以 AES128-CCM 加密应用数据载荷。
 
 1. **快速配置**：5 秒钟内可配置 16 台设备。
 2. **多设备握手**：ESP-NOW 作为发起者的设备可以同时与其他多个设备握手。
-3. **安全性**：
+3. **机制**：
     - 使用 ECDH 和所有权证明 (PoP) 字符串授权会话、生成共享密钥
     - 使用 AES256-CTR 模式加密配置数据
     - 使用 AES128-CCM 模式加密 ESP-NOW 数据
+
+**范围。** 加密只覆盖应用载荷，证明的是持有应用密钥；不认证外层帧字段，不提供防重放，不校验 OTA 固件，密钥握手属于配网步骤。安全选项默认关闭，以保证既有部署继续互通；示例保持默认值，是实验演示。推荐安全配置和上述限制以 `espnow.h` 为准：`espnow_config_t` 的说明（配置清单和推荐用法）、`espnow_set_key` 的说明（加密保护范围）。
 
 ## 相关文档和资源
 - [ESP-NOW API 指南](https://docs.espressif.com/projects/esp-idf/zh_CN/latest/esp32c3/api-reference/network/esp_now.html)
