@@ -22,6 +22,10 @@ For board 2, it will work as the responder device. Set following configurations 
 * Set `WiFi SSID` of the Router (Access-Point)
 * Set `WiFi Password` of the Router (Access-Point)
 
+### Security notice
+
+This example does not authenticate the initiator: `app_espnow_prov_recv_cb` returns `ESP_OK` for every request, so any device in range can obtain the Wi-Fi credentials while the responder is beaconing. The application must authenticate the initiator in that callback. The WIFI reply is also plaintext unless `CONFIG_ESPNOW_PROV_SECURITY` is enabled, so to keep the credentials confidential complete the security handshake first and provision only key holders (`CONFIG_ESPNOW_PROV_SECURITY` makes the frames encrypted; plaintext requests are only rejected with `CONFIG_ESPNOW_SEC_REJECT_PLAINTEXT`). Neither this example nor `examples/solution` enables these options. See `espnow_prov_responder_start()` and `espnow_prov_initiator_send()` in `espnow_prov.h`.
+
 ### Operating procedures
 
 When this example on the initiator device starts up, it will:
@@ -35,7 +39,7 @@ When this example on the responder device starts up, it will:
 1. Broadcast provision beacons every 100 ms in 30 seconds.
 2. If receive device type provision frame, response with the WiFi type provision frame which contains WiFi credential.
 
-> Authenticating the device through the information of the initiator is not presented in the example.
+> Authenticating the device through the information of the initiator is not presented in the example; see the security notice above.
 
 ## Example Output
 
