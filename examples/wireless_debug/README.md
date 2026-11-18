@@ -127,11 +127,11 @@ For debug monitored mode, post monitored device log to HTTP server (Refer to Kco
 2. Provisioning
    |                    |                                                                   | Note                                                                               |
    | ------------------ | ----------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
-   | Command definition | `provisioning -er -i <beacon_time(s)> <ap_ssid> <app_password>` |                                                                                    |
+   | Command definition | `provisioning -er -i <beacon_time_ms> <ap_ssid> <app_password>` |                                                                                    |
    | Command            | provisioning -e -r -i                                             | Provisioning                                                                       |
    | Parameter          | `-e` or `--erase`                                             | Reset WiFi provisioning information and restart                                    |
    |                    | `-r` or `--responder`                                         | Responder devices start provisioning                                               |
-   |                    | `-i` or `--initiator`                                         | Set provisioning beacon time                                                       |
+   |                    | `-i` or `--initiator`                                         | Set provisioning beacon time in milliseconds                                       |
    |                    | `ap_ssid` `ap_password`                                       | Configure network for devices                                                      |
    | Example            | provisioning -e                                                   | Reset WiFi provisioning information and restart                                    |
    |                    | provisioning -r                                                   | Responder devices start provisioning                                               |
@@ -161,7 +161,7 @@ For debug monitored mode, post monitored device log to HTTP server (Refer to Kco
 4. OTA
    |                    |                                                                            | Note                                         |
    | ------------------ | -------------------------------------------------------------------------- | -------------------------------------------- |
-   | Command definition | `ota -d <url> -f <wait_tick> -s <xx:xx:xx:xx:xx:xx>,<xx:xx:xx:xx:xx:xx>` |                                              |
+   | Command definition | `ota -d <url> -f <wait_ms> -s <xx:xx:xx:xx:xx:xx>,<xx:xx:xx:xx:xx:xx>` |                                              |
    | Command            | ota -d -f -s                                                               | Firmware update                              |
    | Parameter          | `-d` or `--download`                                                   | Firmware Download url                        |
    |                    | `-f` or `--find`                                                       | Find upgradeable devices                     |
@@ -186,7 +186,7 @@ For debug monitored mode, post monitored device log to HTTP server (Refer to Kco
    |                    |                                                                                                                           | Note                                                             |
    | ------------------ | ------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
    | Command definition | `espnow_iperf -spga -c <responder (xx:xx:xx:xx:xx:xx)> -i <interval (sec)> -l <len (Bytes)> -t <time (sec)> -b <count>` |                                                                  |
-   | Command            | espnow_iperf -spga -c -i -l -t -b                                                                                         | ESP-NOW iperf                                                    |
+   | Command            | espnow_iperf -spga -c -i -l -t -b                                                                                         | ESP-NOW iperf. It uses the `RESERVED` data type and does not start (`ESP_ERR_INVALID_STATE`) while the application has that type enabled |
    | Parameter          | `-s` or `--responder`                                                                                                 | Run in responder mode, receive from throughput or ping           |
    |                    | `-p` or `--ping`                                                                                                      | Run in ping mode, send to responder                              |
    |                    | `-g` or `--group`                                                                                                     | Send a package to a group                                        |

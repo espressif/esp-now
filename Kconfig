@@ -467,6 +467,40 @@ menu "ESP-NOW Configuration"
             help
                 The file size of the log
 
+        config ESPNOW_DEBUG_LOG_FLASH_ERASE_MIN_INTERVAL_MS
+            int "Minimum interval between log file rotations (ms, 0 disables)"
+            range 0 3600000
+            default 0
+            help
+                The flash log is two files of half ESPNOW_DEBUG_LOG_FILE_MAX_SIZE
+                each. When the current file is full the other one is erased.
+                Every line written also updates the file table in the
+                ESPNOW_DEBUG_LOG_PARTITION_LABEL_NVS partition (one NVS write
+                per line, as in previous releases). Lines that fill a file can
+                be produced by unauthenticated frames in range (rejected
+                plaintext of a secured type, failed AEAD checks, protocomm
+                handshake errors), and per-call-site log rate limits cannot
+                bound the sum over all call sites, so without a floor on the
+                rotation rate such a flood wears out the log and NVS partitions
+                within days.
+
+                The default 0 keeps the previous behaviour: every rotation is
+                performed and no line is ever dropped, so the flash sink is
+                suitable for lab use but has no wear bound against such a
+                flood. With a non-zero value a rotation closer to the previous
+                one than this interval is refused: the line is dropped (counted,
+                and noted in the next file) instead of erasing flash, and a
+                dropped line does not touch NVS either, so the NVS writes are
+                bounded to one file of lines per interval. With 600000 (10
+                minutes) a continuous flood causes at most 144 log erases per
+                day, so reaching a typical 100k erase cycles takes about two
+                years of uninterrupted presence; normal operation rarely fills
+                32 KB of ERROR/WARN/INFO lines in 10 minutes.
+
+                For a deployment that enables the flash sink, set this option
+                to 600000 or more and keep log_level_flash at ESP_LOG_WARN or
+                lower so that only lines worth persisting reach it.
+
         config ESPNOW_DEBUG_LOG_PARTITION_OFFSET
             int "Offset of the log information in partition"
             range 0 524288

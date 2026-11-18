@@ -107,6 +107,8 @@ The initiator board can debug responder boards through `Command` command running
 
 The responder board will store log in flash and send through ESP-NOW data. It also implements the function of transferring log data to the TCP server on the HTTP network(Default closed. Open the function in `menuconfig`->`Example Configuration`).
 
+> The remote console executes every command it receives. This example keeps the library default `CONFIG_ESPNOW_DEBUG_SECURITY=n`, so commands and logs travel in plaintext and any device in range can command the responder; `espnow_console_init()` logs an error to say so. The remote console is a debug facility: keep `monitor_command.espnow` off, or enable `CONFIG_ESPNOW_DEBUG_SECURITY` together with `CONFIG_ESPNOW_SEC_REJECT_PLAINTEXT` and complete the security handshake before any monitor can command the responder or read its logs.
+
 ### Step 7: OTA through Commands
 
 The initiator board can download new firmware from HTTP server and sends the firmware to responder devices through ESP-NOW. Please refer to OTA command in [README](../wireless_debug/README.md).

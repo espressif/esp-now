@@ -345,6 +345,22 @@ esp_err_t espnow_console_init(const espnow_console_config_t *config)
     }
 
     if (config->monitor_command.espnow) {
+        /* Received frames are executed as console commands. This is a debug
+         * facility with no access control of its own: unless commands are sent
+         * encrypted (CONFIG_ESPNOW_DEBUG_SECURITY + sec_enable) and plaintext
+         * ones are rejected (CONFIG_ESPNOW_SEC_REJECT_PLAINTEXT), any device in
+         * range can run them. Warn once at start, but keep the behaviour. */
+        bool secured = false;
+#if CONFIG_ESPNOW_DEBUG_SECURITY && CONFIG_ESPNOW_SEC_REJECT_PLAINTEXT
+        espnow_config_t espnow_config = {0};
+        secured = espnow_get_config(&espnow_config) == ESP_OK && espnow_config.sec_enable;
+#endif
+        if (!secured) {
+            ESP_LOGW(TAG, "ESP-NOW remote console accepts plaintext commands from any device in range: "
+                     "debug use only, keep it disabled or enable CONFIG_ESPNOW_DEBUG_SECURITY "
+                     "and CONFIG_ESPNOW_SEC_REJECT_PLAINTEXT with sec_enable");
+        }
+
         espnow_set_config_for_data_type(ESPNOW_DATA_TYPE_DEBUG_COMMAND, 1, console_espnow_handle);
     }
 

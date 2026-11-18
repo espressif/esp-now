@@ -68,6 +68,10 @@ target_include_directories(${COMPONENT_TARGET} PUBLIC
 )
 
 set(WRAP_FUNCTIONS esp_log_write esp_log_writev)
+# ESP-IDF >= 5.5 routes ESP_LOGx through esp_log(); wrap it too.
+if("${IDF_VERSION_MAJOR}.${IDF_VERSION_MINOR}" VERSION_GREATER_EQUAL "5.5")
+    list(APPEND WRAP_FUNCTIONS esp_log)
+endif()
 foreach(func ${WRAP_FUNCTIONS})
      target_link_libraries(${COMPONENT_LIB} INTERFACE "-Wl,--wrap=${func}")
 endforeach()

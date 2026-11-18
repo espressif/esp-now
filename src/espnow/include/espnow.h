@@ -107,7 +107,11 @@ ESP_EVENT_DECLARE_BASE(ESP_EVENT_ESPNOW);
  *         espnow_ota is used;
  *       - the ESP-NOW debug console disabled (espnow_console_config_t
  *         monitor_command.espnow cleared);
- *       - log level at most INFO (DEBUG prints the key).
+ *       - log level at most INFO (DEBUG prints the key); espnow_log flash level
+ *         above ERROR while a handshake can run, and
+ *         CONFIG_ESPNOW_DEBUG_LOG_FLASH_ERASE_MIN_INTERVAL_MS set non-zero
+ *         (default 0; rejected frames produce log lines and only the rotation
+ *         floor bounds flash wear).
  *
  *       Design limitations and recommended usage. ESP-NOW frames have no sequence
  *       number and the header is not authenticated, so a recorded frame can be
@@ -345,6 +349,18 @@ esp_err_t espnow_deinit(void);
  *    - ESP_FAIL
  */
 esp_err_t espnow_init(const espnow_config_t *config);
+
+/**
+ * @brief Get the configuration ESP-NOW was initialized with
+ *
+ * @param[out]  config  copy of the configuration passed to espnow_init()
+ *
+ * @return
+ *    - ESP_OK
+ *    - ESP_ERR_INVALID_ARG
+ *    - ESP_ERR_ESPNOW_NOT_INIT
+ */
+esp_err_t espnow_get_config(espnow_config_t *config);
 
 /**
  * @brief Set configuration when receiving the corresponding ESP-NOW data type

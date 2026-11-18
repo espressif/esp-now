@@ -25,6 +25,9 @@
 
 #include "esp_timer.h"
 
+#include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
+
 #include "espnow.h"
 #include "espnow_console.h"
 #include "espnow_ctrl.h"
@@ -205,6 +208,12 @@ typedef struct {
 
 #define IPERF_QUEUE_SIZE 10
 static QueueHandle_t g_iperf_queue = NULL;
+/* Held by the receive callback while it uses g_iperf_queue and by the release
+ * while it deletes it: unregistering the RESERVED handler does not stop a
+ * callback that the ESP-NOW task has already entered. Created once at command
+ * registration and never deleted. */
+static StaticSemaphore_t g_iperf_queue_lock_buf;
+static SemaphoreHandle_t g_iperf_queue_lock = NULL;
 typedef struct {
     uint8_t src_addr[6];
     void *data;
@@ -215,6 +224,19 @@ typedef struct {
 static bool g_iperf_recv_owned = false;         /**< iperf holds the RESERVED receive handler */
 static bool g_iperf_responder = false;          /**< the running session is a responder (it has no task of its own) */
 static bool g_iperf_sec_required_saved = true;  /**< RESERVED setting to put back when iperf releases the type */
+
+/* iperf uses the RESERVED type for itself: it registers its own handler and
+ * unregisters it when the session ends. The library cannot hand a handler back
+ * to the application that registered it, so iperf must not start while the type
+ * is enabled by someone else. */
+static bool espnow_iperf_reserved_in_use(void)
+{
+    bool enabled = false;
+
+    espnow_get_config_for_data_type(ESPNOW_DATA_TYPE_RESERVED, &enabled);
+
+    return enabled;
+}
 
 /* RESERVED is secured by default; follow the debug setting while iperf owns it and
  * put the previous setting back afterwards, so a later RESERVED handler of the
@@ -240,6 +262,30 @@ static void espnow_iperf_recv_stop(void)
     }
 }
 
+/* End of an initiator session, or of one that could not be started: release the
+ * RESERVED type and free the receive queue with whatever is still in it. */
+static void espnow_iperf_initiator_release(void)
+{
+    espnow_iperf_recv_stop();
+
+    /* Wait for a receive callback that is still running; one that starts later
+     * finds the queue gone. */
+    xSemaphoreTake(g_iperf_queue_lock, portMAX_DELAY);
+
+    if (g_iperf_queue) {
+        iperf_recv_data_t tmp_data =  { 0 };
+
+        while (xQueueReceive(g_iperf_queue, &tmp_data, 0)) {
+            ESP_FREE(tmp_data.data);
+        }
+
+        vQueueDelete(g_iperf_queue);
+        g_iperf_queue = NULL;
+    }
+
+    xSemaphoreGive(g_iperf_queue_lock);
+}
+
 static esp_err_t espnow_iperf_initiator_recv(uint8_t *src_addr, void *data,
                       size_t size, wifi_pkt_rx_ctrl_t *rx_ctrl)
 {
@@ -248,11 +294,17 @@ static esp_err_t espnow_iperf_initiator_recv(uint8_t *src_addr, void *data,
     ESP_PARAM_CHECK(size);
     ESP_PARAM_CHECK(rx_ctrl);
 
+    esp_err_t ret = ESP_OK;
+
+    /* From the queue check to the send: see g_iperf_queue_lock. */
+    xSemaphoreTake(g_iperf_queue_lock, portMAX_DELAY);
+
     if (g_iperf_queue) {
         iperf_recv_data_t iperf_data = { 0 };
         iperf_data.data = ESP_MALLOC(size);
         if (!iperf_data.data) {
-            return ESP_FAIL;
+            ret = ESP_FAIL;
+            goto EXIT;
         }
         memcpy(iperf_data.data, data, size);
         iperf_data.size = size;
@@ -261,17 +313,29 @@ static esp_err_t espnow_iperf_initiator_recv(uint8_t *src_addr, void *data,
         if (xQueueSend(g_iperf_queue, &iperf_data, 0) != pdPASS) {
             ESP_LOGW(TAG, "[%s, %d] Send iperf recv queue failed", __func__, __LINE__);
             ESP_FREE(iperf_data.data);
-            return ESP_FAIL;
+            ret = ESP_FAIL;
         }
     }
 
-    return ESP_OK;
+EXIT:
+    xSemaphoreGive(g_iperf_queue_lock);
+
+    return ret;
 }
 
 static void espnow_iperf_initiator_task(void *arg)
 {
     esp_err_t ret   = ESP_OK;
     espnow_iperf_data_t *iperf_data = ESP_CALLOC(1, g_iperf_cfg.packet_len);
+
+    if (!iperf_data) {
+        ESP_LOGW(TAG, "<ESP_ERR_NO_MEM> Alloc iperf packet fail");
+        g_iperf_cfg.finish = true;
+        espnow_iperf_initiator_release();
+        vTaskDelete(NULL);
+        return;
+    }
+
     iperf_data->type = IPERF_BANDWIDTH;
     iperf_data->seq   = 0;
 
@@ -357,17 +421,7 @@ static void espnow_iperf_initiator_task(void *arg)
     ESP_FREE(iperf_data);
     g_iperf_cfg.finish = true;
 
-    espnow_iperf_recv_stop();
-    if (g_iperf_queue) {
-        iperf_recv_data_t tmp_data =  { 0 };
-
-        while (xQueueReceive(g_iperf_queue, &tmp_data, 0)) {
-            ESP_FREE(tmp_data.data);
-        }
-
-        vQueueDelete(g_iperf_queue);
-        g_iperf_queue = NULL;
-    }
+    espnow_iperf_initiator_release();
 
     vTaskDelete(NULL);
 }
@@ -484,6 +538,15 @@ static void espnow_iperf_ping_task(void *arg)
 {
     esp_err_t ret     = ESP_OK;
     espnow_iperf_data_t *iperf_data = ESP_CALLOC(1, g_iperf_cfg.packet_len);
+
+    if (!iperf_data) {
+        ESP_LOGW(TAG, "<ESP_ERR_NO_MEM> Alloc iperf packet fail");
+        g_iperf_cfg.finish = true;
+        espnow_iperf_initiator_release();
+        vTaskDelete(NULL);
+        return;
+    }
+
     size_t send_count = 0;
     size_t recv_count = 0;
     uint32_t spend_time_ms = 0;
@@ -567,17 +630,7 @@ static void espnow_iperf_ping_task(void *arg)
         espnow_del_peer(g_iperf_cfg.addr);
     }
 
-    espnow_iperf_recv_stop();
-    if (g_iperf_queue) {
-        iperf_recv_data_t tmp_data =  { 0 };
-
-        while (xQueueReceive(g_iperf_queue, &tmp_data, 0)) {
-            ESP_FREE(tmp_data.data);
-        }
-
-        vQueueDelete(g_iperf_queue);
-        g_iperf_queue = NULL;
-    }
+    espnow_iperf_initiator_release();
 
     ESP_FREE(iperf_data);
     vTaskDelete(NULL);
@@ -624,10 +677,25 @@ static esp_err_t espnow_iperf_func(int argc, char **argv)
         return ESP_ERR_NOT_SUPPORTED;
     }
 
+    /* `finish` is set as soon as an initiator is asked to stop, but its task still
+     * uses the session settings and the receive queue until it has released the
+     * queue. A session started before that would be torn down by the old task. */
+    if (g_iperf_queue) {
+        ESP_LOGW(TAG, "ESPNOW iperf is stopping, try again later");
+        return ESP_ERR_INVALID_STATE;
+    }
+
     if ((espnow_iperf_args.initiator->count && espnow_iperf_args.responder->count)
             || (!espnow_iperf_args.initiator->count && !espnow_iperf_args.responder->count)) {
         ESP_LOGW(TAG, "Should specific initiator/responder mode");
         return ESP_ERR_INVALID_ARG;
+    }
+
+    /* No session of iperf is left at this point, so an enabled RESERVED type
+     * belongs to the application. Checked before any setting is changed. */
+    if (espnow_iperf_reserved_in_use()) {
+        ESP_LOGW(TAG, "The RESERVED data type is in use by the application, ESPNOW iperf needs it for itself");
+        return ESP_ERR_INVALID_STATE;
     }
 
     if (espnow_iperf_args.len->count) {
@@ -690,8 +758,6 @@ static esp_err_t espnow_iperf_func(int argc, char **argv)
     wifi_second_chan_t second      = 0;
     ESP_ERROR_CHECK(esp_wifi_get_channel(&channel, &second));
 
-    g_iperf_cfg.finish = false;
-
     // esp_wifi_config_espnow_rate(ESP_IF_WIFI_STA, WIFI_PHY_RATE_MCS7_SGI);
 
     if (espnow_iperf_args.initiator->count) {
@@ -707,18 +773,34 @@ static esp_err_t espnow_iperf_func(int argc, char **argv)
 
         g_iperf_queue = xQueueCreate(IPERF_QUEUE_SIZE, sizeof(iperf_recv_data_t));
         ESP_ERROR_RETURN(!g_iperf_queue, ESP_FAIL, "Create espnow recv queue fail");
+
+        /* The session is marked running only from here on: an invalid address or a
+         * failed queue above must not leave "iperf is running" behind. */
+        g_iperf_cfg.finish = false;
         espnow_iperf_recv_start(espnow_iperf_initiator_recv);
 
+        BaseType_t created;
+
         if (espnow_iperf_args.ping->count) {
-            xTaskCreate(espnow_iperf_ping_task, "espnow_iperf_ping", 4 * 1024,
-                        NULL, tskIDLE_PRIORITY + 1, NULL);
+            created = xTaskCreate(espnow_iperf_ping_task, "espnow_iperf_ping", 4 * 1024,
+                                  NULL, tskIDLE_PRIORITY + 1, NULL);
         } else {
-            xTaskCreate(espnow_iperf_initiator_task, "espnow_iperf_initiator", 4 * 1024,
-                        NULL, tskIDLE_PRIORITY + 1, NULL);
+            created = xTaskCreate(espnow_iperf_initiator_task, "espnow_iperf_initiator", 4 * 1024,
+                                  NULL, tskIDLE_PRIORITY + 1, NULL);
+        }
+
+        /* Only the task releases the RESERVED type and the queue; without a task
+         * nothing would, and `espnow_iperf -a` does not either for an initiator. */
+        if (created != pdPASS) {
+            ESP_LOGW(TAG, "<ESP_ERR_NO_MEM> Create espnow iperf task fail");
+            g_iperf_cfg.finish = true;
+            espnow_iperf_initiator_release();
+            return ESP_ERR_NO_MEM;
         }
     }
 
     if (espnow_iperf_args.responder->count) {
+        g_iperf_cfg.finish = false;
         ESP_LOGI(TAG, "------------------------------------------------------------");
         ESP_LOGI(TAG, "responder " MACSTR " listening", MAC2STR(sta_mac));
         ESP_LOGI(TAG, "ESP-NOW window size: 230 bytes");;
@@ -731,6 +813,10 @@ static esp_err_t espnow_iperf_func(int argc, char **argv)
 
 void register_espnow_iperf()
 {
+    if (!g_iperf_queue_lock) {
+        g_iperf_queue_lock = xSemaphoreCreateMutexStatic(&g_iperf_queue_lock_buf);
+    }
+
     espnow_iperf_args.initiator = arg_str0("c", "initiator", "<responder (xx:xx:xx:xx:xx:xx)>", "run in initiator mode, ping to <responder>");
     espnow_iperf_args.responder = arg_lit0("s", "responder", "run in responder mode, receive from throughput or ping");
     espnow_iperf_args.ping      = arg_lit0("p", "ping", "run in ping mode, send to <responder>");

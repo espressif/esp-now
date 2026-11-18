@@ -31,6 +31,20 @@
 #define LOG_FLASH_FILE_MAX_SIZE     CONFIG_ESPNOW_DEBUG_LOG_FILE_MAX_SIZE   /**< File storage size */
 #define LOG_FLASH_STORE_KEY         "log_info"
 #define LOG_FLASH_STORE_NAMESPACE   "log_info"
+#define LOG_FLASH_FILE_SIZE         (LOG_FLASH_FILE_MAX_SIZE / LOG_FLASH_FILE_MAX_NUM)  /**< Size of one file */
+#define LOG_FLASH_TIMESTAMP_LEN     22                               /**< strlen("[YYYY-mm-dd HH:MM:SS] ") */
+
+/* Minimum spacing between two log file rotations. A rotation erases half the
+ * log partition, and the lines that fill a file can be produced by
+ * unauthenticated frames (rejected plaintext, failed AEAD checks, protocomm
+ * errors) faster than any per-call-site rate limit can contain across all call
+ * sites. Bounding the rotation rate bounds the only persistent effect, flash
+ * wear, regardless of how many lines arrive. 0 (the Kconfig default) disables
+ * the bound and keeps the previous behaviour; see the Kconfig help. */
+#ifndef CONFIG_ESPNOW_DEBUG_LOG_FLASH_ERASE_MIN_INTERVAL_MS
+#define CONFIG_ESPNOW_DEBUG_LOG_FLASH_ERASE_MIN_INTERVAL_MS  0
+#endif
+#define LOG_FLASH_ERASE_MIN_INTERVAL_MS  CONFIG_ESPNOW_DEBUG_LOG_FLASH_ERASE_MIN_INTERVAL_MS
 
 /**
  * @brief Create files configuration
@@ -46,6 +60,11 @@ static flash_log_info_t *g_log_info      = NULL;
 static bool g_espnow_log_flash_init_flag = false;
 static const esp_partition_t *g_log_part = NULL;
 static const char *TAG                   = "espnow_log_flash";
+#if LOG_FLASH_ERASE_MIN_INTERVAL_MS > 0
+static TickType_t g_last_rotate_tick     = 0;      /**< tick of the last file rotation (erase) */
+static bool g_rotated_once               = false;  /**< g_last_rotate_tick is valid */
+#endif
+static uint32_t g_rotate_dropped_lines   = 0;      /**< lines dropped while rotation was rate-limited */
 
 static esp_err_t log_info_storage_init()
 {
@@ -145,6 +164,7 @@ esp_err_t espnow_log_flash_init()
                      ESP_PARTITION_SUBTYPE_ANY, CONFIG_ESPNOW_DEBUG_LOG_PARTITION_LABEL_DATA);
 
     g_log_part = esp_partition_get(part_itra);
+    esp_partition_iterator_release(part_itra);  /**< the entry stays valid; the iterator is heap memory */
 
     ESP_ERROR_RETURN(!g_log_part, ESP_ERR_NOT_SUPPORTED, "esp_partition_get");
     ESP_ERROR_RETURN(g_log_part->size < LOG_FLASH_FILE_MAX_SIZE, ESP_ERR_NOT_SUPPORTED,
@@ -153,12 +173,22 @@ esp_err_t espnow_log_flash_init()
     ESP_ERROR_RETURN(LOG_FLASH_FILE_MAX_SIZE / LOG_FLASH_FILE_MAX_NUM % 4096 != 0, ESP_ERR_NOT_SUPPORTED,
                      "The size of the log partition must be an integer of %d KB.", LOG_FLASH_FILE_MAX_NUM * 4);
 
-    g_log_info = log_info_storage_get(LOG_FLASH_STORE_KEY);
+    /* After espnow_log_flash_deinit() the file table is still in RAM and up to
+     * date (see there): use it instead of loading a second copy. */
+    if (!g_log_info) {
+        g_log_info = log_info_storage_get(LOG_FLASH_STORE_KEY);
+    }
 
     if (!g_log_info) {
         g_log_info = ESP_CALLOC(LOG_FLASH_FILE_MAX_NUM, sizeof(flash_log_info_t));
+        ESP_ERROR_RETURN(!g_log_info, ESP_ERR_NO_MEM, "ESP_CALLOC g_log_info");
         err = esp_partition_erase_range(g_log_part, CONFIG_ESPNOW_DEBUG_LOG_PARTITION_OFFSET, LOG_FLASH_FILE_MAX_SIZE);
-        ESP_ERROR_RETURN(err != ESP_OK, err, "esp_partition_erase_range");
+        if (err != ESP_OK) {
+            /* An empty table is only valid for an erased partition: do not
+             * keep it for the next attempt. */
+            ESP_FREE(g_log_info);
+            ESP_ERROR_RETURN(true, err, "esp_partition_erase_range");
+        }
     }
 
     /**< Create two files */
@@ -186,6 +216,10 @@ esp_err_t espnow_log_flash_deinit()
         return ESP_FAIL;
     }
 
+    /* The file table (g_log_info, a few bytes per file) is kept: every write
+     * has already stored it in NVS, espnow_log_flash_read() / _size() on
+     * another task (console `log -r`) may be using it at this moment, and
+     * espnow_log_flash_init() continues with it. */
     g_espnow_log_flash_init_flag = false;
 
     ESP_LOGD(TAG, "Log flash de-initialized successfully");
@@ -205,22 +239,77 @@ esp_err_t espnow_log_flash_write(const char *data, size_t size, esp_log_level_t 
         return ESP_FAIL;
     }
 
+    /* Everything this call appends to the file: the timestamp when this line
+     * starts one, and the line itself. The capacity checks below use this sum
+     * so that neither the timestamp nor the line can cross the file boundary
+     * into the other file. */
+    size_t head_len = flag_timestamp ? LOG_FLASH_TIMESTAMP_LEN : 0;
+    bool truncated  = false;
+
     /**
      * @brief Get the address of the pointer to the next file and clear the file to be written
      * and clear offset size.
      */
-    if ((g_log_info + g_log_index)->size + size > LOG_FLASH_FILE_MAX_SIZE / LOG_FLASH_FILE_MAX_NUM) {
+    if ((g_log_info + g_log_index)->size + head_len + size > LOG_FLASH_FILE_SIZE) {
+        /* Rate-limit rotations: each one erases half the partition, and the
+         * lines filling a file may come from unauthenticated frames. While the
+         * limit holds, drop the line instead of erasing; this also bounds the
+         * per-line NVS update below to one file of lines per interval. Do not
+         * log here: a log line from this path would be queued back into this sink. */
+#if LOG_FLASH_ERASE_MIN_INTERVAL_MS > 0
+        TickType_t now = xTaskGetTickCount();
+        if (g_rotated_once && (now - g_last_rotate_tick) < pdMS_TO_TICKS(LOG_FLASH_ERASE_MIN_INTERVAL_MS)) {
+            if (g_rotate_dropped_lines < UINT32_MAX) {
+                g_rotate_dropped_lines++;
+            }
+            return ESP_ERR_INVALID_STATE;
+        }
+#endif
+
         g_log_index = (g_log_index + 1) % LOG_FLASH_FILE_MAX_NUM;
         (g_log_info + g_log_index)->size   = 0;
         (g_log_info + g_log_index)->offset = 0;
 
-        err = esp_partition_erase_range(g_log_part, (g_log_info + g_log_index)->addr, LOG_FLASH_FILE_MAX_SIZE / LOG_FLASH_FILE_MAX_NUM);
+        err = esp_partition_erase_range(g_log_part, (g_log_info + g_log_index)->addr, LOG_FLASH_FILE_SIZE);
         ESP_ERROR_RETURN(err != ESP_OK, err, "esp_partition_erase_range, addr: %x", (g_log_info + g_log_index)->addr);
+#if LOG_FLASH_ERASE_MIN_INTERVAL_MS > 0
+        g_last_rotate_tick = now;
+        g_rotated_once     = true;
+#endif
+
+        /* Leave a marker in the new file so a reader knows lines are missing.
+         * It counts toward the file size like any other line, so the capacity
+         * check below sees it. */
+        if (g_rotate_dropped_lines) {
+            char note[80];
+            int note_len = snprintf(note, sizeof(note), "[espnow_log_flash] %u line(s) dropped: rotation rate-limited\n",
+                                    (unsigned)g_rotate_dropped_lines);
+            g_rotate_dropped_lines = 0;
+            if (note_len > 0 && note_len < (int)sizeof(note)) {
+                err = esp_partition_write(g_log_part, (g_log_info + g_log_index)->addr, note, note_len);
+                if (err == ESP_OK) {
+                    (g_log_info + g_log_index)->size += note_len;
+                }
+            }
+        }
+    }
+
+    /* A line that does not fit even in a fresh file (after the marker above) is
+     * cut at the file boundary and terminated with a newline: the tail is lost,
+     * but no byte is written into the other file. A log line that long is not
+     * expected; this only keeps the file layout intact if one ever arrives. */
+    if ((g_log_info + g_log_index)->size + head_len + size > LOG_FLASH_FILE_SIZE) {
+        size_t room = LOG_FLASH_FILE_SIZE - (g_log_info + g_log_index)->size;
+        if (room <= head_len + 1) {
+            return ESP_ERR_INVALID_SIZE;
+        }
+        size      = room - head_len - 1;   /**< one byte kept for the newline */
+        truncated = true;
     }
 
     static uint32_t s_event_send_tick = 0;
 
-    if (espnow_log_flash_size() > LOG_FLASH_FILE_MAX_SIZE / LOG_FLASH_FILE_MAX_NUM
+    if (espnow_log_flash_size() > LOG_FLASH_FILE_SIZE
             && (xTaskGetTickCount() - s_event_send_tick > 30000 || !s_event_send_tick)) {
         s_event_send_tick = xTaskGetTickCount();
         esp_event_post(ESP_EVENT_ESPNOW, ESP_EVENT_ESPNOW_LOG_FLASH_FULL, NULL, 0, portMAX_DELAY);
@@ -258,13 +347,19 @@ esp_err_t espnow_log_flash_write(const char *data, size_t size, esp_log_level_t 
     ESP_ERROR_RETURN(err != ESP_OK, err, "esp_partition_write");
     (g_log_info + g_log_index)->size += size;
 
+    if (truncated) {
+        err = esp_partition_write(g_log_part, (g_log_info + g_log_index)->addr + (g_log_info + g_log_index)->size, "\n", 1);
+        ESP_ERROR_RETURN(err != ESP_OK, err, "esp_partition_write");
+        (g_log_info + g_log_index)->size += 1;
+    }
+
     /**
      * @brief Here in order to read the data address written by the file,Get where the data address is written.
      *
      */
     log_info_storage_set(LOG_FLASH_STORE_KEY, g_log_info, sizeof(flash_log_info_t) * LOG_FLASH_FILE_MAX_NUM);
 
-    if (data[size - 1] == '\n') {
+    if (truncated || data[size - 1] == '\n') {
         flag_timestamp = true;
     }
 
@@ -329,6 +424,14 @@ esp_err_t espnow_log_flash_erase()
 
     err = esp_partition_erase_range(g_log_part, CONFIG_ESPNOW_DEBUG_LOG_PARTITION_OFFSET, LOG_FLASH_FILE_MAX_SIZE);
     ESP_ERROR_RETURN(err != ESP_OK, err, "esp_partition_erase_range");
+
+    /* Keep the in-RAM file table consistent with the erased flash. */
+    for (size_t i = 0; i < LOG_FLASH_FILE_MAX_NUM; i++) {
+        (g_log_info + i)->size   = 0;
+        (g_log_info + i)->offset = 0;
+    }
+    g_log_index = 0;
+    g_rotate_dropped_lines = 0;
 
     return ESP_OK;
 }
