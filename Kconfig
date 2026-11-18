@@ -66,7 +66,8 @@ menu "ESP-NOW Configuration"
             ESPNOW_SEC_REJECT_PLAINTEXT as soon as every peer holds the
             application key; the examples keep it off and are lab demos only.
 
-            The library does not verify image authenticity.
+            The library does not verify image authenticity; see the note on
+            espnow_ota_responder_start in espnow_ota.h.
 
             Requires sec_enable in espnow_config_t: with sec_enable off, OTA
             frames are marked secured but never encrypted, so peers drop them
@@ -314,12 +315,29 @@ menu "ESP-NOW Configuration"
             Minimum spacing between OTA session (re)starts triggered by an incoming
             STATUS frame on the responder. Each restart runs esp_ota_begin, which
             erases the whole update partition, so without a floor an unauthenticated
-            STATUS flood can wear out flash and deny service.
+            STATUS flood can wear out flash and deny service, and tear down an
+            in-progress upgrade.
 
             A legitimate upgrade begins once per firmware, so this floor does not
             affect normal upgrades. It only rejects restarts that arrive closer
             together than this interval; a manual retry after a failed upgrade should
             use an interval at least this long, or set 0 to disable the limit.
+
+            Residual: replaying recorded STATUS frames of two different images in
+            turn restarts the session, erasing the update partition once per
+            interval. Wearing out the flash this way takes days of continuous
+            presence; raise this value to lengthen it, or remove it by running
+            the OTA responder only during an upgrade (see espnow_ota_responder_start).
+
+    config ESPNOW_OTA_SCAN_MAX_NUM
+        int "Maximum responders recorded per OTA scan"
+        range 1 1024
+        default 256
+        help
+            Upper bound on distinct responders stored during one OTA scan.
+            INFO frames are unauthenticated, so without a cap spoofed source
+            MACs could grow the scan list (about 270 bytes per entry) until
+            the heap is exhausted.
     endmenu
 
     config ESPNOW_GROUP_COUNT_MAX

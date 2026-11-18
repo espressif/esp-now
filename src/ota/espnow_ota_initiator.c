@@ -92,9 +92,12 @@ static esp_err_t espnow_ota_info(uint8_t *src_addr, void *data,
      * sha256 + reserv2), so require the header and copy only the received app_desc
      * bytes, clamped to the destination size. */
     const size_t hdr_size = sizeof(espnow_ota_info_t) - sizeof(esp_app_desc_t);
-    ESP_ERROR_RETURN(size <= hdr_size, ESP_ERR_INVALID_SIZE,
-                     "OTA INFO frame too short: %u <= %u",
-                     (unsigned)size, (unsigned)hdr_size);
+    if (size <= hdr_size) {
+        ESPNOW_LOG_RATE_LIMITED(ESP_LOGW, 1000, "OTA INFO frame too short: %u <= %u",
+                                (unsigned)size, (unsigned)hdr_size);
+        return ESP_ERR_INVALID_SIZE;
+    }
+
     size_t desc_size = size - hdr_size;
     if (desc_size > sizeof(esp_app_desc_t)) {
         desc_size = sizeof(esp_app_desc_t);
@@ -106,11 +109,24 @@ static esp_err_t espnow_ota_info(uint8_t *src_addr, void *data,
         }
     }
 
+    /* Bound the list: spoofed INFO frames would otherwise exhaust the heap. Every
+     * further spoofed source address lands here, so the log is rate-limited. */
+    if (g_scan_num >= CONFIG_ESPNOW_OTA_SCAN_MAX_NUM) {
+        ESPNOW_LOG_RATE_LIMITED(ESP_LOGW, 1000, "OTA scan list full (%d), ignoring responder " MACSTR,
+                                CONFIG_ESPNOW_OTA_SCAN_MAX_NUM, MAC2STR(src_addr));
+        return ESP_ERR_NO_MEM;
+    }
+
     /* ESP_REALLOC returns NULL on failure without freeing the old block, so use a
      * temporary: on failure the existing list stays intact and we bail out instead
      * of leaking it and NULL-dereferencing g_info_list below. */
     espnow_ota_responder_t *info_list = ESP_REALLOC(g_info_list, (g_scan_num + 1) * sizeof(espnow_ota_responder_t));
-    ESP_ERROR_RETURN(!info_list, ESP_ERR_NO_MEM, "espnow_ota_responder realloc");
+    if (!info_list) {
+        ESPNOW_LOG_RATE_LIMITED(ESP_LOGW, 1000, "OTA scan list realloc failed, ignoring responder " MACSTR,
+                                MAC2STR(src_addr));
+        return ESP_ERR_NO_MEM;
+    }
+
     g_info_list = info_list;
 
     espnow_ota_responder_t *entry = &(g_info_list)[g_scan_num];
@@ -155,8 +171,8 @@ static esp_err_t espnow_ota_status_handle(uint8_t *src_addr, void *data, size_t 
      * espnow_ota_request_status() cannot overflow (CWE-787) and the status
      * struct is never read from uninitialized memory (CWE-125). */
     if (size < sizeof(espnow_ota_status_t) || size > ESPNOW_DATA_LEN) {
-        ESP_LOGW(TAG, "[%s, %d] Drop OTA status frame with invalid size: %u",
-                 __func__, __LINE__, (unsigned)size);
+        ESPNOW_LOG_RATE_LIMITED(ESP_LOGW, 1000, "[%s, %d] Drop OTA status frame with invalid size: %u",
+                                __func__, __LINE__, (unsigned)size);
         return ESP_FAIL;
     }
 
@@ -164,13 +180,15 @@ static esp_err_t espnow_ota_status_handle(uint8_t *src_addr, void *data, size_t 
         espnow_ota_data_t ota_data = { 0 };
         ota_data.data = ESP_MALLOC(size);
         if (!ota_data.data) {
+            ESPNOW_LOG_RATE_LIMITED(ESP_LOGW, 1000, "[%s, %d] Drop OTA status frame, no memory for %u bytes",
+                                    __func__, __LINE__, (unsigned)size);
             return ESP_FAIL;
         }
         memcpy(ota_data.data, data, size);
         ota_data.size = size;
         memcpy(ota_data.src_addr, src_addr, 6);
         if (xQueueSend(g_ota_queue, &ota_data, 0) != pdPASS) {
-            ESP_LOGW(TAG, "[%s, %d] Send ota queue failed", __func__, __LINE__);
+            ESPNOW_LOG_RATE_LIMITED(ESP_LOGW, 1000, "[%s, %d] Send ota queue failed", __func__, __LINE__);
             ESP_FREE(ota_data.data);
             return ESP_FAIL;
         }
@@ -207,7 +225,9 @@ static esp_err_t espnow_ota_initiator_status_process(uint8_t *src_addr, void *da
             break;
     }
 
-    ESP_ERROR_RETURN(ret != ESP_OK, ret, "espnow_ota_handle");
+    /**< Every error path above has already logged, rate-limited because an
+         unauthenticated frame can trigger it; logging here again would double
+         every line. */
     return ret;
 }
 
@@ -339,7 +359,8 @@ static esp_err_t espnow_ota_request_status(uint8_t (*progress_array)[ESPNOW_OTA_
 
             if (response_data->error_code == ESP_ERR_ESPNOW_OTA_STOP
                     || response_data->error_code == ESP_ERR_ESPNOW_OTA_FINISH) {
-                ESP_LOGW(TAG, "<ESP_ERR_ESPNOW_OTA_FIRMWARE_PARTITION> response_data->error_code: ");
+                /* One line per STATUS frame that claims STOP / FINISH, whoever sent it. */
+                ESPNOW_LOG_RATE_LIMITED(ESP_LOGW, 1000, "<ESP_ERR_ESPNOW_OTA_FIRMWARE_PARTITION> response_data->error_code: ");
                 addrs_remove(result->unfinished_addr, &result->unfinished_num, src_addr);
                 addrs_remove(response_addrs, &response_num, src_addr);
                 espnow_set_group((uint8_t (*)[6])src_addr, 1, ESPNOW_ADDR_GROUP_OTA, NULL, false, portMAX_DELAY);
@@ -492,6 +513,12 @@ esp_err_t espnow_ota_initiator_send(const uint8_t addrs_list[][6], size_t addrs_
     ESP_LOGD(TAG, "packet_num: %d, total_size: %d", status.packet_num, status.total_size);
 
     for (int i = 0; i < CONFIG_ESPNOW_OTA_RETRY_COUNT && result->unfinished_num > 0 && g_ota_send_running_flag; ++i) {
+        /* GROUP frames are plaintext, so a spoofed one can drop the responders
+         * from ESPNOW_ADDR_GROUP_OTA; re-add them every round (idempotent). */
+        if (i > 0) {
+            espnow_set_group(result->unfinished_addr, result->unfinished_num, ESPNOW_ADDR_GROUP_OTA, NULL, true, portMAX_DELAY);
+        }
+
         /**
          * @brief Request all devices upgrade status.
          */
